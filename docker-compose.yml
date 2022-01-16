@@ -1,0 +1,38 @@
+version: "3"
+services:
+  terraform-provider-massdriver:
+    build:
+      args:
+        USER: $USER
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    environment:
+      - AWS_ENDPOINT=http://localstack:4566
+      - MASSDRIVER_DEPLOYMENT_ID=deploy-ment-idfakefake-whatever
+      - MASSDRIVER_TOKEN=s3cr3tT0k3n
+      - MASSDRIVER_EVENT_TOPIC_ARN=arn:aws:sns:us-east-1:000000000000:massdriver-provider-test.fifo
+      - AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+      - AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+    networks:
+      provider: {}
+
+  localstack:
+    image: localstack/localstack:latest
+    ports:
+      - "4566:4566"
+    environment:
+      - HOSTNAME_EXTERNAL=localstack
+      - SERVICES=sns,sqs
+      - DATA_DIR=/tmp/localstack/data
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - DEBUG=1
+    volumes:
+      - "./tmp/localstack:/tmp/localstack"
+    networks:
+      provider:
+        aliases:
+          - sqs.us-east-1.localstack
+          - sns.us-east-1.localstack
+
+networks:
+  provider:
