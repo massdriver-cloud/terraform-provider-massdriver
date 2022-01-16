@@ -1,5 +1,5 @@
 .DS_Store
-terraform-provider-hashicups
+terraform-provider-massdriver
 bin
 tmp
 
