@@ -8,6 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sns v1.14.0
 	github.com/google/uuid v1.1.2
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.10.1
+	github.com/hashicorp/terraform-plugin-go v0.8.0
 )
 
 require (
