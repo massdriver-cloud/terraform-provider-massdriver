@@ -25,7 +25,11 @@ func (m MassdriverProvider) ApplyResourceChange(context.Context, *tfprotov6.Appl
 
 func (m MassdriverProvider) ConfigureProvider(ctx context.Context, request *tfprotov6.ConfigureProviderRequest) (*tfprotov6.ConfigureProviderResponse, error) {
 	config, err := request.Config.Unmarshal(tftypes.Object{
-		AttributeTypes:     map[string]tftypes.Type{"deployment_id": tftypes.String, "token": tftypes.String, "event_topic_arn": tftypes.String},
+		AttributeTypes: map[string]tftypes.Type{
+			"deployment_id":   tftypes.String,
+			"token":           tftypes.String,
+			"event_topic_arn": tftypes.String,
+		},
 		OptionalAttributes: map[string]struct{}{},
 	})
 	goMap := make(map[string]string)
@@ -52,9 +56,24 @@ func (m MassdriverProvider) ConfigureProvider(ctx context.Context, request *tfpr
 
 func (m MassdriverProvider) GetProviderSchema(context.Context, *tfprotov6.GetProviderSchemaRequest) (*tfprotov6.GetProviderSchemaResponse, error) {
 	return &tfprotov6.GetProviderSchemaResponse{
-		Provider:          &tfprotov6.Schema{Block: &tfprotov6.SchemaBlock{Attributes: []*tfprotov6.SchemaAttribute{{Name: "deployment_id", Type: tftypes.String, Required: true}, {Name: "token", Type: tftypes.String, Required: true, Sensitive: true}, {Name: "event_topic_arn", Type: tftypes.String, Required: true}}}},
-		ProviderMeta:      &tfprotov6.Schema{},
-		ResourceSchemas:   map[string]*tfprotov6.Schema{"massdriver_artifact": {Block: &tfprotov6.SchemaBlock{Attributes: []*tfprotov6.SchemaAttribute{{Name: "last_updated", Type: tftypes.String, Optional: true, Computed: true}, {Name: "artifact", Type: tftypes.String, Required: true, Sensitive: true}, {Name: "type", Type: tftypes.String, Required: true, Sensitive: true}, {Name: "field", Type: tftypes.String, Required: true, Sensitive: true}}}}},
+		Provider: &tfprotov6.Schema{
+			Block: &tfprotov6.SchemaBlock{
+				Attributes: []*tfprotov6.SchemaAttribute{
+					{Name: "deployment_id", Type: tftypes.String, Required: true},
+					{Name: "token", Type: tftypes.String, Required: true, Sensitive: true},
+					{Name: "event_topic_arn", Type: tftypes.String, Required: true},
+				}}},
+		ProviderMeta: &tfprotov6.Schema{},
+		ResourceSchemas: map[string]*tfprotov6.Schema{
+			"massdriver_artifact": {
+				Block: &tfprotov6.SchemaBlock{
+					Attributes: []*tfprotov6.SchemaAttribute{
+						{Name: "last_updated", Type: tftypes.String, Optional: true, Computed: true},
+						{Name: "artifact", Type: tftypes.String, Required: true, Sensitive: true},
+						{Name: "type", Type: tftypes.String, Required: true, Sensitive: true},
+						{Name: "field", Type: tftypes.String, Required: true, Sensitive: true},
+					}}},
+		},
 		DataSourceSchemas: map[string]*tfprotov6.Schema{},
 		Diagnostics:       []*tfprotov6.Diagnostic{},
 	}, nil
