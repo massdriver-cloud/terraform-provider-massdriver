@@ -8,7 +8,7 @@ import (
 )
 
 type MassdriverProvider struct {
-	client MassdriverClient
+	client *MassdriverClient
 }
 
 func (m MassdriverProvider) ApplyResourceChange(context.Context, *tfprotov6.ApplyResourceChangeRequest) (*tfprotov6.ApplyResourceChangeResponse, error) {
@@ -23,7 +23,7 @@ func (m MassdriverProvider) ApplyResourceChange(context.Context, *tfprotov6.Appl
 	}, nil
 }
 
-func (m MassdriverProvider) ConfigureProvider(ctx context.Context, request *tfprotov6.ConfigureProviderRequest) (*tfprotov6.ConfigureProviderResponse, error) {
+func (m *MassdriverProvider) ConfigureProvider(ctx context.Context, request *tfprotov6.ConfigureProviderRequest) (*tfprotov6.ConfigureProviderResponse, error) {
 	config, err := request.Config.Unmarshal(tftypes.Object{
 		AttributeTypes: map[string]tftypes.Type{
 			"deployment_id":   tftypes.String,
@@ -47,7 +47,7 @@ func (m MassdriverProvider) ConfigureProvider(ctx context.Context, request *tfpr
 	}
 
 	// store the client on the struct
-	m.client = *c
+	m.client = c
 
 	return &tfprotov6.ConfigureProviderResponse{
 		Diagnostics: diags,
@@ -144,7 +144,5 @@ func (m MassdriverProvider) ValidateResourceConfig(context.Context, *tfprotov6.V
 }
 
 func ProviderServer() tfprotov6.ProviderServer {
-	return MassdriverProvider{
-		// client: &MassdriverClient{},
-	}
+	return &MassdriverProvider{}
 }
