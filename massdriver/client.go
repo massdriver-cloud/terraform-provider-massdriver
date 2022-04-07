@@ -37,7 +37,7 @@ func NewMassdriverClient(deployment_id, token, event_topic_arn string) (*Massdri
 	c.Token = token
 	c.EventTopicARN = event_topic_arn
 
-	awsEndpoint := os.Getenv("AWS_ENDPOINT")
+	awsEndpoint := os.Getenv("MASSDRIVER_AWS_ENDPOINT")
 	customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 		if awsEndpoint != "" {
 			return aws.Endpoint{

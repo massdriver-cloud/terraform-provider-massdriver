@@ -28,8 +28,8 @@ func TestProvider_impl(t *testing.T) {
 }
 
 func testAccPreCheck(t *testing.T) {
-	if err := os.Getenv("AWS_ENDPOINT"); err == "" {
-		t.Fatal("AWS_ENDPOINT must be set for acceptance tests (requires localstack)")
+	if err := os.Getenv("MASSDRIVER_AWS_ENDPOINT"); err == "" {
+		t.Fatal("MASSDRIVER_AWS_ENDPOINT must be set for acceptance tests (requires localstack)")
 	}
 	if err := os.Getenv("MASSDRIVER_DEPLOYMENT_ID"); err == "" {
 		t.Fatal("MASSDRIVER_DEPLOYMENT_ID must be set for acceptance tests")
