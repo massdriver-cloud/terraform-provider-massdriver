@@ -72,7 +72,12 @@ func resourceArtifactCreate(ctx context.Context, d *schema.ResourceData, m inter
 
 	var diags diag.Diagnostics
 
-	artifact, err := generateArtifact(ctx, d)
+	err := validateArtifact(d)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	artifact, err := generateArtifact(d)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -96,7 +101,12 @@ func resourceArtifactUpdate(ctx context.Context, d *schema.ResourceData, m inter
 
 	var diags diag.Diagnostics
 
-	artifact, err := generateArtifact(ctx, d)
+	err := validateArtifact(d)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	artifact, err := generateArtifact(d)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -119,12 +129,15 @@ func resourceArtifactDelete(ctx context.Context, d *schema.ResourceData, m inter
 
 	var diags diag.Diagnostics
 
-	artifact := d.Get("artifact").(string)
+	artifact, err := generateArtifact(d)
+	if err != nil {
+		return diag.FromErr(err)
+	}
 
 	event := NewEvent(EVENT_TYPE_ARTIFACT_DELETED)
 	event.Payload = EventPayloadArtifacts{DeploymentId: c.DeploymentID, Artifact: artifact}
 
-	err := c.PublishEventToSNS(event)
+	err = c.PublishEventToSNS(event)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -134,16 +147,13 @@ func resourceArtifactDelete(ctx context.Context, d *schema.ResourceData, m inter
 	return diags
 }
 
-func generateArtifact(ctx context.Context, d *schema.ResourceData) (string, error) {
+func validateArtifact(d *schema.ResourceData) error {
 	artifact := d.Get("artifact").(string)
 	field := d.Get("field").(string)
-	name := d.Get("name").(string)
-	providerResourceID := d.Get("provider_resource_id").(string)
-	artifactType := d.Get("type").(string)
 
 	schemaBytes, err := os.ReadFile(d.Get("schema_path").(string))
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	// the schema-artifacts file has schemas for all of the artifacts in it (there can be more than one artifact).
@@ -151,18 +161,34 @@ func generateArtifact(ctx context.Context, d *schema.ResourceData) (string, erro
 	var schemaObj ArtifactSchema
 	err = json.Unmarshal(schemaBytes, &schemaObj)
 	if err != nil {
-		return "", err
+		return err
 	}
 	specificSchema, exists := schemaObj.Properties[field]
 	if !exists {
-		return "", errors.New("artifact validation failed: unrecognized field: " + field)
+		return errors.New("artifact validation failed: unrecognized field: " + field)
 	}
 
-	// Validate the artifact matches the schema
-	valid, err := validate(specificSchema.(map[string]interface{}), artifact)
-	if !valid || err != nil {
-		return "", err
+	// Validate
+	sl := gojsonschema.NewGoLoader(specificSchema.(map[string]interface{}))
+	dl := gojsonschema.NewStringLoader(artifact)
+
+	result, err := gojsonschema.Validate(sl, dl)
+	if !result.Valid() {
+		return errors.New("artifact validation failed: " + result.Errors()[0].String())
 	}
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func generateArtifact(d *schema.ResourceData) (string, error) {
+	artifact := d.Get("artifact").(string)
+	field := d.Get("field").(string)
+	name := d.Get("name").(string)
+	providerResourceID := d.Get("provider_resource_id").(string)
+	artifactType := d.Get("type").(string)
 
 	// this here is a bit clunky. We're nesting the metadata object WITHIN the artifact. However, the schemas don't expect
 	// the metadata block. So after validation (if it passes), we need to unmarshal the artifact to a map so we can
@@ -173,8 +199,9 @@ func generateArtifact(ctx context.Context, d *schema.ResourceData) (string, erro
 		ProviderResourceID: providerResourceID,
 		Type:               artifactType,
 	}
+
 	var unmarshaledArtifact map[string]interface{}
-	err = json.Unmarshal([]byte(artifact), &unmarshaledArtifact)
+	err := json.Unmarshal([]byte(artifact), &unmarshaledArtifact)
 	if err != nil {
 		return "", err
 	}
@@ -185,20 +212,4 @@ func generateArtifact(ctx context.Context, d *schema.ResourceData) (string, erro
 	}
 
 	return string(remarshaledArtifact), nil
-}
-
-func validate(schema map[string]interface{}, artifact string) (bool, error) {
-
-	sl := gojsonschema.NewGoLoader(schema)
-	dl := gojsonschema.NewStringLoader(artifact)
-
-	result, err := gojsonschema.Validate(sl, dl)
-	if !result.Valid() {
-		return false, errors.New("artifact validation failed: " + result.Errors()[0].String())
-	}
-	if err != nil {
-		return false, err
-	}
-
-	return true, nil
 }
