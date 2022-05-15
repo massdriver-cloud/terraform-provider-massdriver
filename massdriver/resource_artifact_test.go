@@ -26,7 +26,12 @@ func TestAccMassdriverArtifactBasic(t *testing.T) {
 func testAccCheckMassdriverArtifactConfigBasic() string {
 	return `
 	resource "massdriver_artifact" "new" {
-		artifact = jsonencode({"hello"="world"})
+		field = "example-artifact"
+		provider_resource_id = "arn:::something"
+		type = "type"
+		schema_path = "testdata/schema-artifacts.json"
+		name = "name"
+		artifact = jsonencode({data={foo="bar"},specs={bam="bizzle"}})
 	}
 	`
 }
