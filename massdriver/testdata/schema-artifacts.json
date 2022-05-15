@@ -1,0 +1,43 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "name": "testing-artifacts",
+    "properties": {
+        "example-artifact": {
+            "additionalProperties": false,
+            "properties": {
+                "data": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "foo": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "foo"
+                    ],
+                    "type": "object"
+                },
+                "specs": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "bam": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "bam"
+                    ],
+                    "type": "object"
+                }
+            },
+            "required": [
+                "data",
+                "specs"
+            ],
+            "type": "object"
+        }
+    },
+    "required": [
+        "example-artifact"
+    ]
+}
