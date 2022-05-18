@@ -94,8 +94,8 @@ type EventMetadata struct {
 }
 
 type EventPayloadArtifacts struct {
-	DeploymentId string `json:"deployment_id"`
-	Artifact     string `json:"artifact"`
+	DeploymentId string                 `json:"deployment_id"`
+	Artifact     map[string]interface{} `json:"artifact"`
 }
 
 var EventTimeString = time.Now().String
