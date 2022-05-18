@@ -183,7 +183,7 @@ func validateArtifact(d *schema.ResourceData) error {
 	return nil
 }
 
-func generateArtifact(d *schema.ResourceData) (string, error) {
+func generateArtifact(d *schema.ResourceData) (map[string]interface{}, error) {
 	artifact := d.Get("artifact").(string)
 	field := d.Get("field").(string)
 	name := d.Get("name").(string)
@@ -192,7 +192,7 @@ func generateArtifact(d *schema.ResourceData) (string, error) {
 
 	// this here is a bit clunky. We're nesting the metadata object WITHIN the artifact. However, the schemas don't expect
 	// the metadata block. So after validation (if it passes), we need to unmarshal the artifact to a map so we can
-	// add the metadata in and then remarshal.
+	// add the metadata in
 	metadata := ArtifactMetadata{
 		Field:              field,
 		Name:               name,
@@ -203,13 +203,9 @@ func generateArtifact(d *schema.ResourceData) (string, error) {
 	var unmarshaledArtifact map[string]interface{}
 	err := json.Unmarshal([]byte(artifact), &unmarshaledArtifact)
 	if err != nil {
-		return "", err
+		return unmarshaledArtifact, err
 	}
 	unmarshaledArtifact["metadata"] = metadata
-	remarshaledArtifact, err := json.Marshal(unmarshaledArtifact)
-	if err != nil {
-		return "", err
-	}
 
-	return string(remarshaledArtifact), nil
+	return unmarshaledArtifact, nil
 }
