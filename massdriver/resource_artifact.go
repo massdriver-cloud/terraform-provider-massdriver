@@ -203,11 +203,11 @@ func validateArtifact(d *schema.ResourceData) error {
 	dl := gojsonschema.NewStringLoader(artifact)
 
 	result, err := gojsonschema.Validate(sl, dl)
-	if !result.Valid() {
-		return errors.New("artifact validation failed: " + result.Errors()[0].String())
-	}
 	if err != nil {
 		return err
+	}
+	if !result.Valid() {
+		return errors.New("artifact validation failed: " + result.Errors()[0].String())
 	}
 
 	return nil
