@@ -85,19 +85,18 @@ func resourceArtifactCreate(ctx context.Context, d *schema.ResourceData, m inter
 	event := NewEvent(EVENT_TYPE_ARTIFACT_CREATED)
 	event.Payload = EventPayloadArtifacts{DeploymentId: c.DeploymentID, Artifact: artifact}
 
-	devOverride := os.Getenv("MASSDRIVER_DEVELOPMENT_OVERRIDE")
-	if devOverride == "true" || devOverride == "1" {
+	if c.EventTopicARN != "" {
+		err = c.PublishEventToSNS(event)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+	} else {
 		artifactBytes, _ := json.Marshal(artifact)
 		diags = append(diags, diag.Diagnostic{
 			Severity: diag.Warning,
 			Summary:  "Development Override in effect. Artifact will not be created in Massdriver.",
 			Detail:   string(artifactBytes),
 		})
-	} else {
-		err = c.PublishEventToSNS(event)
-		if err != nil {
-			return diag.FromErr(err)
-		}
 	}
 
 	d.SetId(time.Now().Format(time.RFC3339))
@@ -124,19 +123,18 @@ func resourceArtifactUpdate(ctx context.Context, d *schema.ResourceData, m inter
 	event := NewEvent(EVENT_TYPE_ARTIFACT_UPDATED)
 	event.Payload = EventPayloadArtifacts{DeploymentId: c.DeploymentID, Artifact: artifact}
 
-	devOverride := os.Getenv("MASSDRIVER_DEVELOPMENT_OVERRIDE")
-	if devOverride == "true" || devOverride == "1" {
+	if c.EventTopicARN != "" {
+		err = c.PublishEventToSNS(event)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+	} else {
 		artifactBytes, _ := json.Marshal(artifact)
 		diags = append(diags, diag.Diagnostic{
 			Severity: diag.Warning,
 			Summary:  "Development Override in effect. Artifact will not be updated in Massdriver.",
 			Detail:   string(artifactBytes),
 		})
-	} else {
-		err = c.PublishEventToSNS(event)
-		if err != nil {
-			return diag.FromErr(err)
-		}
 	}
 
 	d.Set("last_updated", time.Now().Format(time.RFC850))
@@ -157,19 +155,18 @@ func resourceArtifactDelete(ctx context.Context, d *schema.ResourceData, m inter
 	event := NewEvent(EVENT_TYPE_ARTIFACT_DELETED)
 	event.Payload = EventPayloadArtifacts{DeploymentId: c.DeploymentID, Artifact: artifact}
 
-	devOverride := os.Getenv("MASSDRIVER_DEVELOPMENT_OVERRIDE")
-	if devOverride == "true" || devOverride == "1" {
+	if c.EventTopicARN != "" {
+		err = c.PublishEventToSNS(event)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+	} else {
 		artifactBytes, _ := json.Marshal(artifact)
 		diags = append(diags, diag.Diagnostic{
 			Severity: diag.Warning,
 			Summary:  "Development Override in effect. Artifact will not be deleted from Massdriver.",
 			Detail:   string(artifactBytes),
 		})
-	} else {
-		err = c.PublishEventToSNS(event)
-		if err != nil {
-			return diag.FromErr(err)
-		}
 	}
 
 	d.SetId("")
