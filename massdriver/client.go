@@ -12,9 +12,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// 95% of this is duplicated here https://github.com/massdriver-cloud/xo/blob/main/src/massdriver/main.go
-// We need to move this out into a separate lib
-
 type SnsInterface interface {
 	Publish(ctx context.Context, params *sns.PublishInput, optFns ...func(*sns.Options)) (*sns.PublishOutput, error)
 }
