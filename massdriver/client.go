@@ -72,11 +72,11 @@ func (c MassdriverClient) PublishEventToSNS(event *Event, diags *diag.Diagnostic
 	}
 
 	if c.EventTopicARN != "" {
-		_, err = c.SNSClient.Publish(context.Background(), &input)
+		_, err = c.SNSClient.Publish(context.Background(), input)
 		*diags = diag.FromErr(err)
 		return err
 	} else {
-		eventBytes, _ := json.Marshal(input)
+		eventBytes, _ := json.Marshal(*input)
 		fmt.Println("test")
 		*diags = append(*diags, diag.Diagnostic{
 			Severity: diag.Warning,
@@ -88,17 +88,17 @@ func (c MassdriverClient) PublishEventToSNS(event *Event, diags *diag.Diagnostic
 	return nil
 }
 
-func (c MassdriverClient) buildSNSEvent(event *Event) (sns.PublishInput, error) {
+func (c MassdriverClient) buildSNSEvent(event *Event) (*sns.PublishInput, error) {
 	jsonBytes, err := json.Marshal(event)
 	if err != nil {
-		return sns.PublishInput{}, err
+		return nil, err
 	}
 
 	jsonString := string(jsonBytes)
 
 	deduplicationId := uuid.New().String()
 
-	return sns.PublishInput{
+	return &sns.PublishInput{
 		Message:                &jsonString,
 		MessageDeduplicationId: &deduplicationId,
 		MessageGroupId:         &c.DeploymentID,

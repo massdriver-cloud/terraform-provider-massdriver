@@ -24,7 +24,7 @@ func resourcePackageAlarm() *schema.Resource {
 			"resource_identifier": {
 				Type:        schema.TypeString,
 				Required:    true,
-				Description: "The identifier of the alarm. In Azure it will be the id, GCP will be the name, and in AWS it will be teh name",
+				Description: "The identifier of the alarm. In Azure it will be the id, GCP will be the name, and in AWS it will be the name",
 			},
 			"display_name": {
 				Type:        schema.TypeString,
@@ -68,7 +68,6 @@ func resourcePackageAlarmCreate(ctx context.Context, d *schema.ResourceData, m i
 func resourcePackageAlarmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	d.SetId(time.Now().Format(time.RFC3339))
 	d.Set("last_updated", time.Now().Format(time.RFC850))
 
 	return diags
@@ -77,7 +76,7 @@ func resourcePackageAlarmUpdate(ctx context.Context, d *schema.ResourceData, m i
 func resourcePackageAlarmDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	d.SetId(time.Now().Format(time.RFC3339))
+	d.SetId("")
 	d.Set("last_updated", time.Now().Format(time.RFC850))
 
 	return diags
