@@ -29,7 +29,6 @@ const EVENT_TYPE_ARTIFACT_CREATED string = "artifact_created"
 const EVENT_TYPE_ARTIFACT_UPDATED string = "artifact_updated"
 const EVENT_TYPE_ARTIFACT_DELETED string = "artifact_deleted"
 const EVENT_TYPE_ALARM_CHANNEL_CREATED string = "package_alarm_created"
-const EVENT_TYPE_ALARM_CHANNEL_UPDATED string = "package_alarm_updated"
 const EVENT_TYPE_ALARM_CHANNEL_DELETED string = "package_alarm_deleted"
 
 func NewMassdriverClient(deployment_id, token, event_topic_arn string) (*MassdriverClient, error) {

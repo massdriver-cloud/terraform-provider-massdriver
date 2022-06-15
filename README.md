@@ -5,7 +5,7 @@ This provider allows us to manage massdriver artifacts and package alarms genera
 ## Development Environment
 
 This project comes with all of the tools you need dockerized in a dev container. Make sure your vscode installation has the plugin [remote-containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers).
-Use the command palette to run `Remote-Containers: Rebuild Container` this will install all the dependencies for development and testing as well as start LocalStack.
+Use the command palette to run `Remote-Containers: Open Folder In Container` this will install all the dependencies for development and testing as well as start LocalStack.
 
 ## Testing
 

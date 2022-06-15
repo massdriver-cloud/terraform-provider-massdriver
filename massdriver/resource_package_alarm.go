@@ -17,7 +17,7 @@ func resourcePackageAlarm() *schema.Resource {
 	return &schema.Resource{
 		CreateContext: resourcePackageAlarmCreate,
 		ReadContext:   schema.NoopContext,
-		UpdateContext: resourcePackageAlarmUpdate,
+		UpdateContext: schema.NoopContext,
 		DeleteContext: resourcePackageAlarmDelete,
 
 		Schema: map[string]*schema.Schema{
@@ -65,19 +65,26 @@ func resourcePackageAlarmCreate(ctx context.Context, d *schema.ResourceData, m i
 	return diags
 }
 
-func resourcePackageAlarmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
-
-	d.Set("last_updated", time.Now().Format(time.RFC850))
-
-	return diags
-}
-
 func resourcePackageAlarmDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	c := m.(*MassdriverClient)
+
 	var diags diag.Diagnostics
+
+	packageAlarmMeta := PackageAlarmMetadata{
+		ResourceIdentifier: d.Get("resource_identifier").(string),
+		DisplayName:        d.Get("display_name").(string),
+	}
+
+	event := NewEvent(EVENT_TYPE_ALARM_CHANNEL_DELETED)
+	event.Payload = EventPayloadAlarmChannels{DeploymentId: c.DeploymentID, PackageAlarm: packageAlarmMeta}
+
+	err := c.PublishEventToSNS(event, &diags)
+
+	if err != nil {
+		return diags
+	}
 
 	d.SetId("")
-	d.Set("last_updated", time.Now().Format(time.RFC850))
 
 	return diags
 }

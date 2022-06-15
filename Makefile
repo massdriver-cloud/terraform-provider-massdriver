@@ -45,9 +45,13 @@ local.setup: install
 	./test-setup.sh
 
 local.apply: install
-	cd examples; rm -rf .terraform .terraform.lock.hcl terraform.tfstate
-	cd examples; terraform init
-	cd examples; terraform apply
+	cd dev; rm -rf .terraform .terraform.lock.hcl terraform.tfstate
+	cd dev; terraform init
+	cd dev; terraform apply
+
+local.destroy:
+	cd dev; terraform init
+	cd dev; terraform destroy
 
 local.sqs.poll:
 	./sqspoll.sh	
