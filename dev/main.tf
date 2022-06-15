@@ -61,8 +61,8 @@ resource "massdriver_artifact" "vpc" {
 }
 
 resource "massdriver_package_alarm" "high_cpu" {
-  resource_identifier = "awshighcpualarm"
-  display_name = "CPU Alarm"
+  cloud_resource_id = "awshighcpualarm"
+  display_name = "CPU Alarm 2"
 }
 
 output "artifact" {

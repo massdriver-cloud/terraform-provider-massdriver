@@ -42,11 +42,11 @@ resource "massdriver_artifact" "vpc" {
 resource "massdriver_package_alarm" "high_cpu" {
   display_name = "High CPU Alarm"
   // AWS
-  provider_resource_name = aws_cloudwatch_metric_alarm.alarm.arn
+  cloud_resource_id = aws_cloudwatch_metric_alarm.alarm.arn
   // GCP
-  provider_resource_name = google_monitoring_alert_policy.alert_policy.name
+  cloud_resource_id = google_monitoring_alert_policy.alert_policy.name
   // Azure
-  provider_resource_name = azurerm_monitor_metric_alert.main.id
+  cloud_resource_id = azurerm_monitor_metric_alert.main.id
 }
 
 output "artifact" {

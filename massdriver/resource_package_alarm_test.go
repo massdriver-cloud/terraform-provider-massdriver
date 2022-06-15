@@ -26,7 +26,7 @@ func TestAccMassdriverPackageAlarmBasic(t *testing.T) {
 func testAccCheckMassdriverPackageAlarmConfigBasic() string {
 	return `
 	resource "massdriver_package_alarm" "new" {
-		resource_identifier = "arn:::something"
+		cloud_resource_id = "arn:::something"
 		display_name = "CPU alarm"
 	}
 	`
