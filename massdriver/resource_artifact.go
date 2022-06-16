@@ -85,23 +85,14 @@ func resourceArtifactCreate(ctx context.Context, d *schema.ResourceData, m inter
 	event := NewEvent(EVENT_TYPE_ARTIFACT_CREATED)
 	event.Payload = EventPayloadArtifacts{DeploymentId: c.DeploymentID, Artifact: artifact}
 
-	if c.EventTopicARN != "" {
-		err = c.PublishEventToSNS(event)
-		if err != nil {
-			return diag.FromErr(err)
-		}
-	} else {
-		artifactBytes, _ := json.Marshal(artifact)
-		diags = append(diags, diag.Diagnostic{
-			Severity: diag.Warning,
-			Summary:  "Development Override in effect. Artifact will not be created in Massdriver.",
-			Detail:   string(artifactBytes),
-		})
+	err = c.PublishEventToSNS(event, &diags)
+
+	if err != nil {
+		return diags
 	}
 
 	d.SetId(time.Now().Format(time.RFC3339))
 	d.Set("last_updated", time.Now().Format(time.RFC850))
-
 	return diags
 }
 
@@ -123,18 +114,10 @@ func resourceArtifactUpdate(ctx context.Context, d *schema.ResourceData, m inter
 	event := NewEvent(EVENT_TYPE_ARTIFACT_UPDATED)
 	event.Payload = EventPayloadArtifacts{DeploymentId: c.DeploymentID, Artifact: artifact}
 
-	if c.EventTopicARN != "" {
-		err = c.PublishEventToSNS(event)
-		if err != nil {
-			return diag.FromErr(err)
-		}
-	} else {
-		artifactBytes, _ := json.Marshal(artifact)
-		diags = append(diags, diag.Diagnostic{
-			Severity: diag.Warning,
-			Summary:  "Development Override in effect. Artifact will not be updated in Massdriver.",
-			Detail:   string(artifactBytes),
-		})
+	err = c.PublishEventToSNS(event, &diags)
+
+	if err != nil {
+		return diags
 	}
 
 	d.Set("last_updated", time.Now().Format(time.RFC850))
@@ -155,18 +138,10 @@ func resourceArtifactDelete(ctx context.Context, d *schema.ResourceData, m inter
 	event := NewEvent(EVENT_TYPE_ARTIFACT_DELETED)
 	event.Payload = EventPayloadArtifacts{DeploymentId: c.DeploymentID, Artifact: artifact}
 
-	if c.EventTopicARN != "" {
-		err = c.PublishEventToSNS(event)
-		if err != nil {
-			return diag.FromErr(err)
-		}
-	} else {
-		artifactBytes, _ := json.Marshal(artifact)
-		diags = append(diags, diag.Diagnostic{
-			Severity: diag.Warning,
-			Summary:  "Development Override in effect. Artifact will not be deleted from Massdriver.",
-			Detail:   string(artifactBytes),
-		})
+	err = c.PublishEventToSNS(event, &diags)
+
+	if err != nil {
+		return diags
 	}
 
 	d.SetId("")

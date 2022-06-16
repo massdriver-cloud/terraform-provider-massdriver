@@ -3,6 +3,7 @@ package massdriver
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 )
 
 type SnsInterface interface {
@@ -26,6 +28,9 @@ type MassdriverClient struct {
 const EVENT_TYPE_ARTIFACT_CREATED string = "artifact_created"
 const EVENT_TYPE_ARTIFACT_UPDATED string = "artifact_updated"
 const EVENT_TYPE_ARTIFACT_DELETED string = "artifact_deleted"
+const EVENT_TYPE_ALARM_CHANNEL_CREATED string = "package_alarm_created"
+const EVENT_TYPE_ALARM_CHANNEL_UPDATED string = "package_alarm_updated"
+const EVENT_TYPE_ALARM_CHANNEL_DELETED string = "package_alarm_deleted"
 
 func NewMassdriverClient(deployment_id, token, event_topic_arn string) (*MassdriverClient, error) {
 	c := new(MassdriverClient)
@@ -58,24 +63,47 @@ func NewMassdriverClient(deployment_id, token, event_topic_arn string) (*Massdri
 	return c, nil
 }
 
-func (c MassdriverClient) PublishEventToSNS(event *Event) error {
-	jsonBytes, err := json.Marshal(event)
+func (c MassdriverClient) PublishEventToSNS(event *Event, diags *diag.Diagnostics) error {
+	input, err := c.buildSNSEvent(event)
+
 	if err != nil {
+		*diags = diag.FromErr(err)
 		return err
 	}
+
+	if c.EventTopicARN != "" {
+		_, err = c.SNSClient.Publish(context.Background(), input)
+		*diags = diag.FromErr(err)
+		return err
+	} else {
+		eventBytes, _ := json.Marshal(*input)
+		fmt.Println("test")
+		*diags = append(*diags, diag.Diagnostic{
+			Severity: diag.Warning,
+			Summary:  "Development Override in effect. Resource will not be updated in Massdriver.",
+			Detail:   string(eventBytes),
+		})
+	}
+
+	return nil
+}
+
+func (c MassdriverClient) buildSNSEvent(event *Event) (*sns.PublishInput, error) {
+	jsonBytes, err := json.Marshal(event)
+	if err != nil {
+		return nil, err
+	}
+
 	jsonString := string(jsonBytes)
 
 	deduplicationId := uuid.New().String()
 
-	input := sns.PublishInput{
+	return &sns.PublishInput{
 		Message:                &jsonString,
 		MessageDeduplicationId: &deduplicationId,
 		MessageGroupId:         &c.DeploymentID,
 		TopicArn:               &c.EventTopicARN,
-	}
-
-	_, err = c.SNSClient.Publish(context.Background(), &input)
-	return err
+	}, nil
 }
 
 type Event struct {
@@ -93,6 +121,11 @@ type EventMetadata struct {
 type EventPayloadArtifacts struct {
 	DeploymentId string                 `json:"deployment_id"`
 	Artifact     map[string]interface{} `json:"artifact"`
+}
+
+type EventPayloadAlarmChannels struct {
+	DeploymentId string               `json:"deployment_id"`
+	PackageAlarm PackageAlarmMetadata `json:"package_alarm"`
 }
 
 var EventTimeString = time.Now().String

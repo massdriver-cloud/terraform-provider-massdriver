@@ -4,7 +4,7 @@ NAMESPACE=massdriver-cloud
 NAME=massdriver
 BINARY=terraform-provider-${NAME}
 VERSION=1.0.0
-OS_ARCH=darwin_amd64
+OS_ARCHS= darwin_amd64 linux_amd64
 
 default: install
 
@@ -25,9 +25,14 @@ release:
 	GOOS=windows GOARCH=386 go build -o ./bin/${BINARY}_${VERSION}_windows_386
 	GOOS=windows GOARCH=amd64 go build -o ./bin/${BINARY}_${VERSION}_windows_amd64
 
-install: build
-	mkdir -p ~/.terraform.d/plugins/${HOSTNAME}/${NAMESPACE}/${NAME}/${VERSION}/${OS_ARCH}
-	mv ${BINARY} ~/.terraform.d/plugins/${HOSTNAME}/${NAMESPACE}/${NAME}/${VERSION}/${OS_ARCH}
+install: build 
+	for arch in $(OS_ARCHS) ; do\
+		echo $${arch} ; \
+		mkdir -p ~/.terraform.d/plugins/${HOSTNAME}/${NAMESPACE}/${NAME}/${VERSION}/$${arch} ;\
+		cp ${BINARY} ~/.terraform.d/plugins/${HOSTNAME}/${NAMESPACE}/${NAME}/${VERSION}/$${arch} ;\
+	done
+
+	rm ${BINARY}
 
 test:
 	go test -i $(TEST) || exit 1
@@ -35,3 +40,18 @@ test:
 
 testacc:
 	TF_ACC=1 go test $(TEST) -v $(TESTARGS) -timeout 120m
+
+local.setup: install
+	./test-setup.sh
+
+local.apply: install
+	cd dev; rm -rf .terraform .terraform.lock.hcl terraform.tfstate
+	cd dev; terraform init
+	cd dev; terraform apply
+
+local.destroy:
+	cd dev; terraform init
+	cd dev; terraform destroy
+
+local.sqs.poll:
+	./sqspoll.sh	
