@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/xeipuuv/gojsonschema"
+	"gopkg.in/yaml.v2"
 )
 
 type ArtifactMetadata struct {
@@ -22,6 +23,11 @@ type ArtifactMetadata struct {
 type ArtifactSchema struct {
 	Properties map[string]interface{} `json:"properties"`
 }
+
+type BundleSpecification struct {
+	Artifacts map[string]ArtifactSpecification `yaml:"artifacts"`
+}
+type ArtifactSpecification map[string]string
 
 func resourceArtifact() *schema.Resource {
 	return &schema.Resource{
@@ -59,9 +65,17 @@ func resourceArtifact() *schema.Resource {
 				Optional: true,
 				Default:  "../schema-artifacts.json",
 			},
-			"type": {
+			// need this for now to lookup what "type" the artifact is from the spec
+			"specification_path": {
 				Type:     schema.TypeString,
-				Required: true,
+				Optional: true,
+				Default:  "../massdriver.yaml",
+			},
+			"type": {
+				Type:       schema.TypeString,
+				Optional:   true,
+				Default:    "",
+				Deprecated: "This field is being removed and instead the type is fetched from the massdriver.yaml file",
 			},
 		},
 	}
@@ -152,10 +166,11 @@ func resourceArtifactDelete(ctx context.Context, d *schema.ResourceData, m inter
 func validateArtifact(d *schema.ResourceData) error {
 	artifact := d.Get("artifact").(string)
 	field := d.Get("field").(string)
+	schemaPath := d.Get("schema_path").(string)
 
-	schemaBytes, err := os.ReadFile(d.Get("schema_path").(string))
+	schemaBytes, err := os.ReadFile(schemaPath)
 	if err != nil {
-		return err
+		return errors.New(`Unable to open schema file: ` + schemaPath)
 	}
 
 	// the schema-artifacts file has schemas for all of the artifacts in it (there can be more than one artifact).
@@ -167,7 +182,7 @@ func validateArtifact(d *schema.ResourceData) error {
 	}
 	specificSchema, exists := schemaObj.Properties[field]
 	if !exists {
-		return errors.New("artifact validation failed: unrecognized field: " + field)
+		return errors.New(`artifact validation failed: field "` + field + `" does not exist in schema`)
 	}
 
 	// Validate
@@ -185,12 +200,45 @@ func validateArtifact(d *schema.ResourceData) error {
 	return nil
 }
 
+// For now we need to fetch the type from the massdriver.yaml file
+func getArtifactType(d *schema.ResourceData) (string, error) {
+	field := d.Get("field").(string)
+	specificationPath := d.Get("specification_path").(string)
+
+	specificationBytes, err := os.ReadFile(specificationPath)
+	if err != nil {
+		return "", errors.New(`Unable to open specification file: ` + specificationPath)
+	}
+
+	var bundleSpec BundleSpecification
+	err = yaml.Unmarshal(specificationBytes, &bundleSpec)
+	if err != nil {
+		return "", err
+	}
+	artifactSpec, exists := bundleSpec.Artifacts[field]
+	if !exists {
+		return "", errors.New(`artifact validation failed: field "` + field + `" does not exist in specification`)
+	}
+
+	artifactType, exists := artifactSpec["$ref"]
+	if !exists {
+		return "", errors.New(`artifact validation failed: field "` + field + `" does not contain a $ref`)
+	}
+
+	return artifactType, nil
+}
+
 func generateArtifact(d *schema.ResourceData) (map[string]interface{}, error) {
+	var unmarshaledArtifact map[string]interface{}
+
 	artifact := d.Get("artifact").(string)
 	field := d.Get("field").(string)
 	name := d.Get("name").(string)
 	providerResourceID := d.Get("provider_resource_id").(string)
-	artifactType := d.Get("type").(string)
+	artifactType, err := getArtifactType(d)
+	if err != nil {
+		return unmarshaledArtifact, err
+	}
 
 	// this here is a bit clunky. We're nesting the metadata object WITHIN the artifact. However, the schemas don't expect
 	// the metadata block. So after validation (if it passes), we need to unmarshal the artifact to a map so we can
@@ -202,8 +250,7 @@ func generateArtifact(d *schema.ResourceData) (map[string]interface{}, error) {
 		Type:               artifactType,
 	}
 
-	var unmarshaledArtifact map[string]interface{}
-	err := json.Unmarshal([]byte(artifact), &unmarshaledArtifact)
+	err = json.Unmarshal([]byte(artifact), &unmarshaledArtifact)
 	if err != nil {
 		return unmarshaledArtifact, err
 	}

@@ -9,6 +9,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.16.0
 	github.com/xeipuuv/gojsonschema v1.2.0
+	gopkg.in/yaml.v2 v2.3.0
 )
 
 require (
