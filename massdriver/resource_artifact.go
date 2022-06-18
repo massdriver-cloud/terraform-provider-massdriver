@@ -25,9 +25,11 @@ type ArtifactSchema struct {
 }
 
 type BundleSpecification struct {
-	Artifacts map[string]ArtifactSpecification `yaml:"artifacts"`
+	Artifacts ArtifactSpecification `yaml:"artifacts"`
 }
-type ArtifactSpecification map[string]string
+type ArtifactSpecification struct {
+	Properties map[string]map[string]string `json:"properties" yaml:"properties"`
+}
 
 func resourceArtifact() *schema.Resource {
 	return &schema.Resource{
@@ -215,7 +217,8 @@ func getArtifactType(d *schema.ResourceData) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	artifactSpec, exists := bundleSpec.Artifacts[field]
+
+	artifactSpec, exists := bundleSpec.Artifacts.Properties[field]
 	if !exists {
 		return "", errors.New(`artifact validation failed: field "` + field + `" does not exist in specification`)
 	}
