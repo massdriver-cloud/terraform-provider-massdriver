@@ -21,7 +21,7 @@ type ArtifactMetadata struct {
 }
 
 type ArtifactSchema struct {
-	Properties map[string]interface{} `json:"properties" yaml:"properties"`
+	Properties map[string]interface{} `json:"properties"`
 }
 
 type BundleSpecification struct {
