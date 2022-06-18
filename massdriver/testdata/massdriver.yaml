@@ -1,3 +1,4 @@
 artifacts:
-   example-artifact:
-     $ref: massdriver/foo-bar
+  properties:
+    example-artifact:
+      $ref: massdriver/foo-bar
