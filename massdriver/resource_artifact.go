@@ -13,6 +13,9 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+const DEFAULT_ARTIFACT_SCHEMA_PATH = "../schema-artifacts.json"
+const DEFAULT_SPECIFICATION_PATH = "../massdriver.yaml"
+
 type ArtifactMetadata struct {
 	Field              string `json:"field"`
 	ProviderResourceID string `json:"provider_resource_id"`
@@ -65,13 +68,13 @@ func resourceArtifact() *schema.Resource {
 			"schema_path": {
 				Type:     schema.TypeString,
 				Optional: true,
-				Default:  "../schema-artifacts.json",
+				Default:  DEFAULT_ARTIFACT_SCHEMA_PATH,
 			},
 			// need this for now to lookup what "type" the artifact is from the spec
 			"specification_path": {
 				Type:     schema.TypeString,
 				Optional: true,
-				Default:  "../massdriver.yaml",
+				Default:  DEFAULT_SPECIFICATION_PATH,
 			},
 			"type": {
 				Type:       schema.TypeString,
@@ -169,6 +172,9 @@ func validateArtifact(d *schema.ResourceData) error {
 	artifact := d.Get("artifact").(string)
 	field := d.Get("field").(string)
 	schemaPath := d.Get("schema_path").(string)
+	if schemaPath == "" {
+		schemaPath = DEFAULT_ARTIFACT_SCHEMA_PATH
+	}
 
 	schemaBytes, err := os.ReadFile(schemaPath)
 	if err != nil {
@@ -206,6 +212,9 @@ func validateArtifact(d *schema.ResourceData) error {
 func getArtifactType(d *schema.ResourceData) (string, error) {
 	field := d.Get("field").(string)
 	specificationPath := d.Get("specification_path").(string)
+	if specificationPath == "" {
+		specificationPath = DEFAULT_SPECIFICATION_PATH
+	}
 
 	specificationBytes, err := os.ReadFile(specificationPath)
 	if err != nil {
