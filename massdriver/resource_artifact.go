@@ -36,6 +36,7 @@ type ArtifactSpecification struct {
 
 func resourceArtifact() *schema.Resource {
 	return &schema.Resource{
+		Description: "A Massdriver artifact for exporting a connectable type",
 
 		CreateContext: resourceArtifactCreate,
 		ReadContext:   schema.NoopContext,
@@ -44,43 +45,52 @@ func resourceArtifact() *schema.Resource {
 
 		Schema: map[string]*schema.Schema{
 			"artifact": {
-				Type:      schema.TypeString,
-				Required:  true,
-				Sensitive: true,
+				Description: "A json formatted string containing the artifact.",
+				Type:        schema.TypeString,
+				Required:    true,
+				Sensitive:   true,
 			},
 			"field": {
-				Type:     schema.TypeString,
-				Required: true,
+				Description: "The name of this artifact. Must match the name given to this artifact in the massdriver.yaml file.",
+				Type:        schema.TypeString,
+				Required:    true,
 			},
 			"last_updated": {
-				Type:     schema.TypeString,
-				Optional: true,
-				Computed: true,
+				Description: "A timestamp of when the last time this resource was updated",
+				Type:        schema.TypeString,
+				Optional:    false,
+				Required:    false,
+				Computed:    true,
 			},
 			"name": {
-				Type:     schema.TypeString,
-				Required: true,
+				Description: "A human readable name for this artifact.",
+				Type:        schema.TypeString,
+				Required:    true,
 			},
 			"provider_resource_id": {
-				Type:     schema.TypeString,
-				Required: true,
+				Description: "An cloud identifier (AWS ARN, Google/Azure ID) for the primary resource this bundle creates.",
+				Type:        schema.TypeString,
+				Required:    true,
 			},
 			"schema_path": {
-				Type:     schema.TypeString,
-				Optional: true,
-				Default:  DEFAULT_ARTIFACT_SCHEMA_PATH,
+				Description: "The path to the schema-artifacts.json file in order to perform JSON Schema validation on the artifact before sending to Massdriver. This value should only ever be changed when doing local provider testing.",
+				Type:        schema.TypeString,
+				Optional:    true,
+				Default:     DEFAULT_ARTIFACT_SCHEMA_PATH,
 			},
 			// need this for now to lookup what "type" the artifact is from the spec
 			"specification_path": {
-				Type:     schema.TypeString,
-				Optional: true,
-				Default:  DEFAULT_SPECIFICATION_PATH,
+				Description: "The path to the massdriver.yaml file in order to lookup the schema type used for this artifact. This value should only ever be changed when doing local provider testing.",
+				Type:        schema.TypeString,
+				Optional:    true,
+				Default:     DEFAULT_SPECIFICATION_PATH,
 			},
 			"type": {
-				Type:       schema.TypeString,
-				Optional:   true,
-				Default:    "",
-				Deprecated: "This field is being removed and instead the type is fetched from the massdriver.yaml file",
+				Description: "This value is deprecated and should no longer be used. It is ignored in the provider code.",
+				Type:        schema.TypeString,
+				Optional:    true,
+				Default:     "",
+				Deprecated:  "This field is being removed and instead the type is fetched from the massdriver.yaml file",
 			},
 		},
 	}

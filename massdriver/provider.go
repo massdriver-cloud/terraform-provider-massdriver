@@ -12,17 +12,20 @@ func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
 			"deployment_id": {
+				Description: "Deployment ID, to be used in automation for linking resources back to a Massdriver deployment. This field is only used in automation.",
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: schema.EnvDefaultFunc("MASSDRIVER_DEPLOYMENT_ID", nil),
 			},
 			"token": {
+				Description: "Deployment token, for authenticating to Massdriver. This field is only used in automation.",
 				Type:        schema.TypeString,
 				Optional:    true,
 				Sensitive:   true,
 				DefaultFunc: schema.EnvDefaultFunc("MASSDRIVER_TOKEN", nil),
 			},
 			"event_topic_arn": {
+				Description: "ARN of SNS topic to publish events to. This field is only used in automation.",
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: schema.EnvDefaultFunc("MASSDRIVER_EVENT_TOPIC_ARN", nil),
