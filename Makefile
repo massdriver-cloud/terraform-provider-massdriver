@@ -25,7 +25,7 @@ release:
 	GOOS=windows GOARCH=386 go build -o ./bin/${BINARY}_${VERSION}_windows_386
 	GOOS=windows GOARCH=amd64 go build -o ./bin/${BINARY}_${VERSION}_windows_amd64
 
-install: build 
+install: build
 	for arch in $(OS_ARCHS) ; do\
 		echo $${arch} ; \
 		mkdir -p ~/.terraform.d/plugins/${HOSTNAME}/${NAMESPACE}/${NAME}/${VERSION}/$${arch} ;\
@@ -38,8 +38,23 @@ test:
 	go test -i $(TEST) || exit 1
 	echo $(TEST) | xargs -t -n4 go test $(TESTARGS) -timeout=30s -parallel=4
 
+.PHONY: infra.reset
+infra.reset: infra.down infra.up ## Reset localstack infra
+
+.PHONY: infra.down
+infra.down: ## Destroy localstack infra
+	-cd localstack && terraform destroy -auto-approve
+	-cd localstack && rm terraform.tfstate*
+
+.PHONY: infra.up
+infra.up: ## Setup localstack for development
+	cd localstack && terraform apply -auto-approve
+
 testacc:
-	TF_ACC=1 go test $(TEST) -v $(TESTARGS) -timeout 120m
+	TF_ACC=1 \
+		MASSDRIVER_AWS_ENDPOINT=http://localhost:4566 \
+		MASSDRIVER_EVENT_TOPIC_ARN=${shell make localstack.sns.last.arn} \
+		go test $(TEST) -v $(TESTARGS) -timeout 120m
 
 local.setup: install
 	./test-setup.sh
@@ -54,4 +69,13 @@ local.destroy:
 	cd dev; terraform destroy
 
 local.sqs.poll:
-	./sqspoll.sh	
+	./sqspoll.sh
+
+.PHONY: localstack.sns.list
+localstack.sns.list: ## List sns topics from localstack
+	@AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=us-east-1 \
+  aws sns list-topics \
+  --endpoint-url=http://localhost:4566
+
+localstack.sns.last.arn: ## Get last topic arn created
+	@make localstack.sns.list | jq '.Topics | last | .TopicArn'

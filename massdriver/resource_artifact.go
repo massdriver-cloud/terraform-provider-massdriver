@@ -30,8 +30,13 @@ type ArtifactSchema struct {
 type BundleSpecification struct {
 	Artifacts ArtifactSpecification `yaml:"artifacts"`
 }
+
 type ArtifactSpecification struct {
 	Properties map[string]map[string]string `json:"properties" yaml:"properties"`
+}
+
+type ArtifactGenerateOptions struct {
+	skipTypeLookup bool
 }
 
 func resourceArtifact() *schema.Resource {
@@ -159,7 +164,9 @@ func resourceArtifactDelete(ctx context.Context, d *schema.ResourceData, m inter
 
 	var diags diag.Diagnostics
 
-	artifact, err := generateArtifact(d)
+	artifact, err := generateArtifactWithOptions(d, ArtifactGenerateOptions{
+		skipTypeLookup: true,
+	})
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -250,16 +257,21 @@ func getArtifactType(d *schema.ResourceData) (string, error) {
 	return artifactType, nil
 }
 
-func generateArtifact(d *schema.ResourceData) (map[string]interface{}, error) {
+func generateArtifactWithOptions(d *schema.ResourceData, options ArtifactGenerateOptions) (map[string]interface{}, error) {
 	var unmarshaledArtifact map[string]interface{}
+	var artifactType = ""
+	var err error
 
 	artifact := d.Get("artifact").(string)
 	field := d.Get("field").(string)
 	name := d.Get("name").(string)
 	providerResourceID := d.Get("provider_resource_id").(string)
-	artifactType, err := getArtifactType(d)
-	if err != nil {
-		return unmarshaledArtifact, err
+
+	if !options.skipTypeLookup {
+		artifactType, err = getArtifactType(d)
+		if err != nil {
+			return unmarshaledArtifact, err
+		}
 	}
 
 	// this here is a bit clunky. We're nesting the metadata object WITHIN the artifact. However, the schemas don't expect
@@ -279,4 +291,10 @@ func generateArtifact(d *schema.ResourceData) (map[string]interface{}, error) {
 	unmarshaledArtifact["metadata"] = metadata
 
 	return unmarshaledArtifact, nil
+}
+
+func generateArtifact(d *schema.ResourceData) (map[string]interface{}, error) {
+	return generateArtifactWithOptions(d, ArtifactGenerateOptions{
+		skipTypeLookup: false,
+	})
 }
