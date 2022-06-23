@@ -50,6 +50,8 @@ func testAccCheckMassdriverArtifactConfigBasic() string {
 		field = "example-artifact"
 		provider_resource_id = "arn:::something"
 		type = "type"
+		schema_path = "testdata/schema-artifacts.json"
+		specification_path = "testdata/massdriver.yaml"
 		name = "name"
 		artifact = jsonencode({data={foo="bar"},specs={bam="bizzle"}})
 	}
@@ -62,6 +64,8 @@ func testAccCheckMassdriverArtifactConfigResourceNameChange() string {
 		field = "example-artifact"
 		provider_resource_id = "arn:::something"
 		type = "type"
+		schema_path = "testdata/schema-artifacts.json"
+		specification_path = "testdata/massdriver.yaml"
 		name = "name"
 		artifact = jsonencode({data={foo="bar"},specs={bam="bizzle"}})
 	}
