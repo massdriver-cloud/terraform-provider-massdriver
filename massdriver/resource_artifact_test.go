@@ -23,44 +23,9 @@ func TestAccMassdriverArtifactBasic(t *testing.T) {
 	})
 }
 
-func TestAccMassdriverArtifactRename(t *testing.T) {
-	resource.Test(t, resource.TestCase{
-		PreCheck:  func() { testAccPreCheck(t) },
-		Providers: testAccProviders,
-		Steps: []resource.TestStep{
-			{
-				Config: testAccCheckMassdriverArtifactConfigBasic(),
-				Check: resource.ComposeTestCheckFunc(
-					testAccCheckMassdriverArtifactExists("massdriver_artifact.new"),
-				),
-			},
-			{
-				Config: testAccCheckMassdriverArtifactConfigResourceNameChange(),
-				Check: resource.ComposeTestCheckFunc(
-					testAccCheckMassdriverArtifactExists("massdriver_artifact.new_name"),
-				),
-			},
-		},
-	})
-}
-
 func testAccCheckMassdriverArtifactConfigBasic() string {
 	return `
 	resource "massdriver_artifact" "new" {
-		field = "example-artifact"
-		provider_resource_id = "arn:::something"
-		type = "type"
-		schema_path = "testdata/schema-artifacts.json"
-		specification_path = "testdata/massdriver.yaml"
-		name = "name"
-		artifact = jsonencode({data={foo="bar"},specs={bam="bizzle"}})
-	}
-	`
-}
-
-func testAccCheckMassdriverArtifactConfigResourceNameChange() string {
-	return `
-	resource "massdriver_artifact" "new_name" {
 		field = "example-artifact"
 		provider_resource_id = "arn:::something"
 		type = "type"
