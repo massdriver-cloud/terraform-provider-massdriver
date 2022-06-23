@@ -25,7 +25,7 @@ release:
 	GOOS=windows GOARCH=386 go build -o ./bin/${BINARY}_${VERSION}_windows_386
 	GOOS=windows GOARCH=amd64 go build -o ./bin/${BINARY}_${VERSION}_windows_amd64
 
-install: build 
+install: build
 	for arch in $(OS_ARCHS) ; do\
 		echo $${arch} ; \
 		mkdir -p ~/.terraform.d/plugins/${HOSTNAME}/${NAMESPACE}/${NAME}/${VERSION}/$${arch} ;\
@@ -37,6 +37,18 @@ install: build
 test:
 	go test -i $(TEST) || exit 1
 	echo $(TEST) | xargs -t -n4 go test $(TESTARGS) -timeout=30s -parallel=4
+
+.PHONY: infra.reset
+infra.reset: infra.down infra.up ## Reset localstack infra
+
+.PHONY: infra.down
+infra.down: ## Destroy localstack infra
+	-cd localstack && terraform destroy -auto-approve
+	-cd localstack && rm terraform.tfstate*
+
+.PHONY: infra.up
+infra.up: ## Setup localstack for development
+	cd localstack && terraform apply -auto-approve
 
 testacc:
 	TF_ACC=1 go test $(TEST) -v $(TESTARGS) -timeout 120m
@@ -54,4 +66,4 @@ local.destroy:
 	cd dev; terraform destroy
 
 local.sqs.poll:
-	./sqspoll.sh	
+	./sqspoll.sh
