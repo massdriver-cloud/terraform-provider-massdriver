@@ -27,6 +27,7 @@ func resourcePackageAlarm() *schema.Resource {
 				Description: "The identifier of the alarm. In Azure it will be the id, GCP will be the name, and in AWS it will be the arn",
 				Type:        schema.TypeString,
 				Required:    true,
+				ForceNew:    true,
 			},
 			"display_name": {
 				Description: "The name to display in the massdriver UI",
