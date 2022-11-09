@@ -52,7 +52,7 @@ func resourceAvailableCidr() *schema.Resource {
 				ForceNew:    true,
 			},
 			"result": {
-				Description: "A human readable name for this artifact.",
+				Description: "The available CIDR that was found.",
 				Type:        schema.TypeString,
 				Computed:    true,
 			},
