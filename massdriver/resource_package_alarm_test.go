@@ -28,6 +28,14 @@ func testAccCheckMassdriverPackageAlarmConfigBasic() string {
 	resource "massdriver_package_alarm" "new" {
 		cloud_resource_id = "arn:::something"
 		display_name = "CPU alarm"
+		metric {
+			name = "Metric Name"
+			namespace = "Metric/Namespace"
+			statistic = "SUM"
+			dimensions = {
+				"foo" = "bar"
+			}
+		}
 	}
 	`
 }
