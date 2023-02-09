@@ -19,6 +19,12 @@ func TestAccMassdriverPackageAlarmBasic(t *testing.T) {
 					testAccCheckMassdriverPackageAlarmExists("massdriver_package_alarm.new"),
 				),
 			},
+			{
+				Config: testAccCheckMassdriverPackageAlarmConfigSlim(),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckMassdriverPackageAlarmExists("massdriver_package_alarm.new"),
+				),
+			},
 		},
 	})
 }
@@ -35,6 +41,19 @@ func testAccCheckMassdriverPackageAlarmConfigBasic() string {
 			dimensions = {
 				"foo" = "bar"
 			}
+		}
+	}
+	`
+}
+
+func testAccCheckMassdriverPackageAlarmConfigSlim() string {
+	return `
+	resource "massdriver_package_alarm" "new" {
+		cloud_resource_id = "arn:::something"
+		display_name = "CPU alarm"
+		metric {
+			name = "Metric Name"
+			statistic = "SUM"
 		}
 	}
 	`
