@@ -57,7 +57,7 @@ func resourcePackageAlarm() *schema.Resource {
 						"namespace": {
 							Type:        schema.TypeString,
 							Description: "Namespace of the metric. Required for AWS and Azure. Omit for GCP.",
-							Optional:    true,
+							Required:    true,
 						},
 						"statistic": {
 							Type:        schema.TypeString,
