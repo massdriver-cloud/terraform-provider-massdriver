@@ -62,7 +62,7 @@ func resourcePackageAlarm() *schema.Resource {
 						"statistic": {
 							Type:        schema.TypeString,
 							Description: "Aggregation method (sum, average, maximum, etc.)",
-							Required:    true,
+							Optional:    true,
 						},
 						"dimensions": {
 							Type:        schema.TypeMap,
