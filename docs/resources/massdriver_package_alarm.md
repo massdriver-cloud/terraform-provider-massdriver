@@ -20,9 +20,26 @@ This resource registers a package alarm in the Massdriver console for presentati
 - `cloud_resource_id` (String) The identifier of the alarm. In Azure it will be the id, GCP will be the name, and in AWS it will be the arn
 - `display_name` (String) The name to display in the massdriver UI
 
+### Optional
+
+- `metric` (Block List, Max: 1) (see [below for nested schema](#nestedblock--metric))
+
 ### Read-Only
 
 - `id` (String) The ID of this resource.
 - `last_updated` (String) A timestamp of when the last time this resource was updated
+
+<a id="nestedblock--metric"></a>
+### Nested Schema for `metric`
+
+Required:
+
+- `name` (String) Name of the metric. Required for all clouds.
+- `namespace` (String) Namespace of the metric. Required for AWS and Azure. Omit for GCP.
+
+Optional:
+
+- `dimensions` (Map of String) The filtering criteria for the metric
+- `statistic` (String) Aggregation method (sum, average, maximum, etc.)
 
 
