@@ -10,8 +10,8 @@ import (
 
 type PackageAlarmMetric struct {
 	Name       string            `json:"name"`
-	Namespace  string            `json:"namespace,omitempty"`
-	Statistic  string            `json:"statistic"`
+	Namespace  string            `json:"namespace"`
+	Statistic  string            `json:"statistic,omitempty"`
 	Dimensions map[string]string `json:"dimensions,omitempty"`
 }
 

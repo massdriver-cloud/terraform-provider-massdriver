@@ -53,7 +53,7 @@ func testAccCheckMassdriverPackageAlarmConfigSlim() string {
 		display_name = "CPU alarm"
 		metric {
 			name = "Metric Name"
-			statistic = "SUM"
+			namespace = "Metric/Namespace"
 		}
 	}
 	`
