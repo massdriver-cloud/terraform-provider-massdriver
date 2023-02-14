@@ -22,6 +22,12 @@ A Massdriver artifact for exporting a connectable type
 - `name` (String) A human readable name for this artifact.
 - `provider_resource_id` (String) An cloud identifier (AWS ARN, Google/Azure ID) for the primary resource this bundle creates.
 
+### Optional
+
+- `schema_path` (String) The path to the schema-artifacts.json file in order to perform JSON Schema validation on the artifact before sending to Massdriver. This value should only ever be changed when doing local provider testing.
+- `specification_path` (String) The path to the massdriver.yaml file in order to lookup the schema type used for this artifact. This value should only ever be changed when doing local provider testing.
+- `type` (String, Deprecated) This value is deprecated and should no longer be used. It is ignored in the provider code.
+
 ### Read-Only
 
 - `id` (String) The ID of this resource.

@@ -29,7 +29,7 @@ services:
       - DOCKER_HOST=unix:///var/run/docker.sock
       - DEBUG=1
     volumes:
-      - "./tmp/localstack:/tmp/localstack"
+      - "./tmp/localstack:/var/lib/localstack"
     networks:
       provider:
         aliases:
