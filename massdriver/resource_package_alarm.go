@@ -117,31 +117,6 @@ func resourcePackageAlarmCreate(ctx context.Context, d *schema.ResourceData, m i
 	return diags
 }
 
-func resourcePackageAlarmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	c := m.(*MassdriverClient)
-
-	var diags diag.Diagnostics
-
-	packageAlarmMeta := PackageAlarmMetadata{
-		ResourceIdentifier: d.Get("cloud_resource_id").(string),
-		DisplayName:        d.Get("display_name").(string),
-		Metric:             parseMetricBock(d.Get("metric").([]interface{})),
-	}
-
-	event := NewEvent(EVENT_TYPE_ALARM_CHANNEL_UPDATED)
-	event.Payload = EventPayloadAlarmChannels{DeploymentId: c.DeploymentID, PackageAlarm: packageAlarmMeta}
-
-	err := c.PublishEventToSNS(event, &diags)
-
-	if err != nil {
-		return diags
-	}
-
-	d.Set("last_updated", time.Now().Format(time.RFC850))
-
-	return diags
-}
-
 func resourcePackageAlarmDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	c := m.(*MassdriverClient)
 
