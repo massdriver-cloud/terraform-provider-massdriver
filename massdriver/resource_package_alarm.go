@@ -27,7 +27,6 @@ func resourcePackageAlarm() *schema.Resource {
 
 		CreateContext: resourcePackageAlarmCreate,
 		ReadContext:   schema.NoopContext,
-		UpdateContext: resourcePackageAlarmUpdate,
 		DeleteContext: resourcePackageAlarmDelete,
 
 		Schema: map[string]*schema.Schema{
@@ -40,11 +39,13 @@ func resourcePackageAlarm() *schema.Resource {
 			"display_name": {
 				Description: "The name to display in the massdriver UI",
 				Type:        schema.TypeString,
+				ForceNew:    true,
 				Required:    true,
 			},
 			"metric": {
 				Type:     schema.TypeList,
 				MaxItems: 1,
+				ForceNew: true,
 				Optional: true, // This should be removed when we've added it to all our existing alarms
 				//Required: false,     This should be set to true when we've added it to all our existing alarms
 				Elem: &schema.Resource{
@@ -52,21 +53,25 @@ func resourcePackageAlarm() *schema.Resource {
 						"name": {
 							Type:        schema.TypeString,
 							Description: "Name of the metric. Required for all clouds.",
+							ForceNew:    true,
 							Required:    true,
 						},
 						"namespace": {
 							Type:        schema.TypeString,
 							Description: "Namespace of the metric. Required for AWS and Azure. Omit for GCP.",
+							ForceNew:    true,
 							Required:    true,
 						},
 						"statistic": {
 							Type:        schema.TypeString,
 							Description: "Aggregation method (sum, average, maximum, etc.)",
+							ForceNew:    true,
 							Optional:    true,
 						},
 						"dimensions": {
 							Type:        schema.TypeMap,
 							Description: "The filtering criteria for the metric",
+							ForceNew:    true,
 							Optional:    true,
 							Elem: &schema.Schema{
 								Type: schema.TypeString,
