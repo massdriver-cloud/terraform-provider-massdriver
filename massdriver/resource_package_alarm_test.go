@@ -42,6 +42,9 @@ func testAccCheckMassdriverPackageAlarmConfigBasic() string {
 				"foo" = "bar"
 			}
 		}
+		threshold = 80.0
+		period_minutes = 5
+		comparison_operator = "GreaterThanThreshold"
 	}
 	`
 }
