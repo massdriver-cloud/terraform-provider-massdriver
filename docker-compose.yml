@@ -7,7 +7,7 @@ services:
       context: .
       dockerfile: .devcontainer/Dockerfile
     environment:
-      - MASSDRIVER_AWS_ENDPOINT=http://localstack:4566
+      - MASSDRIVER_AWS_ENDPOINT=http://localstack:4568
       - MASSDRIVER_DEPLOYMENT_ID=deploy-ment-idfakefake-whatever
       - MASSDRIVER_TOKEN=s3cr3tT0k3n
       - MASSDRIVER_EVENT_TOPIC_ARN=arn:aws:sns:us-east-1:000000000000:massdriver-provider-test.fifo
@@ -21,7 +21,7 @@ services:
   localstack:
     image: localstack/localstack:latest
     ports:
-      - "4566:4566"
+      - "4568:4568"
     environment:
       - HOSTNAME_EXTERNAL=localstack
       - SERVICES=sns,sqs

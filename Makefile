@@ -52,7 +52,7 @@ infra.up: ## Setup localstack for development
 
 testacc:
 	TF_ACC=1 \
-		MASSDRIVER_AWS_ENDPOINT=http://localstack:4566 \
+		MASSDRIVER_AWS_ENDPOINT=http://localstack:4568 \
 		MASSDRIVER_EVENT_TOPIC_ARN="arn:aws:sns:us-east-1:000000000000:massdriver-provider-test.fifo" \
 		go test $(TEST) -v $(TESTARGS) -timeout 120m
 
@@ -75,7 +75,7 @@ local.sqs.poll:
 localstack.sns.list: ## List sns topics from localstack
 	@AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=us-east-1 \
   aws sns list-topics \
-  --endpoint-url=http://localstack:4566
+  --endpoint-url=http://localstack:4568
 
 localstack.sns.last.arn: ## Get last topic arn created
 	@make localstack.sns.list | jq '.Topics | last | .TopicArn'
