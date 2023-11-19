@@ -93,13 +93,13 @@ func resourcePackageAlarm() *schema.Resource {
 				Description: "The number of periods over which data is compared to the specified threshold",
 				Type:        schema.TypeInt,
 				ForceNew:    true,
-				Optional:    false,
+				Optional:    true,
 			},
 			"comparison_operator": {
 				Description: "The operation to use when comparing the specified statistic and threshold",
 				Type:        schema.TypeString,
 				ForceNew:    true,
-				Optional:    false,
+				Optional:    true,
 			},
 			"last_updated": {
 				Description: "A timestamp of when the last time this resource was updated",
