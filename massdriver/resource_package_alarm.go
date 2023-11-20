@@ -19,6 +19,9 @@ type PackageAlarmMetadata struct {
 	ResourceIdentifier string              `json:"cloud_resource_id"`
 	DisplayName        string              `json:"display_name"`
 	Metric             *PackageAlarmMetric `json:"metric,omitempty"`
+	Threshold          float64             `json:"threshold,omitempty"`
+	PeriodMinutes      int64               `json:"period_minutes,omitempty"`
+	ComparisonOperator string              `json:"comparsion_operator,omitempty"`
 }
 
 func resourcePackageAlarm() *schema.Resource {
@@ -80,6 +83,24 @@ func resourcePackageAlarm() *schema.Resource {
 					},
 				},
 			},
+			"threshold": {
+				Description: "The threshold for triggerin the alarm",
+				Type:        schema.TypeFloat,
+				ForceNew:    true,
+				Optional:    true,
+			},
+			"period_minutes": {
+				Description: "The number of periods over which data is compared to the specified threshold",
+				Type:        schema.TypeInt,
+				ForceNew:    true,
+				Optional:    true,
+			},
+			"comparison_operator": {
+				Description: "The operation to use when comparing the specified statistic and threshold",
+				Type:        schema.TypeString,
+				ForceNew:    true,
+				Optional:    true,
+			},
 			"last_updated": {
 				Description: "A timestamp of when the last time this resource was updated",
 				Type:        schema.TypeString,
@@ -100,6 +121,9 @@ func resourcePackageAlarmCreate(ctx context.Context, d *schema.ResourceData, m i
 		ResourceIdentifier: d.Get("cloud_resource_id").(string),
 		DisplayName:        d.Get("display_name").(string),
 		Metric:             parseMetricBock(d.Get("metric").([]interface{})),
+		Threshold:          d.Get("threshold").(float64),
+		PeriodMinutes:      d.Get("period_minutes").(int64),
+		ComparisonOperator: d.Get("comparison_operator").(string),
 	}
 
 	event := NewEvent(EVENT_TYPE_ALARM_CHANNEL_CREATED)
@@ -126,6 +150,9 @@ func resourcePackageAlarmDelete(ctx context.Context, d *schema.ResourceData, m i
 		ResourceIdentifier: d.Get("cloud_resource_id").(string),
 		DisplayName:        d.Get("display_name").(string),
 		Metric:             parseMetricBock(d.Get("metric").([]interface{})),
+		Threshold:          d.Get("threshold").(float64),
+		PeriodMinutes:      d.Get("period_minutes").(int64),
+		ComparisonOperator: d.Get("comparison_operator").(string),
 	}
 
 	event := NewEvent(EVENT_TYPE_ALARM_CHANNEL_DELETED)
