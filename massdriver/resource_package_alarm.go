@@ -20,7 +20,7 @@ type PackageAlarmMetadata struct {
 	DisplayName        string              `json:"display_name"`
 	Metric             *PackageAlarmMetric `json:"metric,omitempty"`
 	Threshold          float64             `json:"threshold,omitempty"`
-	PeriodMinutes      int64               `json:"period_minutes,omitempty"`
+	PeriodMinutes      int                 `json:"period_minutes,omitempty"`
 	ComparisonOperator string              `json:"comparsion_operator,omitempty"`
 }
 
@@ -122,7 +122,7 @@ func resourcePackageAlarmCreate(ctx context.Context, d *schema.ResourceData, m i
 		DisplayName:        d.Get("display_name").(string),
 		Metric:             parseMetricBock(d.Get("metric").([]interface{})),
 		Threshold:          d.Get("threshold").(float64),
-		PeriodMinutes:      d.Get("period_minutes").(int64),
+		PeriodMinutes:      d.Get("period_minutes").(int),
 		ComparisonOperator: d.Get("comparison_operator").(string),
 	}
 
@@ -151,7 +151,7 @@ func resourcePackageAlarmDelete(ctx context.Context, d *schema.ResourceData, m i
 		DisplayName:        d.Get("display_name").(string),
 		Metric:             parseMetricBock(d.Get("metric").([]interface{})),
 		Threshold:          d.Get("threshold").(float64),
-		PeriodMinutes:      d.Get("period_minutes").(int64),
+		PeriodMinutes:      d.Get("period_minutes").(int),
 		ComparisonOperator: d.Get("comparison_operator").(string),
 	}
 
