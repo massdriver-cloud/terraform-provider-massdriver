@@ -47,4 +47,4 @@ release:
     name: "terraform-provider-massdriver"
   draft: true
 changelog:
-  skip: true
+  disable: true
