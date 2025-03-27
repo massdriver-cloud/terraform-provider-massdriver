@@ -1,8 +1,8 @@
 # See here for image contents: https://github.com/microsoft/vscode-dev-containers/tree/v0.209.6/containers/go/.devcontainer/base.Dockerfile
 
 # [Choice] Go version (use -bullseye variants on local arm64/Apple Silicon): 1, 1.16, 1.17, 1-bullseye, 1.16-bullseye, 1.17-bullseye, 1-buster, 1.16-buster, 1.17-buster
-ARG VARIANT="1.17-bullseye"
-FROM mcr.microsoft.com/vscode/devcontainers/go:0-${VARIANT}
+ARG VARIANT="1-1.23-bookworm"
+FROM mcr.microsoft.com/devcontainers/go:${VARIANT}
 
 # [Choice] Node.js version: none, lts/*, 16, 14, 12, 10
 #ARG NODE_VERSION="none"
@@ -17,8 +17,10 @@ RUN wget -qO - terraform.gpg https://apt.releases.hashicorp.com/gpg | gpg --dear
     apt install terraform
 
 # Install AWS cli to tail messages
-RUN apt install python3-pip -y && \
-    pip install awscli
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
+    unzip awscliv2.zip && \
+    ./aws/install && \
+    rm -rf awscliv2.zip aws
 
 # [Optional] Uncomment this section to install additional OS packages.
 # RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \

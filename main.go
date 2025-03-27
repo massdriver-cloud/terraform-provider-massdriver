@@ -4,7 +4,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/plugin"
 
-	"terraform-provider-massdriver/massdriver"
+	"github.com/massdriver-cloud/terraform-provider-massdriver/massdriver"
 )
 
 // Run "go generate" to format example terraform files and generate the docs for the registry/website

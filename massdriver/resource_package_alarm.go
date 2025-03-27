@@ -129,7 +129,7 @@ func resourcePackageAlarmCreate(ctx context.Context, d *schema.ResourceData, m i
 	event := NewEvent(EVENT_TYPE_ALARM_CHANNEL_CREATED)
 	event.Payload = EventPayloadAlarmChannels{DeploymentId: c.DeploymentID, PackageAlarm: packageAlarmMeta}
 
-	err := c.PublishEventToSNS(event, &diags)
+	err := c.Publisher.Publish(event, &diags)
 
 	if err != nil {
 		return diags
@@ -158,7 +158,7 @@ func resourcePackageAlarmDelete(ctx context.Context, d *schema.ResourceData, m i
 	event := NewEvent(EVENT_TYPE_ALARM_CHANNEL_DELETED)
 	event.Payload = EventPayloadAlarmChannels{DeploymentId: c.DeploymentID, PackageAlarm: packageAlarmMeta}
 
-	err := c.PublishEventToSNS(event, &diags)
+	err := c.Publisher.Publish(event, &diags)
 
 	if err != nil {
 		return diags

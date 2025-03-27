@@ -119,7 +119,7 @@ func resourceArtifactCreate(ctx context.Context, d *schema.ResourceData, m inter
 	event := NewEvent(EVENT_TYPE_ARTIFACT_CREATED)
 	event.Payload = EventPayloadArtifacts{DeploymentId: c.DeploymentID, Artifact: artifact}
 
-	err = c.PublishEventToSNS(event, &diags)
+	err = c.Publisher.Publish(event, &diags)
 
 	if err != nil {
 		return diags
@@ -148,7 +148,7 @@ func resourceArtifactUpdate(ctx context.Context, d *schema.ResourceData, m inter
 	event := NewEvent(EVENT_TYPE_ARTIFACT_UPDATED)
 	event.Payload = EventPayloadArtifacts{DeploymentId: c.DeploymentID, Artifact: artifact}
 
-	err = c.PublishEventToSNS(event, &diags)
+	err = c.Publisher.Publish(event, &diags)
 
 	if err != nil {
 		return diags
@@ -174,7 +174,7 @@ func resourceArtifactDelete(ctx context.Context, d *schema.ResourceData, m inter
 	event := NewEvent(EVENT_TYPE_ARTIFACT_DELETED)
 	event.Payload = EventPayloadArtifacts{DeploymentId: c.DeploymentID, Artifact: artifact}
 
-	err = c.PublishEventToSNS(event, &diags)
+	err = c.Publisher.Publish(event, &diags)
 
 	if err != nil {
 		return diags
