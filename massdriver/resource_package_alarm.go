@@ -2,34 +2,21 @@ package massdriver
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/services/packagealarms"
 )
-
-type PackageAlarmMetric struct {
-	Name       string            `json:"name"`
-	Namespace  string            `json:"namespace"`
-	Statistic  string            `json:"statistic,omitempty"`
-	Dimensions map[string]string `json:"dimensions,omitempty"`
-}
-
-type PackageAlarmMetadata struct {
-	ResourceIdentifier string              `json:"cloud_resource_id"`
-	DisplayName        string              `json:"display_name"`
-	Metric             *PackageAlarmMetric `json:"metric,omitempty"`
-	Threshold          float64             `json:"threshold,omitempty"`
-	PeriodMinutes      int                 `json:"period_minutes,omitempty"`
-	ComparisonOperator string              `json:"comparsion_operator,omitempty"`
-}
 
 func resourcePackageAlarm() *schema.Resource {
 	return &schema.Resource{
 		Description: "This resource registers a package alarm in the Massdriver console for presentation to the user",
 
 		CreateContext: resourcePackageAlarmCreate,
-		ReadContext:   schema.NoopContext,
+		ReadContext:   resourcePackageAlarmRead,
+		UpdateContext: resourcePackageAlarmUpdate,
 		DeleteContext: resourcePackageAlarmDelete,
 
 		Schema: map[string]*schema.Schema{
@@ -37,18 +24,15 @@ func resourcePackageAlarm() *schema.Resource {
 				Description: "The identifier of the alarm. In Azure it will be the id, GCP will be the name, and in AWS it will be the arn",
 				Type:        schema.TypeString,
 				Required:    true,
-				ForceNew:    true,
 			},
 			"display_name": {
 				Description: "The name to display in the massdriver UI",
 				Type:        schema.TypeString,
-				ForceNew:    true,
 				Required:    true,
 			},
 			"metric": {
 				Type:     schema.TypeList,
 				MaxItems: 1,
-				ForceNew: true,
 				Optional: true, // This should be removed when we've added it to all our existing alarms
 				//Required: false,     This should be set to true when we've added it to all our existing alarms
 				Elem: &schema.Resource{
@@ -56,25 +40,21 @@ func resourcePackageAlarm() *schema.Resource {
 						"name": {
 							Type:        schema.TypeString,
 							Description: "Name of the metric. Required for all clouds.",
-							ForceNew:    true,
 							Required:    true,
 						},
 						"namespace": {
 							Type:        schema.TypeString,
 							Description: "Namespace of the metric. Required for AWS and Azure. Omit for GCP.",
-							ForceNew:    true,
 							Required:    true,
 						},
 						"statistic": {
 							Type:        schema.TypeString,
 							Description: "Aggregation method (sum, average, maximum, etc.)",
-							ForceNew:    true,
 							Optional:    true,
 						},
 						"dimensions": {
 							Type:        schema.TypeMap,
 							Description: "The filtering criteria for the metric",
-							ForceNew:    true,
 							Optional:    true,
 							Elem: &schema.Schema{
 								Type: schema.TypeString,
@@ -83,22 +63,27 @@ func resourcePackageAlarm() *schema.Resource {
 					},
 				},
 			},
+			"package_id": {
+				Description: "The package ID associated with this alarm. If unspecified, the package ID will attempt to be read from the MASSDRIVER_PACKAGE_NAME environment variable.",
+				Type:        schema.TypeString,
+				ForceNew:    true,
+				Optional:    true,
+				Computed:    true,
+				DefaultFunc: schema.EnvDefaultFunc("MASSDRIVER_PACKAGE_NAME", nil),
+			},
 			"threshold": {
 				Description: "The threshold for triggerin the alarm",
 				Type:        schema.TypeFloat,
-				ForceNew:    true,
 				Optional:    true,
 			},
 			"period_minutes": {
 				Description: "The number of periods over which data is compared to the specified threshold",
 				Type:        schema.TypeInt,
-				ForceNew:    true,
 				Optional:    true,
 			},
 			"comparison_operator": {
 				Description: "The operation to use when comparing the specified statistic and threshold",
 				Type:        schema.TypeString,
-				ForceNew:    true,
 				Optional:    true,
 			},
 			"last_updated": {
@@ -109,59 +94,100 @@ func resourcePackageAlarm() *schema.Resource {
 				Computed:    true,
 			},
 		},
+		CustomizeDiff: func(ctx context.Context, d *schema.ResourceDiff, meta interface{}) error {
+			val := d.Get("package_id").(string)
+			if val == "" {
+				return fmt.Errorf("`package_id` must be set in the Terraform config or via the MASSDRIVER_PACKAGE_NAME environment variable")
+			}
+			return nil
+		},
 	}
 }
 
-func resourcePackageAlarmCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	c := m.(*MassdriverClient)
+func resourcePackageAlarmCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	service := meta.(*ProviderClient).PackageAlarmsService()
 
 	var diags diag.Diagnostics
 
-	packageAlarmMeta := PackageAlarmMetadata{
-		ResourceIdentifier: d.Get("cloud_resource_id").(string),
-		DisplayName:        d.Get("display_name").(string),
-		Metric:             parseMetricBock(d.Get("metric").([]interface{})),
-		Threshold:          d.Get("threshold").(float64),
-		PeriodMinutes:      d.Get("period_minutes").(int),
-		ComparisonOperator: d.Get("comparison_operator").(string),
+	alarm := parseAlarmBlock(d)
+
+	resp, createErr := service.CreatePackageAlarm(ctx, d.Get("package_id").(string), alarm)
+	if createErr != nil {
+		return diag.FromErr(createErr)
 	}
 
-	event := NewEvent(EVENT_TYPE_ALARM_CHANNEL_CREATED)
-	event.Payload = EventPayloadAlarmChannels{DeploymentId: c.DeploymentID, PackageAlarm: packageAlarmMeta}
-
-	err := c.PublishEventToSNS(event, &diags)
-
-	if err != nil {
-		return diags
-	}
-
-	d.SetId(time.Now().Format(time.RFC3339))
+	d.SetId(resp.ID)
 	d.Set("last_updated", time.Now().Format(time.RFC850))
 
 	return diags
 }
 
-func resourcePackageAlarmDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	c := m.(*MassdriverClient)
+func resourcePackageAlarmRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	service := meta.(*ProviderClient).PackageAlarmsService()
 
 	var diags diag.Diagnostics
 
-	packageAlarmMeta := PackageAlarmMetadata{
-		ResourceIdentifier: d.Get("cloud_resource_id").(string),
-		DisplayName:        d.Get("display_name").(string),
-		Metric:             parseMetricBock(d.Get("metric").([]interface{})),
-		Threshold:          d.Get("threshold").(float64),
-		PeriodMinutes:      d.Get("period_minutes").(int),
-		ComparisonOperator: d.Get("comparison_operator").(string),
+	artifact, createErr := service.GetPackageAlarm(ctx, d.Get("package_id").(string), d.Id())
+	if createErr != nil {
+		return diag.FromErr(createErr)
 	}
 
-	event := NewEvent(EVENT_TYPE_ALARM_CHANNEL_DELETED)
-	event.Payload = EventPayloadAlarmChannels{DeploymentId: c.DeploymentID, PackageAlarm: packageAlarmMeta}
+	d.Set("cloud_resource_id", artifact.CloudResourceID)
+	d.Set("display_name", artifact.DisplayName)
+	// TODO: Uncomment when these fields are returned from the API
+	// d.Set("threshold", artifact.Threshold)
+	// d.Set("period_minutes", artifact.PeriodMinutes)
+	// d.Set("comparison_operator", artifact.ComparisonOperator)
 
-	err := c.PublishEventToSNS(event, &diags)
+	if artifact.Metric != nil {
+		metric := map[string]interface{}{
+			"name":       artifact.Metric.Name,
+			"namespace":  artifact.Metric.Namespace,
+			"statistic":  artifact.Metric.Statistic,
+			"dimensions": map[string]interface{}{},
+		}
 
-	if err != nil {
-		return diags
+		if artifact.Metric.Dimensions != nil {
+			for _, dimension := range artifact.Metric.Dimensions {
+				metric["dimensions"].(map[string]interface{})[dimension.Name] = dimension.Value
+			}
+		}
+
+		if err := d.Set("metric", []interface{}{metric}); err != nil {
+			return diag.FromErr(err)
+		}
+	}
+
+	d.Set("last_updated", time.Now().Format(time.RFC850))
+
+	return diags
+}
+
+func resourcePackageAlarmUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	service := meta.(*ProviderClient).PackageAlarmsService()
+
+	var diags diag.Diagnostics
+
+	alarm := parseAlarmBlock(d)
+
+	_, updateErr := service.UpdatePackageAlarm(ctx, d.Get("package_id").(string), d.Id(), alarm)
+	if updateErr != nil {
+		return diag.FromErr(updateErr)
+	}
+
+	d.Set("last_updated", time.Now().Format(time.RFC850))
+
+	return diags
+}
+
+func resourcePackageAlarmDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	service := meta.(*ProviderClient).PackageAlarmsService()
+
+	var diags diag.Diagnostics
+
+	deleteErr := service.DeletePackageAlarm(ctx, d.Get("package_id").(string), d.Id())
+	if deleteErr != nil {
+		return diag.FromErr(deleteErr)
 	}
 
 	d.SetId("")
@@ -169,11 +195,24 @@ func resourcePackageAlarmDelete(ctx context.Context, d *schema.ResourceData, m i
 	return diags
 }
 
-func parseMetricBock(block []interface{}) *PackageAlarmMetric {
+func parseAlarmBlock(d *schema.ResourceData) *packagealarms.Alarm {
+	alarm := new(packagealarms.Alarm)
+
+	alarm.CloudResourceID = d.Get("cloud_resource_id").(string)
+	alarm.DisplayName = d.Get("display_name").(string)
+	alarm.Threshold = d.Get("threshold").(float64)
+	alarm.PeriodMinutes = d.Get("period_minutes").(int)
+	alarm.ComparisonOperator = d.Get("comparison_operator").(string)
+	alarm.Metric = parseMetricBock(d.Get("metric").([]interface{}))
+
+	return alarm
+}
+
+func parseMetricBock(block []interface{}) *packagealarms.Metric {
 	if len(block) == 0 {
 		return nil
 	}
-	metric := new(PackageAlarmMetric)
+	metric := new(packagealarms.Metric)
 
 	blockMap := block[0].(map[string]interface{})
 
@@ -184,9 +223,11 @@ func parseMetricBock(block []interface{}) *PackageAlarmMetric {
 		metric.Namespace = namespace.(string)
 	}
 	if dimensions, ok := blockMap["dimensions"]; ok {
-		metric.Dimensions = make(map[string]string, len(metric.Dimensions))
 		for key, value := range dimensions.(map[string]interface{}) {
-			metric.Dimensions[key] = value.(string)
+			metric.Dimensions = append(metric.Dimensions, packagealarms.Dimension{
+				Name:  key,
+				Value: value.(string),
+			})
 		}
 	}
 
