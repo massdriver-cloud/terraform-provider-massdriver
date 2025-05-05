@@ -7,21 +7,39 @@ tmp
 # Edit at https://www.toptal.com/developers/gitignore?templates=go,terraform
 
 ### Go ###
-# Binaries for programs and plugins
+# Binaries
 *.exe
-*.exe~
 *.dll
 *.so
 *.dylib
-
-# Test binary, built with `go test -c`
 *.test
-
-# Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
+# Build output
+/build/
+/dist/
+/bin/
+/tmp/
+
+# Test cache & coverage
+*.coverprofile
+*.coverage
+*.testresult
+*.prof
+coverage.out
+coverage.html
+
+# Go module cache
+/go.sum
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*.bak
+*.tmp
+.DS_Store
 
 ### Go Patch ###
 /vendor/
