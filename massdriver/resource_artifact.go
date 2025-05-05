@@ -235,14 +235,13 @@ func getArtifactType(d *schema.ResourceData) (string, error) {
 
 func generateArtifact(d *schema.ResourceData) (*artifacts.Artifact, error) {
 	artifact := artifacts.Artifact{}
-	metadata := artifacts.Metadata{}
 
 	artifactString := d.Get("artifact").(string)
-	metadata.Field = d.Get("field").(string)
-	metadata.Name = d.Get("name").(string)
+	artifact.Field = d.Get("field").(string)
+	artifact.Name = d.Get("name").(string)
 
 	var typeErr error
-	metadata.Type, typeErr = getArtifactType(d)
+	artifact.Type, typeErr = getArtifactType(d)
 	if typeErr != nil {
 		return nil, typeErr
 	}
@@ -251,7 +250,6 @@ func generateArtifact(d *schema.ResourceData) (*artifacts.Artifact, error) {
 	if unmarshalErr != nil {
 		return nil, unmarshalErr
 	}
-	artifact.Metadata = &metadata
 
 	return &artifact, nil
 }
