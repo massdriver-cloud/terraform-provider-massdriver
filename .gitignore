@@ -29,9 +29,6 @@ tmp
 coverage.out
 coverage.html
 
-# Go module cache
-/go.sum
-
 # IDEs and editors
 .idea/
 .vscode/
