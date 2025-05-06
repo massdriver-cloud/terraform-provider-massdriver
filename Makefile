@@ -38,12 +38,6 @@ test:
 	go test -i $(TEST) || exit 1
 	echo $(TEST) | xargs -t -n4 go test $(TESTARGS) -timeout=30s -parallel=4
 
-.PHONY: docs
-docs: ## Generate documentation
-	@echo "Generating documentation..."
-	@go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@latest
-	@tfplugindocs generate --provider-name=massdriver
-
 .PHONY: infra.reset
 infra.reset: infra.down infra.up ## Reset localstack infra
 
