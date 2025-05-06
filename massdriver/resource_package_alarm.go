@@ -127,28 +127,28 @@ func resourcePackageAlarmRead(ctx context.Context, d *schema.ResourceData, meta 
 
 	var diags diag.Diagnostics
 
-	artifact, createErr := service.GetPackageAlarm(ctx, d.Get("package_id").(string), d.Id())
-	if createErr != nil {
-		return diag.FromErr(createErr)
+	alarm, getErr := service.GetPackageAlarm(ctx, d.Get("package_id").(string), d.Id())
+	if getErr != nil {
+		return diag.FromErr(getErr)
 	}
 
-	d.Set("cloud_resource_id", artifact.CloudResourceID)
-	d.Set("display_name", artifact.DisplayName)
+	d.Set("cloud_resource_id", alarm.CloudResourceID)
+	d.Set("display_name", alarm.DisplayName)
 	// TODO: Uncomment when these fields are returned from the API
 	// d.Set("threshold", artifact.Threshold)
 	// d.Set("period_minutes", artifact.PeriodMinutes)
 	// d.Set("comparison_operator", artifact.ComparisonOperator)
 
-	if artifact.Metric != nil {
+	if alarm.Metric != nil {
 		metric := map[string]interface{}{
-			"name":       artifact.Metric.Name,
-			"namespace":  artifact.Metric.Namespace,
-			"statistic":  artifact.Metric.Statistic,
+			"name":       alarm.Metric.Name,
+			"namespace":  alarm.Metric.Namespace,
+			"statistic":  alarm.Metric.Statistic,
 			"dimensions": map[string]interface{}{},
 		}
 
-		if artifact.Metric.Dimensions != nil {
-			for _, dimension := range artifact.Metric.Dimensions {
+		if alarm.Metric.Dimensions != nil {
+			for _, dimension := range alarm.Metric.Dimensions {
 				metric["dimensions"].(map[string]interface{})[dimension.Name] = dimension.Value
 			}
 		}
