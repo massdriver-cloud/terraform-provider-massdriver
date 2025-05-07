@@ -128,7 +128,6 @@ func resourcePackageAlarmRead(ctx context.Context, d *schema.ResourceData, meta 
 
 	// If the ID is a timestamp, it was from the older system where we didn't have IDs. The package_id field should force a new creation. Don't lookup, just bail.
 	if _, err := time.Parse(time.RFC3339, d.Id()); err == nil {
-
 		return nil
 	}
 
@@ -148,10 +147,16 @@ func resourcePackageAlarmRead(ctx context.Context, d *schema.ResourceData, meta 
 
 	d.Set("cloud_resource_id", alarm.CloudResourceID)
 	d.Set("display_name", alarm.DisplayName)
-	// TODO: Uncomment when these fields are returned from the API
-	// d.Set("threshold", artifact.Threshold)
-	// d.Set("period_minutes", artifact.PeriodMinutes)
-	// d.Set("comparison_operator", artifact.ComparisonOperator)
+
+	if alarm.Threshold != 0 {
+		d.Set("threshold", alarm.Threshold)
+	}
+	if alarm.PeriodMinutes != 0 {
+		d.Set("period_minutes", alarm.PeriodMinutes)
+	}
+	if alarm.ComparisonOperator != "" {
+		d.Set("comparison_operator", alarm.ComparisonOperator)
+	}
 
 	if alarm.Metric != nil {
 		metric := map[string]interface{}{
@@ -204,11 +209,10 @@ func resourcePackageAlarmDelete(ctx context.Context, d *schema.ResourceData, met
 
 	var diags diag.Diagnostics
 
-	if d.Id() == "" {
+	alarmID := d.Id()
+	if alarmID == "" {
 		return diags
 	}
-
-	alarmID := d.Id()
 
 	// If the ID is a timestamp, it was from the older system where we didn't have IDs. We need to delete using the cloud resource ID base64 encoded (with no padding)
 	if _, err := time.Parse(time.RFC3339, alarmID); err == nil {
