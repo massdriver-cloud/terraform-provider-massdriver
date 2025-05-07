@@ -2,7 +2,9 @@ package massdriver
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -64,11 +66,10 @@ func resourcePackageAlarm() *schema.Resource {
 				},
 			},
 			"package_id": {
-				Description: "The package ID associated with this alarm. If unspecified, the package ID will attempt to be read from the MASSDRIVER_PACKAGE_NAME environment variable.",
+				Description: "The package ID associated with this alarm. This should generally be left unspecified, since the package ID will be read from the MASSDRIVER_PACKAGE_NAME environment variable.",
 				Type:        schema.TypeString,
 				ForceNew:    true,
 				Optional:    true,
-				Computed:    true,
 				DefaultFunc: schema.EnvDefaultFunc("MASSDRIVER_PACKAGE_NAME", nil),
 			},
 			"threshold": {
@@ -94,13 +95,6 @@ func resourcePackageAlarm() *schema.Resource {
 				Computed:    true,
 			},
 		},
-		CustomizeDiff: func(ctx context.Context, d *schema.ResourceDiff, meta interface{}) error {
-			val := d.Get("package_id").(string)
-			if val == "" {
-				return fmt.Errorf("`package_id` must be set in the Terraform config or via the MASSDRIVER_PACKAGE_NAME environment variable")
-			}
-			return nil
-		},
 	}
 }
 
@@ -111,7 +105,12 @@ func resourcePackageAlarmCreate(ctx context.Context, d *schema.ResourceData, met
 
 	alarm := parseAlarmBlock(d)
 
-	resp, createErr := service.CreatePackageAlarm(ctx, d.Get("package_id").(string), alarm)
+	packageID, idErr := getPackageName(d)
+	if idErr != nil {
+		return diag.FromErr(idErr)
+	}
+
+	resp, createErr := service.CreatePackageAlarm(ctx, packageID, alarm)
 	if createErr != nil {
 		return diag.FromErr(createErr)
 	}
@@ -127,8 +126,23 @@ func resourcePackageAlarmRead(ctx context.Context, d *schema.ResourceData, meta 
 
 	var diags diag.Diagnostics
 
-	alarm, getErr := service.GetPackageAlarm(ctx, d.Get("package_id").(string), d.Id())
+	// If the ID is a timestamp, it was from the older system where we didn't have IDs. The package_id field should force a new creation. Don't lookup, just bail.
+	if _, err := time.Parse(time.RFC3339, d.Id()); err == nil {
+
+		return nil
+	}
+
+	packageID, idErr := getPackageName(d)
+	if idErr != nil {
+		return diag.FromErr(idErr)
+	}
+
+	alarm, getErr := service.GetPackageAlarm(ctx, packageID, d.Id())
 	if getErr != nil {
+		if getErr.Error() == "not found" {
+			d.SetId("")
+			return diags
+		}
 		return diag.FromErr(getErr)
 	}
 
@@ -170,7 +184,12 @@ func resourcePackageAlarmUpdate(ctx context.Context, d *schema.ResourceData, met
 
 	alarm := parseAlarmBlock(d)
 
-	_, updateErr := service.UpdatePackageAlarm(ctx, d.Get("package_id").(string), d.Id(), alarm)
+	packageID, idErr := getPackageName(d)
+	if idErr != nil {
+		return diag.FromErr(idErr)
+	}
+
+	_, updateErr := service.UpdatePackageAlarm(ctx, packageID, d.Id(), alarm)
 	if updateErr != nil {
 		return diag.FromErr(updateErr)
 	}
@@ -185,7 +204,23 @@ func resourcePackageAlarmDelete(ctx context.Context, d *schema.ResourceData, met
 
 	var diags diag.Diagnostics
 
-	deleteErr := service.DeletePackageAlarm(ctx, d.Get("package_id").(string), d.Id())
+	if d.Id() == "" {
+		return diags
+	}
+
+	alarmID := d.Id()
+
+	// If the ID is a timestamp, it was from the older system where we didn't have IDs. We need to delete using the cloud resource ID base64 encoded (with no padding)
+	if _, err := time.Parse(time.RFC3339, alarmID); err == nil {
+		alarmID = base64.RawURLEncoding.EncodeToString([]byte(d.Get("cloud_resource_id").(string)))
+	}
+
+	packageID, idErr := getPackageName(d)
+	if idErr != nil {
+		return diag.FromErr(idErr)
+	}
+
+	deleteErr := service.DeletePackageAlarm(ctx, packageID, alarmID)
 	if deleteErr != nil {
 		return diag.FromErr(deleteErr)
 	}
@@ -193,6 +228,17 @@ func resourcePackageAlarmDelete(ctx context.Context, d *schema.ResourceData, met
 	d.SetId("")
 
 	return diags
+}
+
+func getPackageName(d *schema.ResourceData) (string, error) {
+	packageID, ok := d.Get("package_id").(string)
+	if !ok || packageID == "" {
+		packageID = os.Getenv("MASSDRIVER_PACKAGE_NAME")
+		if packageID == "" {
+			return "", fmt.Errorf("`package_id` must be set in config or MASSDRIVER_PACKAGE_NAME must be set in the environment")
+		}
+	}
+	return packageID, nil
 }
 
 func parseAlarmBlock(d *schema.ResourceData) *packagealarms.Alarm {
