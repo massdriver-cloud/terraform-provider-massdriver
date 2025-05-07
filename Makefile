@@ -42,7 +42,7 @@ test:
 docs: ## Generate documentation
 	@echo "Generating documentation..."
 	@go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@latest
-	@tfplugindocs generate --provider-name=massdriver
+	@tfplugindocs generate --provider-name=massdriver --examples-dir=./examples
 
 .PHONY: infra.reset
 infra.reset: infra.down infra.up ## Reset localstack infra
