@@ -24,7 +24,7 @@ This resource registers a package alarm in the Massdriver console for presentati
 
 - `comparison_operator` (String) The operation to use when comparing the specified statistic and threshold
 - `metric` (Block List, Max: 1) (see [below for nested schema](#nestedblock--metric))
-- `package_id` (String) The package ID associated with this alarm. If unspecified, the package ID will attempt to be read from the MASSDRIVER_PACKAGE_NAME environment variable.
+- `package_id` (String) The package ID associated with this alarm. This should generally be left unspecified, since the package ID will be read from the MASSDRIVER_PACKAGE_NAME environment variable.
 - `period_minutes` (Number) The number of periods over which data is compared to the specified threshold
 - `threshold` (Number) The threshold for triggerin the alarm
 
