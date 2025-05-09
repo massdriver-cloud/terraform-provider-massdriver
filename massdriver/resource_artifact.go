@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"time"
 
@@ -133,7 +134,7 @@ func resourceArtifactUpdate(ctx context.Context, d *schema.ResourceData, meta an
 		return diag.FromErr(err)
 	}
 
-	_, updateErr := service.UpdateArtifact(ctx, d.Id(), artifact)
+	_, updateErr := service.UpdateArtifact(ctx, getID(d), artifact)
 	if updateErr != nil {
 		return diag.FromErr(updateErr)
 	}
@@ -148,7 +149,7 @@ func resourceArtifactDelete(ctx context.Context, d *schema.ResourceData, meta an
 
 	var diags diag.Diagnostics
 
-	id := d.Id()
+	id := getID(d)
 	field := d.Get("field").(string)
 
 	deleteErr := service.DeleteArtifact(ctx, id, field)
@@ -159,6 +160,17 @@ func resourceArtifactDelete(ctx context.Context, d *schema.ResourceData, meta an
 	d.SetId("")
 
 	return diags
+}
+
+func getID(d *schema.ResourceData) string {
+	artifactID := d.Id()
+
+	// If the ID is a timestamp, it was from the older system where we didn't have IDs. We need to convert the ID to the new format, which is <package_name>-<field>
+	if _, err := time.Parse(time.RFC3339, artifactID); err == nil {
+		packageName := os.Getenv("MASSDRIVER_PACKAGE_NAME")
+		artifactID = fmt.Sprintf("%s-%s", packageName, d.Get("field"))
+	}
+	return artifactID
 }
 
 func validateArtifact(d *schema.ResourceData) error {
