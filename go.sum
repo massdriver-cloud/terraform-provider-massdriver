@@ -172,6 +172,10 @@ github.com/massdriver-cloud/massdriver-sdk-go v0.0.1-0.20250507003903-77c89b6774
 github.com/massdriver-cloud/massdriver-sdk-go v0.0.1-0.20250507003903-77c89b677480/go.mod h1:NzVlZes2wGSi9JZHeoT1MJ9KIGYO9zICnvoQ7029+GU=
 github.com/massdriver-cloud/massdriver-sdk-go v0.0.1 h1:fZlKQiuD/PIA/c7uG7HPBtNrYeTazJCDljb8ZmSflO8=
 github.com/massdriver-cloud/massdriver-sdk-go v0.0.1/go.mod h1:NzVlZes2wGSi9JZHeoT1MJ9KIGYO9zICnvoQ7029+GU=
+github.com/massdriver-cloud/massdriver-sdk-go v0.0.2-0.20250514193800-309ed946ee5e h1:/jINB5RCkesYoMbc7/B5I9Rh7zuaREgHKrp8sIfNBf8=
+github.com/massdriver-cloud/massdriver-sdk-go v0.0.2-0.20250514193800-309ed946ee5e/go.mod h1:NzVlZes2wGSi9JZHeoT1MJ9KIGYO9zICnvoQ7029+GU=
+github.com/massdriver-cloud/massdriver-sdk-go v0.0.2 h1:MI9Q0GCn6+sBkzwI852DWknPxU6/ne+nJRdEFbRaSj8=
+github.com/massdriver-cloud/massdriver-sdk-go v0.0.2/go.mod h1:NzVlZes2wGSi9JZHeoT1MJ9KIGYO9zICnvoQ7029+GU=
 github.com/matryer/is v1.2.0/go.mod h1:2fLPjFQM9rhQ15aVEtbuwhJinnOqrmgXPNdZsdwlWXA=
 github.com/mattn/go-colorable v0.1.4/go.mod h1:U0ppj6V5qS13XJ6of8GYAs25YV2eR4EVcfRqFIhoBtE=
 github.com/mattn/go-colorable v0.1.9/go.mod h1:u6P/XSegPjTcexA+o6vUJrdnUu04hMope9wVRipJSqc=
