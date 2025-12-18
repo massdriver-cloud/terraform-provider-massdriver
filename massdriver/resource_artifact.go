@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/client"
 	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/services/artifacts"
 	"github.com/xeipuuv/gojsonschema"
 	"gopkg.in/yaml.v2"
@@ -104,7 +106,7 @@ func resourceArtifactCreate(ctx context.Context, d *schema.ResourceData, meta an
 		return diag.FromErr(err)
 	}
 
-	artifact, err := generateArtifact(d)
+	artifact, err := generateArtifact(d, meta.(*ProviderClient).Client)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -129,7 +131,7 @@ func resourceArtifactUpdate(ctx context.Context, d *schema.ResourceData, meta an
 		return diag.FromErr(err)
 	}
 
-	artifact, err := generateArtifact(d)
+	artifact, err := generateArtifact(d, meta.(*ProviderClient).Client)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -214,7 +216,7 @@ func validateArtifact(d *schema.ResourceData) error {
 }
 
 // For now we need to fetch the type from the massdriver.yaml file
-func getArtifactType(d *schema.ResourceData) (string, error) {
+func getArtifactType(d *schema.ResourceData, mdClient *client.Client) (string, error) {
 	field := d.Get("field").(string)
 	specificationPath := d.Get("specification_path").(string)
 	if specificationPath == "" {
@@ -242,10 +244,15 @@ func getArtifactType(d *schema.ResourceData) (string, error) {
 		return "", errors.New(`artifact validation failed: field "` + field + `" does not contain a $ref`)
 	}
 
+	split := strings.Split(artifactType, "/")
+	if len(split) != 2 {
+		artifactType = strings.Join([]string{mdClient.Config.OrganizationID, artifactType}, "/")
+	}
+
 	return artifactType, nil
 }
 
-func generateArtifact(d *schema.ResourceData) (*artifacts.Artifact, error) {
+func generateArtifact(d *schema.ResourceData, mdClient *client.Client) (*artifacts.Artifact, error) {
 	artifact := artifacts.Artifact{}
 
 	artifactString := d.Get("artifact").(string)
@@ -253,7 +260,7 @@ func generateArtifact(d *schema.ResourceData) (*artifacts.Artifact, error) {
 	artifact.Name = d.Get("name").(string)
 
 	var typeErr error
-	artifact.Type, typeErr = getArtifactType(d)
+	artifact.Type, typeErr = getArtifactType(d, mdClient)
 	if typeErr != nil {
 		return nil, typeErr
 	}
