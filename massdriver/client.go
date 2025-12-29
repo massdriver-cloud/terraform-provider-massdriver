@@ -4,6 +4,7 @@ import (
 	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/client"
 	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/services/artifacts"
 	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/services/packagealarms"
+	"terraform-provider-massdriver/massdriver/services/projects"
 )
 
 type ProviderClient struct {
@@ -26,4 +27,8 @@ func (p *ProviderClient) ArtifactService() *artifacts.Service {
 
 func (p *ProviderClient) PackageAlarmsService() *packagealarms.Service {
 	return packagealarms.NewService(p.Client)
+}
+
+func (p *ProviderClient) ProjectService() *projects.Service {
+	return projects.NewService(p.Client)
 }

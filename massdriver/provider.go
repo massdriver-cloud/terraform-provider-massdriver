@@ -11,10 +11,11 @@ import (
 func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{},
-		ResourcesMap: map[string]*schema.Resource{
-			"massdriver_artifact":      resourceArtifact(),
-			"massdriver_package_alarm": resourcePackageAlarm(),
-		},
+	ResourcesMap: map[string]*schema.Resource{
+		"massdriver_artifact":      resourceArtifact(),
+		"massdriver_package_alarm": resourcePackageAlarm(),
+		"massdriver_project":       resourceProject(),
+	},
 		DataSourcesMap:       map[string]*schema.Resource{},
 		ConfigureContextFunc: providerConfigure,
 	}
