@@ -1,7 +1,7 @@
 schema: schema.graphql
 operations:
   - genqlient.graphql
-generated: generated.go
+generated: zz_graphql.go
 package: massdriver
 bindings:
   JSON:
