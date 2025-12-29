@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"terraform-provider-massdriver/massdriver/services/projects"
-
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -50,7 +48,7 @@ func resourceProject() *schema.Resource {
 }
 
 func resourceProjectCreate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	service := meta.(*ProviderClient).ProjectService()
+	client := meta.(*ProviderClient).Client
 
 	var diags diag.Diagnostics
 
@@ -58,47 +56,54 @@ func resourceProjectCreate(ctx context.Context, d *schema.ResourceData, meta any
 	slug := d.Get("slug").(string)
 	description := d.Get("description").(string)
 
-	project := &projects.Project{
-		Name:        name,
-		Slug:        slug,
-		Description: description,
-	}
-
-	resp, createErr := service.CreateProject(ctx, project)
+	resp, createErr := createProject(ctx, client.GQL, client.Config.OrganizationID, name, slug, description)
 	if createErr != nil {
 		return diag.FromErr(createErr)
 	}
 
-	d.SetId(resp.ID)
+	if !resp.CreateProject.Successful {
+		messages := resp.CreateProject.GetMessages()
+		if len(messages) > 0 {
+			errMsg := "unable to create project:"
+			for _, msg := range messages {
+				errMsg += "\n  - " + msg.Message
+			}
+			return diag.FromErr(fmt.Errorf("%s", errMsg))
+		}
+		return diag.FromErr(fmt.Errorf("unable to create project"))
+	}
+
+	d.SetId(resp.CreateProject.Result.Id)
 	d.Set("last_updated", time.Now().Format(time.RFC850))
 
 	return diags
 }
 
 func resourceProjectRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	service := meta.(*ProviderClient).ProjectService()
+	client := meta.(*ProviderClient).Client
 
 	var diags diag.Diagnostics
 
-	project, getErr := service.GetProject(ctx, d.Id())
+	resp, getErr := getProjectById(ctx, client.GQL, client.Config.OrganizationID, d.Id())
 	if getErr != nil {
-		if getErr.Error() == "not found" {
-			d.SetId("")
-			return diags
-		}
 		return diag.FromErr(getErr)
 	}
 
-	d.Set("name", project.Name)
-	d.Set("slug", project.Slug)
-	d.Set("description", project.Description)
+	if resp.Project.Id == "" {
+		d.SetId("")
+		return diags
+	}
+
+	d.Set("name", resp.Project.Name)
+	d.Set("slug", resp.Project.Slug)
+	d.Set("description", resp.Project.Description)
 	d.Set("last_updated", time.Now().Format(time.RFC850))
 
 	return diags
 }
 
 func resourceProjectUpdate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	service := meta.(*ProviderClient).ProjectService()
+	client := meta.(*ProviderClient).Client
 
 	var diags diag.Diagnostics
 
@@ -106,15 +111,21 @@ func resourceProjectUpdate(ctx context.Context, d *schema.ResourceData, meta any
 		name := d.Get("name").(string)
 		description := d.Get("description").(string)
 
-		project := &projects.Project{
-			ID:          d.Id(),
-			Name:        name,
-			Description: description,
-		}
-
-		_, updateErr := service.UpdateProject(ctx, project)
+		resp, updateErr := updateProject(ctx, client.GQL, client.Config.OrganizationID, d.Id(), name, description)
 		if updateErr != nil {
 			return diag.FromErr(updateErr)
+		}
+
+		if !resp.UpdateProject.Successful {
+			messages := resp.UpdateProject.GetMessages()
+			if len(messages) > 0 {
+				errMsg := "unable to update project:"
+				for _, msg := range messages {
+					errMsg += "\n  - " + msg.Message
+				}
+				return diag.FromErr(fmt.Errorf("%s", errMsg))
+			}
+			return diag.FromErr(fmt.Errorf("unable to update project"))
 		}
 
 		d.Set("last_updated", time.Now().Format(time.RFC850))
@@ -124,13 +135,25 @@ func resourceProjectUpdate(ctx context.Context, d *schema.ResourceData, meta any
 }
 
 func resourceProjectDelete(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	service := meta.(*ProviderClient).ProjectService()
+	client := meta.(*ProviderClient).Client
 
 	var diags diag.Diagnostics
 
-	deleteErr := service.DeleteProject(ctx, d.Id())
+	resp, deleteErr := deleteProject(ctx, client.GQL, client.Config.OrganizationID, d.Id())
 	if deleteErr != nil {
-		return diag.FromErr(fmt.Errorf("failed to delete project: %w", deleteErr))
+		return diag.FromErr(deleteErr)
+	}
+
+	if !resp.DeleteProject.Successful {
+		messages := resp.DeleteProject.GetMessages()
+		if len(messages) > 0 {
+			errMsg := "unable to delete project:"
+			for _, msg := range messages {
+				errMsg += "\n  - " + msg.Message
+			}
+			return diag.FromErr(fmt.Errorf("%s", errMsg))
+		}
+		return diag.FromErr(fmt.Errorf("unable to delete project"))
 	}
 
 	d.SetId("")

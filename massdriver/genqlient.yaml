@@ -1,0 +1,15 @@
+schema: schema.graphql
+operations:
+  - genqlient.graphql
+generated: generated.go
+package: massdriver
+bindings:
+  JSON:
+    type: map[string]any
+  DateTime:
+    type: time.Time
+  VersionConstraint:
+    type: string
+  Markdown:
+    type: string
+

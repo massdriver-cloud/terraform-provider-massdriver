@@ -1,0 +1,59 @@
+# PROJECTS
+
+query getProjectById($organizationId: ID!, $id: ID!) {
+  project(organizationId: $organizationId, id: $id) {
+    id
+    name
+    slug
+    description
+  }
+}
+
+mutation createProject($organizationId: ID!, $name: String!, $slug: String!, $description: String) {
+  createProject(organizationId: $organizationId, name: $name, slug: $slug, description: $description) {
+    result {
+      id
+      name
+      slug
+      description
+    }
+    successful
+    # @genqlient(typename: "MutationValidationError")
+    messages {
+      message
+    }
+  }
+}
+
+mutation updateProject($organizationId: ID!, $id: ID!, $name: String!, $description: String) {
+  updateProject(organizationId: $organizationId, id: $id, name: $name, description: $description) {
+    result {
+      id
+      name
+      slug
+      description
+    }
+    successful
+    # @genqlient(typename: "MutationValidationError")
+    messages {
+      message
+    }
+  }
+}
+
+mutation deleteProject($organizationId: ID!, $id: ID!) {
+  deleteProject(organizationId: $organizationId, id: $id) {
+    result {
+      id
+      name
+      slug
+      description
+    }
+    successful
+    # @genqlient(typename: "MutationValidationError")
+    messages {
+      message
+    }
+  }
+}
+
