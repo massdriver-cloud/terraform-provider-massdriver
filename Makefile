@@ -44,44 +44,12 @@ docs: ## Generate documentation
 	@go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@latest
 	@tfplugindocs generate --provider-name=massdriver --examples-dir=./examples
 
-.PHONY: infra.reset
-infra.reset: infra.down infra.up ## Reset localstack infra
-
-.PHONY: infra.down
-infra.down: ## Destroy localstack infra
-	-cd localstack && terraform destroy -auto-approve
-	-cd localstack && rm terraform.tfstate*
-
-.PHONY: infra.up
-infra.up: ## Setup localstack for development
-	cd localstack && terraform apply -auto-approve
-
-testacc:
-	TF_ACC=1 \
-		MASSDRIVER_AWS_ENDPOINT=http://localstack:4566 \
-		MASSDRIVER_EVENT_TOPIC_ARN="arn:aws:sns:us-east-1:000000000000:massdriver-provider-test.fifo" \
-		go test $(TEST) -v $(TESTARGS) -timeout 120m
-
-local.setup: install
-	./test-setup.sh
 
 local.apply: install
 	cd dev; rm -rf .terraform .terraform.lock.hcl terraform.tfstate
-	cd dev; terraform init
-	cd dev; terraform apply
+	cd dev; tofu init
+	cd dev; tofu apply
 
 local.destroy:
-	cd dev; terraform init
-	cd dev; terraform destroy
-
-local.sqs.poll:
-	./sqspoll.sh
-
-.PHONY: localstack.sns.list localstack.sns.last.arn
-localstack.sns.list: ## List sns topics from localstack
-	@AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=us-east-1 \
-  aws sns list-topics \
-  --endpoint-url=http://localstack:4566
-
-localstack.sns.last.arn: ## Get last topic arn created
-	@make localstack.sns.list | jq '.Topics | last | .TopicArn'
+	cd dev; tofu init
+	cd dev; tofu destroy

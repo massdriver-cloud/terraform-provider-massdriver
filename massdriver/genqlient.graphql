@@ -57,3 +57,66 @@ mutation deleteProject($organizationId: ID!, $id: ID!) {
   }
 }
 
+
+# ENVIRONMENTS
+
+query getEnvironmentById($organizationId: ID!, $id: ID!) {
+  environment(organizationId: $organizationId, id: $id) {
+    id
+    name
+    slug
+    description
+    project {
+      id
+      slug
+    }
+  }
+}
+
+mutation createEnvironment($organizationId: ID!, $projectId: ID!, $name: String!, $slug: String!, $description: String) {
+  createEnvironment(organizationId: $organizationId, projectId: $projectId, name: $name, slug: $slug, description: $description) {
+    result {
+      id
+      name
+      slug
+      description
+    }
+    successful
+    # @genqlient(typename: "MutationValidationError")
+    messages {
+      message
+    }
+  }
+}
+
+mutation updateEnvironment($organizationId: ID!, $id: ID!, $name: String!, $description: String) {
+  updateEnvironment(organizationId: $organizationId, id: $id, name: $name, description: $description) {
+    result {
+      id
+      name
+      slug
+      description
+    }
+    successful
+    # @genqlient(typename: "MutationValidationError")
+    messages {
+      message
+    }
+  }
+}
+
+mutation deleteEnvironment($organizationId: ID!, $id: ID!) {
+  deleteEnvironment(organizationId: $organizationId, id: $id) {
+    result {
+      id
+      name
+      slug
+      description
+    }
+    successful
+    # @genqlient(typename: "MutationValidationError")
+    messages {
+      message
+    }
+  }
+}
