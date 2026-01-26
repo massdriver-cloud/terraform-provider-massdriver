@@ -275,5 +275,13 @@ func generateArtifact(d *schema.ResourceData, mdClient *client.Client) (*artifac
 	// Set the payload field - this is the new format that the API expects
 	artifact.Payload = payload
 
+	// Extract "data" and "specs" from the payload if they exist
+	if data, dataExists := payload["data"]; dataExists {
+		artifact.Data = data.(map[string]interface{})
+	}
+	if specs, specsExists := payload["specs"]; specsExists {
+		artifact.Specs = specs.(map[string]interface{})
+	}
+
 	return &artifact, nil
 }
