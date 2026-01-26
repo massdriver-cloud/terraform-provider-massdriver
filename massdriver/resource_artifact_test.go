@@ -32,7 +32,7 @@ func testAccCheckMassdriverArtifactConfigBasic() string {
 		schema_path = "testdata/schema-artifacts.json"
 		specification_path = "testdata/massdriver.yaml"
 		name = "name"
-		artifact = jsonencode({data={foo="bar"},specs={bam="bizzle"}})
+		artifact = jsonencode({foo="bar",bam="bizzle"})
 	}
 	`
 }
