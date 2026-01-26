@@ -265,10 +265,15 @@ func generateArtifact(d *schema.ResourceData, mdClient *client.Client) (*artifac
 		return nil, typeErr
 	}
 
-	unmarshalErr := json.Unmarshal([]byte(artifactString), &artifact)
+	// Unmarshal the user's artifact JSON into a map for the payload
+	var payload map[string]interface{}
+	unmarshalErr := json.Unmarshal([]byte(artifactString), &payload)
 	if unmarshalErr != nil {
 		return nil, unmarshalErr
 	}
+
+	// Set the payload field - this is the new format that the API expects
+	artifact.Payload = payload
 
 	return &artifact, nil
 }
