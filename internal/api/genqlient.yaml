@@ -1,0 +1,21 @@
+# For full documentation see:
+# https://github.com/Khan/genqlient/blob/main/docs/genqlient.yaml
+
+schema: schema.graphql
+operations:
+  - genqlient.graphql
+generated: zz_generated.go
+package: api
+bindings:
+  JSON:
+    type: map[string]any
+    marshaler: terraform-provider-massdriver/internal/api/scalars.MarshalJSON
+    unmarshaler: terraform-provider-massdriver/internal/api/scalars.UnmarshalJSON
+  Map:
+    type: map[string]any
+    marshaler: terraform-provider-massdriver/internal/api/scalars.MarshalJSON
+    unmarshaler: terraform-provider-massdriver/internal/api/scalars.UnmarshalJSON
+  VersionConstraint:
+    type: string
+  OciRepoName:
+    type: string

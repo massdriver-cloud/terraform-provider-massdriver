@@ -1,0 +1,356 @@
+# PROJECTS
+
+query getProject($organizationId: ID!, $id: ID!) {
+  project(organizationId: $organizationId, id: $id) {
+    id
+    name
+    description
+  }
+}
+
+mutation createProject($organizationId: ID!, $input: CreateProjectInput!) {
+  createProject(organizationId: $organizationId, input: $input) {
+    result {
+      id
+      name
+      description
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+mutation updateProject($organizationId: ID!, $id: ID!, $input: UpdateProjectInput!) {
+  updateProject(organizationId: $organizationId, id: $id, input: $input) {
+    result {
+      id
+      name
+      description
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+mutation deleteProject($organizationId: ID!, $id: ID!) {
+  deleteProject(organizationId: $organizationId, id: $id) {
+    result {
+      id
+      name
+      description
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+
+# ENVIRONMENTS
+
+query getEnvironment($organizationId: ID!, $id: ID!) {
+  environment(organizationId: $organizationId, id: $id) {
+    id
+    name
+    description
+    project {
+      id
+      name
+    }
+  }
+}
+
+mutation createEnvironment($organizationId: ID!, $projectId: ID!, $input: CreateEnvironmentInput!) {
+  createEnvironment(organizationId: $organizationId, projectId: $projectId, input: $input) {
+    result {
+      id
+      name
+      description
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+mutation updateEnvironment($organizationId: ID!, $id: ID!, $input: UpdateEnvironmentInput!) {
+  updateEnvironment(organizationId: $organizationId, id: $id, input: $input) {
+    result {
+      id
+      name
+      description
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+mutation deleteEnvironment($organizationId: ID!, $id: ID!) {
+  deleteEnvironment(organizationId: $organizationId, id: $id) {
+    result {
+      id
+      name
+      description
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+
+# COMPONENTS
+
+# @genqlient(for: "ComponentsFilter.id", omitempty: true, pointer: true)
+# @genqlient(for: "ComponentsFilter.ociRepoName", omitempty: true, pointer: true)
+# @genqlient(for: "IdFilter.eq", omitempty: true)
+# @genqlient(for: "IdFilter.in", omitempty: true)
+# @genqlient(for: "OciRepoNameFilter.eq", omitempty: true)
+# @genqlient(for: "OciRepoNameFilter.in", omitempty: true)
+# @genqlient(for: "OciRepoNameFilter.startsWith", omitempty: true)
+query listComponents(
+  $organizationId: ID!,
+  $projectId: ID!,
+  # @genqlient(omitempty: true, pointer: true)
+  $filter: ComponentsFilter
+) {
+  project(organizationId: $organizationId, id: $projectId) {
+    blueprint {
+      components(filter: $filter) {
+        items {
+          id
+          name
+          description
+          attributes
+          ociRepo {
+            id
+            name
+          }
+        }
+      }
+    }
+  }
+}
+
+# @genqlient(for: "AddComponentInput.description", omitempty: true)
+# @genqlient(for: "AddComponentInput.attributes", omitempty: true)
+mutation addComponent(
+  $organizationId: ID!,
+  $projectId: ID!,
+  $ociRepoName: OciRepoName!,
+  $input: AddComponentInput!
+) {
+  addComponent(
+    organizationId: $organizationId,
+    projectId: $projectId,
+    ociRepoName: $ociRepoName,
+    input: $input
+  ) {
+    result {
+      id
+      name
+      description
+      attributes
+      ociRepo {
+        id
+        name
+      }
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+mutation removeComponent($organizationId: ID!, $id: ID!) {
+  removeComponent(organizationId: $organizationId, id: $id) {
+    result {
+      id
+      name
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+# @genqlient(for: "LinksFilter.fromComponentId", omitempty: true, pointer: true)
+# @genqlient(for: "LinksFilter.toComponentId", omitempty: true, pointer: true)
+query listLinks(
+  $organizationId: ID!,
+  $projectId: ID!,
+  # @genqlient(omitempty: true, pointer: true)
+  $filter: LinksFilter
+) {
+  project(organizationId: $organizationId, id: $projectId) {
+    blueprint {
+      links(filter: $filter) {
+        items {
+          id
+          fromField
+          toField
+          fromComponent {
+            id
+            name
+          }
+          toComponent {
+            id
+            name
+          }
+        }
+      }
+    }
+  }
+}
+
+mutation linkComponents($organizationId: ID!, $input: LinkComponentsInput!) {
+  linkComponents(organizationId: $organizationId, input: $input) {
+    result {
+      id
+      fromField
+      toField
+      fromComponent {
+        id
+        name
+      }
+      toComponent {
+        id
+        name
+      }
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+mutation unlinkComponents($organizationId: ID!, $id: ID!) {
+  unlinkComponents(organizationId: $organizationId, id: $id) {
+    result {
+      id
+      fromField
+      toField
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+
+# RESOURCES
+
+query getResource($organizationId: ID!, $id: ID!) {
+  resource(organizationId: $organizationId, id: $id) {
+    id
+    name
+    origin
+    resourceType {
+      id
+      name
+    }
+    field
+    formats
+    payload
+  }
+}
+
+# @genqlient(for: "CreateResourceInput.payload", omitempty: true)
+mutation createResource(
+  $organizationId: ID!,
+  $resourceTypeId: ID!,
+  $input: CreateResourceInput!
+) {
+  createResource(organizationId: $organizationId, resourceTypeId: $resourceTypeId, input: $input) {
+    result {
+      id
+      name
+      origin
+      resourceType {
+        id
+        name
+      }
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+# @genqlient(for: "UpdateResourceInput.name", omitempty: true)
+# @genqlient(for: "UpdateResourceInput.payload", omitempty: true)
+mutation updateResource(
+  $organizationId: ID!,
+  $id: ID!,
+  $input: UpdateResourceInput!
+) {
+  updateResource(organizationId: $organizationId, id: $id, input: $input) {
+    result {
+      id
+      name
+      origin
+      resourceType {
+        id
+        name
+      }
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+mutation deleteResource($organizationId: ID!, $id: ID!) {
+  deleteResource(organizationId: $organizationId, id: $id) {
+    result {
+      id
+      name
+      origin
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}

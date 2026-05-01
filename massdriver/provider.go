@@ -12,8 +12,13 @@ func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{},
 		ResourcesMap: map[string]*schema.Resource{
-			"massdriver_artifact":      resourceArtifact(),
-			"massdriver_package_alarm": resourcePackageAlarm(),
+			"massdriver_artifact":       resourceArtifact(),
+			"massdriver_package_alarm":  resourcePackageAlarm(),
+			"massdriver_project":        resourceProject(),
+			"massdriver_environment":    resourceEnvironment(),
+			"massdriver_component":      resourceComponent(),
+			"massdriver_component_link": resourceComponentLink(),
+			"massdriver_resource":       resourceResource(),
 		},
 		DataSourcesMap:       map[string]*schema.Resource{},
 		ConfigureContextFunc: providerConfigure,

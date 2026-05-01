@@ -14,7 +14,8 @@ import (
 
 func resourcePackageAlarm() *schema.Resource {
 	return &schema.Resource{
-		Description: "This resource registers a package alarm in the Massdriver console for presentation to the user",
+		Description:        "This resource registers a package alarm in the Massdriver console for presentation to the user",
+		DeprecationMessage: "massdriver_package_alarm is deprecated and will be removed in a future release.",
 
 		CreateContext: resourcePackageAlarmCreate,
 		ReadContext:   resourcePackageAlarmRead,
