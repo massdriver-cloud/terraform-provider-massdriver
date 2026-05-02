@@ -19,6 +19,8 @@ func Provider() *schema.Provider {
 			"massdriver_component":      resourceComponent(),
 			"massdriver_component_link": resourceComponentLink(),
 			"massdriver_resource":       resourceResource(),
+			"massdriver_instance_alarm": resourceInstanceAlarm(),
+			"massdriver_group":          resourceGroup(),
 		},
 		DataSourcesMap:       map[string]*schema.Resource{},
 		ConfigureContextFunc: providerConfigure,

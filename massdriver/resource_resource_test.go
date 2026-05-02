@@ -144,12 +144,13 @@ func TestResourceResourceCreateAcceptsEmptyPayload(t *testing.T) {
 	if createReq == nil {
 		t.Fatal("createResource was not called")
 	}
-	// With no user-supplied payload we still send a value (the JSON-scalar marshaler
-	// double-encodes nil maps into the literal string "null"). Asserting on the literal
-	// here pins the wire format so a future "omit when empty" change is a deliberate decision.
+	// Empty/nil payloads must be omitted from the wire entirely. GraphQL rejects
+	// `payload: null` for the JSON scalar even though the schema marks the field
+	// optional; the scalar marshaler returns empty bytes for nil maps so genqlient's
+	// `omitempty` tag drops the field.
 	input, _ := gqlmock.Variables(createReq)["input"].(map[string]any)
-	if input["payload"] != "null" {
-		t.Errorf(`got input.payload %v, want literal "null"`, input["payload"])
+	if _, present := input["payload"]; present {
+		t.Errorf("payload should be omitted when not supplied, got %v", input["payload"])
 	}
 }
 

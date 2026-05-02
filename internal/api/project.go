@@ -12,9 +12,10 @@ import (
 
 // Project represents a Massdriver project.
 type Project struct {
-	ID          string `json:"id" mapstructure:"id"`
-	Name        string `json:"name" mapstructure:"name"`
-	Description string `json:"description" mapstructure:"description"`
+	ID          string         `json:"id" mapstructure:"id"`
+	Name        string         `json:"name" mapstructure:"name"`
+	Description string         `json:"description" mapstructure:"description"`
+	Attributes  map[string]any `json:"attributes,omitempty" mapstructure:"attributes,omitempty"`
 }
 
 // GetProject retrieves a project by ID from the Massdriver API.

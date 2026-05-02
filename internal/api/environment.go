@@ -9,10 +9,11 @@ import (
 
 // Environment represents a Massdriver deployment environment within a project.
 type Environment struct {
-	ID          string   `json:"id" mapstructure:"id"`
-	Name        string   `json:"name" mapstructure:"name"`
-	Description string   `json:"description,omitempty" mapstructure:"description"`
-	Project     *Project `json:"project,omitempty" mapstructure:"project,omitempty"`
+	ID          string         `json:"id" mapstructure:"id"`
+	Name        string         `json:"name" mapstructure:"name"`
+	Description string         `json:"description,omitempty" mapstructure:"description"`
+	Attributes  map[string]any `json:"attributes,omitempty" mapstructure:"attributes,omitempty"`
+	Project     *Project       `json:"project,omitempty" mapstructure:"project,omitempty"`
 }
 
 // GetEnvironment retrieves an environment by ID from the Massdriver API.

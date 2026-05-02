@@ -17,6 +17,7 @@ func TestResourceProjectCreate(t *testing.T) {
 						"id":          "ecomm",
 						"name":        "Ecomm Project",
 						"description": "the e-commerce app",
+						"attributes":  map[string]any{"team": "platform"},
 					},
 					"successful": true,
 				},
@@ -28,6 +29,7 @@ func TestResourceProjectCreate(t *testing.T) {
 					"id":          "ecomm",
 					"name":        "Ecomm Project",
 					"description": "the e-commerce app",
+					"attributes":  map[string]any{"team": "platform"},
 				},
 			},
 		},
@@ -37,6 +39,7 @@ func TestResourceProjectCreate(t *testing.T) {
 		"identifier":  "ecomm",
 		"name":        "Ecomm Project",
 		"description": "the e-commerce app",
+		"attributes":  map[string]any{"team": "platform"},
 	})
 
 	diags := resourceProjectCreate(t.Context(), rd, pc)
@@ -76,9 +79,87 @@ func TestResourceProjectCreate(t *testing.T) {
 	if input["description"] != "the e-commerce app" {
 		t.Errorf("got input.description %v, want the e-commerce app", input["description"])
 	}
+	// attributes is the JSON-scalar (double-encoded) — wire payload is a JSON-encoded string.
+	if input["attributes"] != `{"team":"platform"}` {
+		t.Errorf("got input.attributes %v, want JSON-encoded team=platform", input["attributes"])
+	}
 
 	if rec.FindRequest("getProject") == nil {
 		t.Error("Read was not called after Create")
+	}
+
+	// Read populates attributes back into state.
+	if attrs := rd.Get("attributes").(map[string]any); attrs["team"] != "platform" {
+		t.Errorf("got attributes %v after Read, wanted team=platform", attrs)
+	}
+}
+
+// Empty attributes must be omitted from the wire — the server rejects
+// `attributes: null` (which is what the JSON-scalar marshaler used to send for
+// nil maps before the omit-on-empty fix).
+func TestResourceProjectCreateOmitsEmptyAttributes(t *testing.T) {
+	pc, rec := newMockProvider(map[string]map[string]any{
+		"createProject": {
+			"data": map[string]any{
+				"createProject": map[string]any{
+					"result":     map[string]any{"id": "ecomm", "name": "Ecomm"},
+					"successful": true,
+				},
+			},
+		},
+		"getProject": {
+			"data": map[string]any{
+				"project": map[string]any{"id": "ecomm", "name": "Ecomm"},
+			},
+		},
+	})
+
+	rd := schema.TestResourceDataRaw(t, resourceProject().Schema, map[string]any{
+		"identifier": "ecomm",
+		"name":       "Ecomm",
+		"attributes": map[string]any{},
+	})
+
+	if diags := resourceProjectCreate(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+
+	input, _ := gqlmock.Variables(rec.FindRequest("createProject"))["input"].(map[string]any)
+	if _, present := input["attributes"]; present {
+		t.Errorf("attributes should be omitted from wire when empty, got %v", input["attributes"])
+	}
+}
+
+// Drift on attributes MUST surface — they drive permissions, so silent drift
+// would be a security issue. Mirrors the equivalent component test.
+func TestResourceProjectSurfacesAttributesDrift(t *testing.T) {
+	r := resourceProject()
+
+	state := &terraform.InstanceState{
+		ID: "ecomm",
+		Attributes: map[string]string{
+			"id":              "ecomm",
+			"identifier":      "ecomm",
+			"attributes.%":    "1",
+			"attributes.team": "infra", // drifted via console edit
+		},
+	}
+	cfg := terraform.NewResourceConfigRaw(map[string]any{
+		"identifier": "ecomm",
+		"attributes": map[string]any{"team": "platform"},
+	})
+
+	diff, err := r.Diff(t.Context(), state, cfg, nil)
+	if err != nil {
+		t.Fatalf("unexpected diff error: %v", err)
+	}
+	if diff == nil || diff.Empty() {
+		t.Fatal("expected attributes drift to surface as a diff")
+	}
+	if attr := diff.Attributes["attributes.team"]; attr == nil {
+		t.Error("expected diff on attributes.team")
+	} else if attr.Old != "infra" || attr.New != "platform" {
+		t.Errorf("got attributes.team diff %+v, want Old=infra New=platform", attr)
 	}
 }
 
@@ -373,6 +454,10 @@ func TestResourceProjectSchema(t *testing.T) {
 		if !s.Optional || !s.Computed {
 			t.Errorf("%s should be Optional+Computed (got Optional=%v Computed=%v) so unspecified-in-config drift is ignored", field, s.Optional, s.Computed)
 		}
+	}
+
+	if attrs := r.Schema["attributes"]; attrs == nil || !attrs.Required {
+		t.Error("attributes should be Required (drift always surfaces)")
 	}
 
 	// terraform's auto-managed `id` should NOT appear in the schema map.

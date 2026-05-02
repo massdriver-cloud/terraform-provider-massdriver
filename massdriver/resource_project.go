@@ -35,6 +35,7 @@ func resourceProject() *schema.Resource {
 				Optional:    true,
 				Computed:    true,
 			},
+			"attributes": attributesSchema("project"),
 		},
 	}
 }
@@ -52,6 +53,7 @@ func resourceProjectCreate(ctx context.Context, d *schema.ResourceData, meta any
 		Id:          identifier,
 		Name:        name,
 		Description: d.Get("description").(string),
+		Attributes:  attributesFromConfig(d.Get("attributes")),
 	})
 	if err != nil {
 		return diag.FromErr(err)
@@ -73,6 +75,7 @@ func resourceProjectRead(ctx context.Context, d *schema.ResourceData, meta any) 
 	d.Set("identifier", project.ID)
 	d.Set("name", project.Name)
 	d.Set("description", project.Description)
+	d.Set("attributes", attributesToState(project.Attributes))
 	return nil
 }
 
@@ -82,6 +85,7 @@ func resourceProjectUpdate(ctx context.Context, d *schema.ResourceData, meta any
 	_, err := api.UpdateProject(ctx, client, d.Id(), api.UpdateProjectInput{
 		Name:        d.Get("name").(string),
 		Description: d.Get("description").(string),
+		Attributes:  attributesFromConfig(d.Get("attributes")),
 	})
 	if err != nil {
 		return diag.FromErr(err)

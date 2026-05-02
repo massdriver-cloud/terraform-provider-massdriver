@@ -13,7 +13,7 @@ type Component struct {
 	ID          string            `json:"id" mapstructure:"id"`
 	Name        string            `json:"name" mapstructure:"name"`
 	Description string            `json:"description,omitempty" mapstructure:"description"`
-	Attributes  map[string]string `json:"attributes,omitempty" mapstructure:"attributes"`
+	Attributes  map[string]any    `json:"attributes,omitempty" mapstructure:"attributes,omitempty"`
 	OciRepo     *OciRepo          `json:"ociRepo,omitempty" mapstructure:"ociRepo,omitempty"`
 	CreatedAt   time.Time         `json:"createdAt,omitzero" mapstructure:"createdAt"`
 	UpdatedAt   time.Time         `json:"updatedAt,omitzero" mapstructure:"updatedAt"`
@@ -69,6 +69,23 @@ func AddComponent(ctx context.Context, mdClient *client.Client, projectID, ociRe
 		return nil, mutationFailure("unable to add component", messages)
 	}
 	return toComponent(response.AddComponent.Result)
+}
+
+// UpdateComponent updates a component's name, description, and/or attributes.
+// The component ID and underlying bundle are immutable.
+func UpdateComponent(ctx context.Context, mdClient *client.Client, componentID string, input UpdateComponentInput) (*Component, error) {
+	response, err := updateComponent(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, componentID, input)
+	if err != nil {
+		return nil, err
+	}
+	if !response.UpdateComponent.Successful {
+		messages := make([]string, 0, len(response.UpdateComponent.Messages))
+		for _, m := range response.UpdateComponent.Messages {
+			messages = append(messages, m.Message)
+		}
+		return nil, mutationFailure("unable to update component", messages)
+	}
+	return toComponent(response.UpdateComponent.Result)
 }
 
 // RemoveComponent removes a component from a project's blueprint.

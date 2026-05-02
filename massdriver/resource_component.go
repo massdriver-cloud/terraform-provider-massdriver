@@ -5,14 +5,15 @@ import (
 	"fmt"
 	"strings"
 
+	"terraform-provider-massdriver/internal/api"
+
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"terraform-provider-massdriver/internal/api"
 )
 
 // componentIDSeparator joins a project identifier and a component identifier
-// to form the platform component ID (e.g., `ecomm*db`).
-const componentIDSeparator = "*"
+// to form the platform component ID (e.g., `ecomm-db`).
+const componentIDSeparator = "-"
 
 func resourceComponent() *schema.Resource {
 	return &schema.Resource{
@@ -20,6 +21,7 @@ func resourceComponent() *schema.Resource {
 
 		CreateContext: resourceComponentCreate,
 		ReadContext:   resourceComponentRead,
+		UpdateContext: resourceComponentUpdate,
 		DeleteContext: resourceComponentDelete,
 
 		Schema: map[string]*schema.Schema{
@@ -31,25 +33,24 @@ func resourceComponent() *schema.Resource {
 				ForceNew:    true,
 			},
 			"name": {
-				Description: "Human-readable name for the component. Defaults to `identifier` if unset. Changing it forces replacement (the API has no component-update mutation). When unset, drift on this field (e.g., a console edit) is ignored.",
+				Description: "Human-readable name for the component. Defaults to `identifier` if unset. When unset, drift on this field (e.g., a console edit) is ignored.",
 				Type:        schema.TypeString,
 				Optional:    true,
 				Computed:    true,
-				ForceNew:    true,
 			},
-			"oci_repo_name": {
-				Description: "Name of the OCI repository (bundle) backing this component.",
+			"bundle_name": {
+				Description: "Name of the bundle (OCI repository) backing this component.",
 				Type:        schema.TypeString,
 				Required:    true,
 				ForceNew:    true,
 			},
 			"description": {
-				Description: "Optional description of the component's purpose. Changing it forces replacement. When unset, drift on this field (e.g., a console edit) is ignored.",
+				Description: "Optional description of the component's purpose. When unset, drift on this field (e.g., a console edit) is ignored.",
 				Type:        schema.TypeString,
 				Optional:    true,
 				Computed:    true,
-				ForceNew:    true,
 			},
+			"attributes": attributesSchema("component"),
 		},
 	}
 }
@@ -64,10 +65,11 @@ func resourceComponentCreate(ctx context.Context, d *schema.ResourceData, meta a
 		name = identifier
 	}
 
-	component, err := api.AddComponent(ctx, client, projectID, d.Get("oci_repo_name").(string), api.AddComponentInput{
+	component, err := api.AddComponent(ctx, client, projectID, d.Get("bundle_name").(string), api.AddComponentInput{
 		Id:          identifier,
 		Name:        name,
 		Description: d.Get("description").(string),
+		Attributes:  attributesFromConfig(d.Get("attributes")),
 	})
 	if err != nil {
 		return diag.FromErr(err)
@@ -104,8 +106,9 @@ func resourceComponentRead(ctx context.Context, d *schema.ResourceData, meta any
 	d.Set("name", component.Name)
 	d.Set("description", component.Description)
 	d.Set("project_id", projectID)
+	d.Set("attributes", attributesToState(component.Attributes))
 	if component.OciRepo != nil {
-		d.Set("oci_repo_name", component.OciRepo.Name)
+		d.Set("bundle_name", component.OciRepo.Name)
 	}
 
 	prefix := projectID + componentIDSeparator
@@ -114,6 +117,21 @@ func resourceComponentRead(ctx context.Context, d *schema.ResourceData, meta any
 	}
 
 	return nil
+}
+
+func resourceComponentUpdate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
+	client := meta.(*ProviderClient).Client
+
+	_, err := api.UpdateComponent(ctx, client, d.Id(), api.UpdateComponentInput{
+		Name:        d.Get("name").(string),
+		Description: d.Get("description").(string),
+		Attributes:  attributesFromConfig(d.Get("attributes")),
+	})
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	return resourceComponentRead(ctx, d, meta)
 }
 
 func resourceComponentDelete(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {

@@ -107,6 +107,53 @@ func (v *AddComponentInput) __premarshalJSON() (*__premarshalAddComponentInput, 
 	return &retval, nil
 }
 
+// A key-value dimension identifying the cloud resource a metric applies to.
+type AlarmMetricDimensionInput struct {
+	// Dimension name as defined by the cloud provider.
+	Name string `json:"name"`
+	// Dimension value identifying the monitored resource.
+	Value string `json:"value"`
+}
+
+// GetName returns AlarmMetricDimensionInput.Name, and is useful for accessing the field via an interface.
+func (v *AlarmMetricDimensionInput) GetName() string { return v.Name }
+
+// GetValue returns AlarmMetricDimensionInput.Value, and is useful for accessing the field via an interface.
+func (v *AlarmMetricDimensionInput) GetValue() string { return v.Value }
+
+// The cloud metric an alarm evaluates.
+//
+// Most fields are optional because availability depends on the cloud provider.
+// Pass `dimensions: []` if the provider doesn't expose structured dimensions
+// for this metric.
+type AlarmMetricInput struct {
+	// Cloud service namespace that categorizes the metric (e.g., `AWS/RDS`).
+	Namespace string `json:"namespace,omitempty"`
+	// Metric name within the namespace (e.g., `CPUUtilization`).
+	Name string `json:"name,omitempty"`
+	// Aggregation function applied to samples (e.g., `Average`). Optional for providers without it.
+	Statistic string `json:"statistic,omitempty"`
+	// Cloud region the metric is scoped to, when applicable.
+	Region string `json:"region,omitempty"`
+	// Dimensions identifying the monitored resource. Omit or pass an empty list when the cloud provider doesn't expose structured dimensions.
+	Dimensions []AlarmMetricDimensionInput `json:"dimensions,omitempty"`
+}
+
+// GetNamespace returns AlarmMetricInput.Namespace, and is useful for accessing the field via an interface.
+func (v *AlarmMetricInput) GetNamespace() string { return v.Namespace }
+
+// GetName returns AlarmMetricInput.Name, and is useful for accessing the field via an interface.
+func (v *AlarmMetricInput) GetName() string { return v.Name }
+
+// GetStatistic returns AlarmMetricInput.Statistic, and is useful for accessing the field via an interface.
+func (v *AlarmMetricInput) GetStatistic() string { return v.Statistic }
+
+// GetRegion returns AlarmMetricInput.Region, and is useful for accessing the field via an interface.
+func (v *AlarmMetricInput) GetRegion() string { return v.Region }
+
+// GetDimensions returns AlarmMetricInput.Dimensions, and is useful for accessing the field via an interface.
+func (v *AlarmMetricInput) GetDimensions() []AlarmMetricDimensionInput { return v.Dimensions }
+
 // Filter which components to return.
 type ComponentsFilter struct {
 	// Match by component ID (e.g., `myproj-database`). Supports `eq` and `in`.
@@ -179,7 +226,7 @@ func (v *CreateEnvironmentInput) UnmarshalJSON(b []byte) error {
 }
 
 type __premarshalCreateEnvironmentInput struct {
-	Attributes json.RawMessage `json:"attributes"`
+	Attributes json.RawMessage `json:"attributes,omitempty"`
 
 	Description string `json:"description"`
 
@@ -216,6 +263,54 @@ func (v *CreateEnvironmentInput) __premarshalJSON() (*__premarshalCreateEnvironm
 	retval.Name = v.Name
 	return &retval, nil
 }
+
+// Create a new group. Groups control which projects members can access.
+type CreateGroupInput struct {
+	// What this group is for
+	Description string `json:"description,omitempty"`
+	// A human-readable name for the group
+	Name string `json:"name"`
+}
+
+// GetDescription returns CreateGroupInput.Description, and is useful for accessing the field via an interface.
+func (v *CreateGroupInput) GetDescription() string { return v.Description }
+
+// GetName returns CreateGroupInput.Name, and is useful for accessing the field via an interface.
+func (v *CreateGroupInput) GetName() string { return v.Name }
+
+// Register a cloud metric alarm with an instance. The alarm appears in the UI immediately and receives state transitions as soon as the cloud provider reports them. Webhooks from AWS CloudWatch, Azure Monitor, GCP Cloud Monitoring, and Prometheus Alertmanager match against `cloudResourceId` to attach state.
+type CreateInstanceAlarmInput struct {
+	// The cloud provider's unique identifier for the alarm. Used to correlate incoming state transition webhooks back to this alarm. Examples: a CloudWatch AlarmArn, a GCP alert policy name, an Azure alert id.
+	CloudResourceId string `json:"cloudResourceId"`
+	// How the metric is compared against `threshold` (e.g., `GREATER_THAN`, `LESS_THAN`). Optional for providers that don't expose this concept (e.g., Alertmanager, GCP).
+	ComparisonOperator string `json:"comparisonOperator,omitempty"`
+	// Human-readable name for the alarm. Shown in the UI and in notifications. Typically the alarm name registered with the cloud provider.
+	DisplayName string `json:"displayName"`
+	// The cloud metric this alarm evaluates. Optional; not all providers expose structured metric data.
+	Metric *AlarmMetricInput `json:"metric,omitempty"`
+	// Evaluation window in seconds over which the metric is aggregated before the comparison is applied. Optional.
+	Period *int `json:"period,omitempty"`
+	// The value crossed to trigger the alarm. Compared against the metric using `comparisonOperator`. Optional.
+	Threshold *float64 `json:"threshold,omitempty"`
+}
+
+// GetCloudResourceId returns CreateInstanceAlarmInput.CloudResourceId, and is useful for accessing the field via an interface.
+func (v *CreateInstanceAlarmInput) GetCloudResourceId() string { return v.CloudResourceId }
+
+// GetComparisonOperator returns CreateInstanceAlarmInput.ComparisonOperator, and is useful for accessing the field via an interface.
+func (v *CreateInstanceAlarmInput) GetComparisonOperator() string { return v.ComparisonOperator }
+
+// GetDisplayName returns CreateInstanceAlarmInput.DisplayName, and is useful for accessing the field via an interface.
+func (v *CreateInstanceAlarmInput) GetDisplayName() string { return v.DisplayName }
+
+// GetMetric returns CreateInstanceAlarmInput.Metric, and is useful for accessing the field via an interface.
+func (v *CreateInstanceAlarmInput) GetMetric() *AlarmMetricInput { return v.Metric }
+
+// GetPeriod returns CreateInstanceAlarmInput.Period, and is useful for accessing the field via an interface.
+func (v *CreateInstanceAlarmInput) GetPeriod() *int { return v.Period }
+
+// GetThreshold returns CreateInstanceAlarmInput.Threshold, and is useful for accessing the field via an interface.
+func (v *CreateInstanceAlarmInput) GetThreshold() *float64 { return v.Threshold }
 
 // Create a new project. A project is the complete model of your application—its infrastructure, architecture, configurations, and environments.
 type CreateProjectInput struct {
@@ -275,7 +370,7 @@ func (v *CreateProjectInput) UnmarshalJSON(b []byte) error {
 }
 
 type __premarshalCreateProjectInput struct {
-	Attributes json.RawMessage `json:"attributes"`
+	Attributes json.RawMessage `json:"attributes,omitempty"`
 
 	Description string `json:"description"`
 
@@ -391,6 +486,31 @@ func (v *CreateResourceInput) __premarshalJSON() (*__premarshalCreateResourceInp
 		}
 	}
 	return &retval, nil
+}
+
+// The access level assigned to a group within an organization.
+//
+// Every group has exactly one role that determines what its members can do:
+//
+// - **`ORGANIZATION_ADMIN`** — Full administrative access across all projects.
+// - **`ORGANIZATION_VIEWER`** — Read-only access across all projects.
+// - **`CUSTOM`** — Fine-grained, project-level access grants. Use this when you need
+// to give a team access to specific projects without organization-wide permissions.
+type GroupRole string
+
+const (
+	// Full administrative access to all projects and settings in the organization. Members can manage groups, service accounts, billing, and all infrastructure.
+	GroupRoleOrganizationAdmin GroupRole = "ORGANIZATION_ADMIN"
+	// Read-only access to all projects in the organization. Members can view infrastructure, deployments, and logs but cannot make changes.
+	GroupRoleOrganizationViewer GroupRole = "ORGANIZATION_VIEWER"
+	// Project-level access grants. Members only see projects explicitly assigned to this group, with either `project_admin` or `project_viewer` permissions per project.
+	GroupRoleCustom GroupRole = "CUSTOM"
+)
+
+var AllGroupRole = []GroupRole{
+	GroupRoleOrganizationAdmin,
+	GroupRoleOrganizationViewer,
+	GroupRoleCustom,
 }
 
 // Filter by an identifier field.
@@ -516,6 +636,94 @@ var AllResourceOrigin = []ResourceOrigin{
 	ResourceOriginProvisioned,
 }
 
+// Update an existing component's name, description, and attributes. The component ID and underlying bundle cannot be changed.
+type UpdateComponentInput struct {
+	// Key-value attributes for this component. Keys and values must be strings. Must conform to the organization's custom attributes for the component scope.
+	Attributes map[string]any `json:"-"`
+	// Optional description of this component's purpose
+	Description string `json:"description,omitempty"`
+	// Display name for this component (e.g., 'Billing Database')
+	Name string `json:"name,omitempty"`
+}
+
+// GetAttributes returns UpdateComponentInput.Attributes, and is useful for accessing the field via an interface.
+func (v *UpdateComponentInput) GetAttributes() map[string]any { return v.Attributes }
+
+// GetDescription returns UpdateComponentInput.Description, and is useful for accessing the field via an interface.
+func (v *UpdateComponentInput) GetDescription() string { return v.Description }
+
+// GetName returns UpdateComponentInput.Name, and is useful for accessing the field via an interface.
+func (v *UpdateComponentInput) GetName() string { return v.Name }
+
+func (v *UpdateComponentInput) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*UpdateComponentInput
+		Attributes json.RawMessage `json:"attributes"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.UpdateComponentInput = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.Attributes
+		src := firstPass.Attributes
+		if len(src) != 0 && string(src) != "null" {
+			err = scalars.UnmarshalJSON(
+				src, dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal UpdateComponentInput.Attributes: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalUpdateComponentInput struct {
+	Attributes json.RawMessage `json:"attributes,omitempty"`
+
+	Description string `json:"description,omitempty"`
+
+	Name string `json:"name,omitempty"`
+}
+
+func (v *UpdateComponentInput) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *UpdateComponentInput) __premarshalJSON() (*__premarshalUpdateComponentInput, error) {
+	var retval __premarshalUpdateComponentInput
+
+	{
+
+		dst := &retval.Attributes
+		src := v.Attributes
+		var err error
+		*dst, err = scalars.MarshalJSON(
+			&src)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"unable to marshal UpdateComponentInput.Attributes: %w", err)
+		}
+	}
+	retval.Description = v.Description
+	retval.Name = v.Name
+	return &retval, nil
+}
+
 // Update an existing environment's name and description. The ID cannot be changed after creation.
 type UpdateEnvironmentInput struct {
 	// Key-value attributes for this environment. Keys and values must be strings. Must conform to the organization's custom attributes for the environment scope.
@@ -569,7 +777,7 @@ func (v *UpdateEnvironmentInput) UnmarshalJSON(b []byte) error {
 }
 
 type __premarshalUpdateEnvironmentInput struct {
-	Attributes json.RawMessage `json:"attributes"`
+	Attributes json.RawMessage `json:"attributes,omitempty"`
 
 	Description string `json:"description"`
 
@@ -603,6 +811,54 @@ func (v *UpdateEnvironmentInput) __premarshalJSON() (*__premarshalUpdateEnvironm
 	retval.Name = v.Name
 	return &retval, nil
 }
+
+// Update a group's name or description.
+type UpdateGroupInput struct {
+	// What this group is for
+	Description string `json:"description,omitempty"`
+	// A human-readable name for the group
+	Name string `json:"name"`
+}
+
+// GetDescription returns UpdateGroupInput.Description, and is useful for accessing the field via an interface.
+func (v *UpdateGroupInput) GetDescription() string { return v.Description }
+
+// GetName returns UpdateGroupInput.Name, and is useful for accessing the field via an interface.
+func (v *UpdateGroupInput) GetName() string { return v.Name }
+
+// Update a registered alarm's mutable fields. Omit a field to leave it unchanged.
+type UpdateInstanceAlarmInput struct {
+	// The cloud provider's unique identifier for the alarm. Updating this changes which incoming webhooks correlate to this alarm.
+	CloudResourceId string `json:"cloudResourceId,omitempty"`
+	// How the metric is compared against `threshold` (e.g., `GREATER_THAN`, `LESS_THAN`).
+	ComparisonOperator string `json:"comparisonOperator,omitempty"`
+	// Human-readable name for the alarm. Shown in the UI and in notifications.
+	DisplayName string `json:"displayName,omitempty"`
+	// The cloud metric this alarm evaluates.
+	Metric *AlarmMetricInput `json:"metric,omitempty"`
+	// Evaluation window in seconds over which the metric is aggregated.
+	Period *int `json:"period,omitempty"`
+	// The value crossed to trigger the alarm.
+	Threshold *float64 `json:"threshold,omitempty"`
+}
+
+// GetCloudResourceId returns UpdateInstanceAlarmInput.CloudResourceId, and is useful for accessing the field via an interface.
+func (v *UpdateInstanceAlarmInput) GetCloudResourceId() string { return v.CloudResourceId }
+
+// GetComparisonOperator returns UpdateInstanceAlarmInput.ComparisonOperator, and is useful for accessing the field via an interface.
+func (v *UpdateInstanceAlarmInput) GetComparisonOperator() string { return v.ComparisonOperator }
+
+// GetDisplayName returns UpdateInstanceAlarmInput.DisplayName, and is useful for accessing the field via an interface.
+func (v *UpdateInstanceAlarmInput) GetDisplayName() string { return v.DisplayName }
+
+// GetMetric returns UpdateInstanceAlarmInput.Metric, and is useful for accessing the field via an interface.
+func (v *UpdateInstanceAlarmInput) GetMetric() *AlarmMetricInput { return v.Metric }
+
+// GetPeriod returns UpdateInstanceAlarmInput.Period, and is useful for accessing the field via an interface.
+func (v *UpdateInstanceAlarmInput) GetPeriod() *int { return v.Period }
+
+// GetThreshold returns UpdateInstanceAlarmInput.Threshold, and is useful for accessing the field via an interface.
+func (v *UpdateInstanceAlarmInput) GetThreshold() *float64 { return v.Threshold }
 
 // Update an existing project's name and description. The ID cannot be changed after creation.
 type UpdateProjectInput struct {
@@ -657,7 +913,7 @@ func (v *UpdateProjectInput) UnmarshalJSON(b []byte) error {
 }
 
 type __premarshalUpdateProjectInput struct {
-	Attributes json.RawMessage `json:"attributes"`
+	Attributes json.RawMessage `json:"attributes,omitempty"`
 
 	Description string `json:"description"`
 
@@ -808,6 +1064,34 @@ func (v *__createEnvironmentInput) GetProjectId() string { return v.ProjectId }
 // GetInput returns __createEnvironmentInput.Input, and is useful for accessing the field via an interface.
 func (v *__createEnvironmentInput) GetInput() CreateEnvironmentInput { return v.Input }
 
+// __createGroupInput is used internally by genqlient
+type __createGroupInput struct {
+	OrganizationId string           `json:"organizationId"`
+	Input          CreateGroupInput `json:"input"`
+}
+
+// GetOrganizationId returns __createGroupInput.OrganizationId, and is useful for accessing the field via an interface.
+func (v *__createGroupInput) GetOrganizationId() string { return v.OrganizationId }
+
+// GetInput returns __createGroupInput.Input, and is useful for accessing the field via an interface.
+func (v *__createGroupInput) GetInput() CreateGroupInput { return v.Input }
+
+// __createInstanceAlarmInput is used internally by genqlient
+type __createInstanceAlarmInput struct {
+	OrganizationId string                   `json:"organizationId"`
+	InstanceId     string                   `json:"instanceId"`
+	Input          CreateInstanceAlarmInput `json:"input"`
+}
+
+// GetOrganizationId returns __createInstanceAlarmInput.OrganizationId, and is useful for accessing the field via an interface.
+func (v *__createInstanceAlarmInput) GetOrganizationId() string { return v.OrganizationId }
+
+// GetInstanceId returns __createInstanceAlarmInput.InstanceId, and is useful for accessing the field via an interface.
+func (v *__createInstanceAlarmInput) GetInstanceId() string { return v.InstanceId }
+
+// GetInput returns __createInstanceAlarmInput.Input, and is useful for accessing the field via an interface.
+func (v *__createInstanceAlarmInput) GetInput() CreateInstanceAlarmInput { return v.Input }
+
 // __createProjectInput is used internally by genqlient
 type __createProjectInput struct {
 	OrganizationId string             `json:"organizationId"`
@@ -848,6 +1132,30 @@ func (v *__deleteEnvironmentInput) GetOrganizationId() string { return v.Organiz
 // GetId returns __deleteEnvironmentInput.Id, and is useful for accessing the field via an interface.
 func (v *__deleteEnvironmentInput) GetId() string { return v.Id }
 
+// __deleteGroupInput is used internally by genqlient
+type __deleteGroupInput struct {
+	OrganizationId string `json:"organizationId"`
+	Id             string `json:"id"`
+}
+
+// GetOrganizationId returns __deleteGroupInput.OrganizationId, and is useful for accessing the field via an interface.
+func (v *__deleteGroupInput) GetOrganizationId() string { return v.OrganizationId }
+
+// GetId returns __deleteGroupInput.Id, and is useful for accessing the field via an interface.
+func (v *__deleteGroupInput) GetId() string { return v.Id }
+
+// __deleteInstanceAlarmInput is used internally by genqlient
+type __deleteInstanceAlarmInput struct {
+	OrganizationId string `json:"organizationId"`
+	Id             string `json:"id"`
+}
+
+// GetOrganizationId returns __deleteInstanceAlarmInput.OrganizationId, and is useful for accessing the field via an interface.
+func (v *__deleteInstanceAlarmInput) GetOrganizationId() string { return v.OrganizationId }
+
+// GetId returns __deleteInstanceAlarmInput.Id, and is useful for accessing the field via an interface.
+func (v *__deleteInstanceAlarmInput) GetId() string { return v.Id }
+
 // __deleteProjectInput is used internally by genqlient
 type __deleteProjectInput struct {
 	OrganizationId string `json:"organizationId"`
@@ -883,6 +1191,30 @@ func (v *__getEnvironmentInput) GetOrganizationId() string { return v.Organizati
 
 // GetId returns __getEnvironmentInput.Id, and is useful for accessing the field via an interface.
 func (v *__getEnvironmentInput) GetId() string { return v.Id }
+
+// __getGroupInput is used internally by genqlient
+type __getGroupInput struct {
+	OrganizationId string `json:"organizationId"`
+	Id             string `json:"id"`
+}
+
+// GetOrganizationId returns __getGroupInput.OrganizationId, and is useful for accessing the field via an interface.
+func (v *__getGroupInput) GetOrganizationId() string { return v.OrganizationId }
+
+// GetId returns __getGroupInput.Id, and is useful for accessing the field via an interface.
+func (v *__getGroupInput) GetId() string { return v.Id }
+
+// __getInstanceAlarmInput is used internally by genqlient
+type __getInstanceAlarmInput struct {
+	OrganizationId string `json:"organizationId"`
+	Id             string `json:"id"`
+}
+
+// GetOrganizationId returns __getInstanceAlarmInput.OrganizationId, and is useful for accessing the field via an interface.
+func (v *__getInstanceAlarmInput) GetOrganizationId() string { return v.OrganizationId }
+
+// GetId returns __getInstanceAlarmInput.Id, and is useful for accessing the field via an interface.
+func (v *__getInstanceAlarmInput) GetId() string { return v.Id }
 
 // __getProjectInput is used internally by genqlient
 type __getProjectInput struct {
@@ -976,6 +1308,22 @@ func (v *__unlinkComponentsInput) GetOrganizationId() string { return v.Organiza
 // GetId returns __unlinkComponentsInput.Id, and is useful for accessing the field via an interface.
 func (v *__unlinkComponentsInput) GetId() string { return v.Id }
 
+// __updateComponentInput is used internally by genqlient
+type __updateComponentInput struct {
+	OrganizationId string               `json:"organizationId"`
+	Id             string               `json:"id"`
+	Input          UpdateComponentInput `json:"input"`
+}
+
+// GetOrganizationId returns __updateComponentInput.OrganizationId, and is useful for accessing the field via an interface.
+func (v *__updateComponentInput) GetOrganizationId() string { return v.OrganizationId }
+
+// GetId returns __updateComponentInput.Id, and is useful for accessing the field via an interface.
+func (v *__updateComponentInput) GetId() string { return v.Id }
+
+// GetInput returns __updateComponentInput.Input, and is useful for accessing the field via an interface.
+func (v *__updateComponentInput) GetInput() UpdateComponentInput { return v.Input }
+
 // __updateEnvironmentInput is used internally by genqlient
 type __updateEnvironmentInput struct {
 	OrganizationId string                 `json:"organizationId"`
@@ -991,6 +1339,38 @@ func (v *__updateEnvironmentInput) GetId() string { return v.Id }
 
 // GetInput returns __updateEnvironmentInput.Input, and is useful for accessing the field via an interface.
 func (v *__updateEnvironmentInput) GetInput() UpdateEnvironmentInput { return v.Input }
+
+// __updateGroupInput is used internally by genqlient
+type __updateGroupInput struct {
+	OrganizationId string           `json:"organizationId"`
+	Id             string           `json:"id"`
+	Input          UpdateGroupInput `json:"input"`
+}
+
+// GetOrganizationId returns __updateGroupInput.OrganizationId, and is useful for accessing the field via an interface.
+func (v *__updateGroupInput) GetOrganizationId() string { return v.OrganizationId }
+
+// GetId returns __updateGroupInput.Id, and is useful for accessing the field via an interface.
+func (v *__updateGroupInput) GetId() string { return v.Id }
+
+// GetInput returns __updateGroupInput.Input, and is useful for accessing the field via an interface.
+func (v *__updateGroupInput) GetInput() UpdateGroupInput { return v.Input }
+
+// __updateInstanceAlarmInput is used internally by genqlient
+type __updateInstanceAlarmInput struct {
+	OrganizationId string                   `json:"organizationId"`
+	Id             string                   `json:"id"`
+	Input          UpdateInstanceAlarmInput `json:"input"`
+}
+
+// GetOrganizationId returns __updateInstanceAlarmInput.OrganizationId, and is useful for accessing the field via an interface.
+func (v *__updateInstanceAlarmInput) GetOrganizationId() string { return v.OrganizationId }
+
+// GetId returns __updateInstanceAlarmInput.Id, and is useful for accessing the field via an interface.
+func (v *__updateInstanceAlarmInput) GetId() string { return v.Id }
+
+// GetInput returns __updateInstanceAlarmInput.Input, and is useful for accessing the field via an interface.
+func (v *__updateInstanceAlarmInput) GetInput() UpdateInstanceAlarmInput { return v.Input }
 
 // __updateProjectInput is used internally by genqlient
 type __updateProjectInput struct {
@@ -1384,6 +1764,8 @@ type createEnvironmentCreateEnvironmentEnvironmentPayloadResultEnvironment struc
 	Name string `json:"name"`
 	// Free-text description of what this environment is for.
 	Description string `json:"description"`
+	// Key-value attributes assigned directly to this environment. Attributes cascade to instances. Must conform to your organization's custom attributes for the `ENVIRONMENT` scope.
+	Attributes map[string]any `json:"-"`
 }
 
 // GetId returns createEnvironmentCreateEnvironmentEnvironmentPayloadResultEnvironment.Id, and is useful for accessing the field via an interface.
@@ -1401,6 +1783,83 @@ func (v *createEnvironmentCreateEnvironmentEnvironmentPayloadResultEnvironment) 
 	return v.Description
 }
 
+// GetAttributes returns createEnvironmentCreateEnvironmentEnvironmentPayloadResultEnvironment.Attributes, and is useful for accessing the field via an interface.
+func (v *createEnvironmentCreateEnvironmentEnvironmentPayloadResultEnvironment) GetAttributes() map[string]any {
+	return v.Attributes
+}
+
+func (v *createEnvironmentCreateEnvironmentEnvironmentPayloadResultEnvironment) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*createEnvironmentCreateEnvironmentEnvironmentPayloadResultEnvironment
+		Attributes json.RawMessage `json:"attributes"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.createEnvironmentCreateEnvironmentEnvironmentPayloadResultEnvironment = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.Attributes
+		src := firstPass.Attributes
+		if len(src) != 0 && string(src) != "null" {
+			err = scalars.UnmarshalJSON(
+				src, dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal createEnvironmentCreateEnvironmentEnvironmentPayloadResultEnvironment.Attributes: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalcreateEnvironmentCreateEnvironmentEnvironmentPayloadResultEnvironment struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+
+	Description string `json:"description"`
+
+	Attributes json.RawMessage `json:"attributes"`
+}
+
+func (v *createEnvironmentCreateEnvironmentEnvironmentPayloadResultEnvironment) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *createEnvironmentCreateEnvironmentEnvironmentPayloadResultEnvironment) __premarshalJSON() (*__premarshalcreateEnvironmentCreateEnvironmentEnvironmentPayloadResultEnvironment, error) {
+	var retval __premarshalcreateEnvironmentCreateEnvironmentEnvironmentPayloadResultEnvironment
+
+	retval.Id = v.Id
+	retval.Name = v.Name
+	retval.Description = v.Description
+	{
+
+		dst := &retval.Attributes
+		src := v.Attributes
+		var err error
+		*dst, err = scalars.MarshalJSON(
+			&src)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"unable to marshal createEnvironmentCreateEnvironmentEnvironmentPayloadResultEnvironment.Attributes: %w", err)
+		}
+	}
+	return &retval, nil
+}
+
 // createEnvironmentResponse is returned by createEnvironment on success.
 type createEnvironmentResponse struct {
 	// Create a new environment in a project.
@@ -1413,6 +1872,379 @@ type createEnvironmentResponse struct {
 // GetCreateEnvironment returns createEnvironmentResponse.CreateEnvironment, and is useful for accessing the field via an interface.
 func (v *createEnvironmentResponse) GetCreateEnvironment() createEnvironmentCreateEnvironmentEnvironmentPayload {
 	return v.CreateEnvironment
+}
+
+// createGroupCreateGroupGroupPayload includes the requested fields of the GraphQL type GroupPayload.
+type createGroupCreateGroupGroupPayload struct {
+	// The object created/updated/deleted by the mutation. May be null if mutation failed.
+	Result createGroupCreateGroupGroupPayloadResultGroup `json:"result"`
+	// Indicates if the mutation completed successfully or not.
+	Successful bool `json:"successful"`
+	// A list of failed validations. May be blank or null if mutation succeeded.
+	Messages []createGroupCreateGroupGroupPayloadMessagesValidationMessage `json:"messages"`
+}
+
+// GetResult returns createGroupCreateGroupGroupPayload.Result, and is useful for accessing the field via an interface.
+func (v *createGroupCreateGroupGroupPayload) GetResult() createGroupCreateGroupGroupPayloadResultGroup {
+	return v.Result
+}
+
+// GetSuccessful returns createGroupCreateGroupGroupPayload.Successful, and is useful for accessing the field via an interface.
+func (v *createGroupCreateGroupGroupPayload) GetSuccessful() bool { return v.Successful }
+
+// GetMessages returns createGroupCreateGroupGroupPayload.Messages, and is useful for accessing the field via an interface.
+func (v *createGroupCreateGroupGroupPayload) GetMessages() []createGroupCreateGroupGroupPayloadMessagesValidationMessage {
+	return v.Messages
+}
+
+// createGroupCreateGroupGroupPayloadMessagesValidationMessage includes the requested fields of the GraphQL type ValidationMessage.
+// The GraphQL type's documentation follows.
+//
+// Validation messages are returned when mutation input does not meet the requirements.
+// While client-side validation is highly recommended to provide the best User Experience,
+// All inputs will always be validated server-side.
+//
+// Some examples of validations are:
+//
+// * Username must be at least 10 characters
+// * Email field does not contain an email address
+// * Birth Date is required
+//
+// While GraphQL has support for required values, mutation data fields are always
+// set to optional in our API. This allows 'required field' messages
+// to be returned in the same manner as other validations. The only exceptions
+// are id fields, which may be required to perform updates or deletes.
+type createGroupCreateGroupGroupPayloadMessagesValidationMessage struct {
+	// A unique error code for the type of validation used.
+	Code string `json:"code"`
+	// The input field that the error applies to. The field can be used to
+	// identify which field the error message should be displayed next to in the
+	// presentation layer.
+	//
+	// If there are multiple errors to display for a field, multiple validation
+	// messages will be in the result.
+	//
+	// This field may be null in cases where an error cannot be applied to a specific field.
+	Field string `json:"field"`
+	// A friendly error message, appropriate for display to the end user.
+	//
+	// The message is interpolated to include the appropriate variables.
+	//
+	// Example: `Username must be at least 10 characters`
+	//
+	// This message may change without notice, so we do not recommend you match against the text.
+	// Instead, use the *code* field for matching.
+	Message string `json:"message"`
+}
+
+// GetCode returns createGroupCreateGroupGroupPayloadMessagesValidationMessage.Code, and is useful for accessing the field via an interface.
+func (v *createGroupCreateGroupGroupPayloadMessagesValidationMessage) GetCode() string { return v.Code }
+
+// GetField returns createGroupCreateGroupGroupPayloadMessagesValidationMessage.Field, and is useful for accessing the field via an interface.
+func (v *createGroupCreateGroupGroupPayloadMessagesValidationMessage) GetField() string {
+	return v.Field
+}
+
+// GetMessage returns createGroupCreateGroupGroupPayloadMessagesValidationMessage.Message, and is useful for accessing the field via an interface.
+func (v *createGroupCreateGroupGroupPayloadMessagesValidationMessage) GetMessage() string {
+	return v.Message
+}
+
+// createGroupCreateGroupGroupPayloadResultGroup includes the requested fields of the GraphQL type Group.
+// The GraphQL type's documentation follows.
+//
+// A collection of users and service accounts that share the same access level within your organization.
+//
+// Groups are the primary mechanism for managing access control in Massdriver. Rather than
+// assigning permissions to individual users, you add them to groups that define what they
+// can see and do.
+//
+// ```mermaid
+// graph TD
+// O["Organization"] --> G1["Group: Admins"]
+// O --> G2["Group: Developers"]
+// O --> G3["Group: Custom"]
+// G1 --> U1["User: alice@co.com"]
+// G2 --> U2["User: bob@co.com"]
+// G2 --> SA1["Service Account: ci-bot"]
+// G3 -->|"project_admin"| P1["Project: backend"]
+// G3 -->|"project_viewer"| P2["Project: frontend"]
+// ```
+//
+// **Built-in groups** — Every organization starts with an `Admins` group (`organization_admin` role)
+// and a `Viewers` group (`organization_viewer` role). These cannot be deleted.
+//
+// **Custom groups** — Create custom groups with the `CUSTOM` role to grant project-level access.
+// Each custom group can be assigned `project_admin` or `project_viewer` on specific projects.
+//
+// **Members** — Both human users and service accounts can be group members. Users live under
+// `members` and are added via `addAccountToGroup` (auto-adds existing org members or sends an
+// invitation otherwise). Service accounts live under `serviceAccounts` and are added via
+// `addServiceAccountToGroup`.
+type createGroupCreateGroupGroupPayloadResultGroup struct {
+	// Unique identifier for this group.
+	Id string `json:"id"`
+	// Human-readable name displayed in the UI and API responses.
+	Name string `json:"name"`
+	// Optional text explaining the purpose of this group.
+	Description string `json:"description"`
+	// The access level this group grants to its members.
+	Role GroupRole `json:"role"`
+}
+
+// GetId returns createGroupCreateGroupGroupPayloadResultGroup.Id, and is useful for accessing the field via an interface.
+func (v *createGroupCreateGroupGroupPayloadResultGroup) GetId() string { return v.Id }
+
+// GetName returns createGroupCreateGroupGroupPayloadResultGroup.Name, and is useful for accessing the field via an interface.
+func (v *createGroupCreateGroupGroupPayloadResultGroup) GetName() string { return v.Name }
+
+// GetDescription returns createGroupCreateGroupGroupPayloadResultGroup.Description, and is useful for accessing the field via an interface.
+func (v *createGroupCreateGroupGroupPayloadResultGroup) GetDescription() string { return v.Description }
+
+// GetRole returns createGroupCreateGroupGroupPayloadResultGroup.Role, and is useful for accessing the field via an interface.
+func (v *createGroupCreateGroupGroupPayloadResultGroup) GetRole() GroupRole { return v.Role }
+
+// createGroupResponse is returned by createGroup on success.
+type createGroupResponse struct {
+	// Create a new group in your organization.
+	//
+	// New groups are created with the `CUSTOM` role by default, allowing you to assign
+	// project-level access grants after creation. Requires `organization_admin` permissions.
+	CreateGroup createGroupCreateGroupGroupPayload `json:"createGroup"`
+}
+
+// GetCreateGroup returns createGroupResponse.CreateGroup, and is useful for accessing the field via an interface.
+func (v *createGroupResponse) GetCreateGroup() createGroupCreateGroupGroupPayload {
+	return v.CreateGroup
+}
+
+// createInstanceAlarmCreateInstanceAlarmAlarmPayload includes the requested fields of the GraphQL type AlarmPayload.
+type createInstanceAlarmCreateInstanceAlarmAlarmPayload struct {
+	// The object created/updated/deleted by the mutation. May be null if mutation failed.
+	Result createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarm `json:"result"`
+	// Indicates if the mutation completed successfully or not.
+	Successful bool `json:"successful"`
+	// A list of failed validations. May be blank or null if mutation succeeded.
+	Messages []createInstanceAlarmCreateInstanceAlarmAlarmPayloadMessagesValidationMessage `json:"messages"`
+}
+
+// GetResult returns createInstanceAlarmCreateInstanceAlarmAlarmPayload.Result, and is useful for accessing the field via an interface.
+func (v *createInstanceAlarmCreateInstanceAlarmAlarmPayload) GetResult() createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarm {
+	return v.Result
+}
+
+// GetSuccessful returns createInstanceAlarmCreateInstanceAlarmAlarmPayload.Successful, and is useful for accessing the field via an interface.
+func (v *createInstanceAlarmCreateInstanceAlarmAlarmPayload) GetSuccessful() bool {
+	return v.Successful
+}
+
+// GetMessages returns createInstanceAlarmCreateInstanceAlarmAlarmPayload.Messages, and is useful for accessing the field via an interface.
+func (v *createInstanceAlarmCreateInstanceAlarmAlarmPayload) GetMessages() []createInstanceAlarmCreateInstanceAlarmAlarmPayloadMessagesValidationMessage {
+	return v.Messages
+}
+
+// createInstanceAlarmCreateInstanceAlarmAlarmPayloadMessagesValidationMessage includes the requested fields of the GraphQL type ValidationMessage.
+// The GraphQL type's documentation follows.
+//
+// Validation messages are returned when mutation input does not meet the requirements.
+// While client-side validation is highly recommended to provide the best User Experience,
+// All inputs will always be validated server-side.
+//
+// Some examples of validations are:
+//
+// * Username must be at least 10 characters
+// * Email field does not contain an email address
+// * Birth Date is required
+//
+// While GraphQL has support for required values, mutation data fields are always
+// set to optional in our API. This allows 'required field' messages
+// to be returned in the same manner as other validations. The only exceptions
+// are id fields, which may be required to perform updates or deletes.
+type createInstanceAlarmCreateInstanceAlarmAlarmPayloadMessagesValidationMessage struct {
+	// A unique error code for the type of validation used.
+	Code string `json:"code"`
+	// The input field that the error applies to. The field can be used to
+	// identify which field the error message should be displayed next to in the
+	// presentation layer.
+	//
+	// If there are multiple errors to display for a field, multiple validation
+	// messages will be in the result.
+	//
+	// This field may be null in cases where an error cannot be applied to a specific field.
+	Field string `json:"field"`
+	// A friendly error message, appropriate for display to the end user.
+	//
+	// The message is interpolated to include the appropriate variables.
+	//
+	// Example: `Username must be at least 10 characters`
+	//
+	// This message may change without notice, so we do not recommend you match against the text.
+	// Instead, use the *code* field for matching.
+	Message string `json:"message"`
+}
+
+// GetCode returns createInstanceAlarmCreateInstanceAlarmAlarmPayloadMessagesValidationMessage.Code, and is useful for accessing the field via an interface.
+func (v *createInstanceAlarmCreateInstanceAlarmAlarmPayloadMessagesValidationMessage) GetCode() string {
+	return v.Code
+}
+
+// GetField returns createInstanceAlarmCreateInstanceAlarmAlarmPayloadMessagesValidationMessage.Field, and is useful for accessing the field via an interface.
+func (v *createInstanceAlarmCreateInstanceAlarmAlarmPayloadMessagesValidationMessage) GetField() string {
+	return v.Field
+}
+
+// GetMessage returns createInstanceAlarmCreateInstanceAlarmAlarmPayloadMessagesValidationMessage.Message, and is useful for accessing the field via an interface.
+func (v *createInstanceAlarmCreateInstanceAlarmAlarmPayloadMessagesValidationMessage) GetMessage() string {
+	return v.Message
+}
+
+// createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarm includes the requested fields of the GraphQL type Alarm.
+// The GraphQL type's documentation follows.
+//
+// A cloud metric alarm attached to an instance.
+//
+// Receives state updates via webhooks from AWS CloudWatch, Azure Monitor,
+// GCP Cloud Monitoring, or Prometheus Alertmanager.
+//
+// Check `currentState` to see whether the alarm is firing. A `null`
+// `currentState` means no state has been reported yet for this alarm.
+type createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarm struct {
+	// Unique identifier for this alarm.
+	Id string `json:"id"`
+	// Human-readable name for the alarm, set by the cloud provider when the alarm was registered.
+	DisplayName string `json:"displayName"`
+	// The cloud provider's unique identifier for the alarm (e.g., CloudWatch AlarmArn, GCP alert policy name, Azure alert id).
+	CloudResourceId string `json:"cloudResourceId"`
+	// How the metric is compared against `threshold` (e.g., `GREATER_THAN`, `LESS_THAN`, `GREATER_THAN_OR_EQUAL_TO`, `LESS_THAN_OR_EQUAL_TO`). May be null for Alertmanager and GCP alarms.
+	ComparisonOperator string `json:"comparisonOperator"`
+	// The value crossed to trigger the alarm, compared using `comparisonOperator`. May be null for Alertmanager alarms and some GCP conditions.
+	Threshold float64 `json:"threshold"`
+	// Evaluation window in seconds over which the metric is aggregated before the comparison is applied. May be null for alarms ingested from providers that don't expose a period.
+	Period int `json:"period"`
+	// The cloud metric this alarm evaluates. May be null for alarms from providers that don't supply structured metric data (e.g., Alertmanager).
+	Metric *createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarmMetric `json:"metric"`
+}
+
+// GetId returns createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarm.Id, and is useful for accessing the field via an interface.
+func (v *createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarm) GetId() string { return v.Id }
+
+// GetDisplayName returns createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarm.DisplayName, and is useful for accessing the field via an interface.
+func (v *createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarm) GetDisplayName() string {
+	return v.DisplayName
+}
+
+// GetCloudResourceId returns createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarm.CloudResourceId, and is useful for accessing the field via an interface.
+func (v *createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarm) GetCloudResourceId() string {
+	return v.CloudResourceId
+}
+
+// GetComparisonOperator returns createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarm.ComparisonOperator, and is useful for accessing the field via an interface.
+func (v *createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarm) GetComparisonOperator() string {
+	return v.ComparisonOperator
+}
+
+// GetThreshold returns createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarm.Threshold, and is useful for accessing the field via an interface.
+func (v *createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarm) GetThreshold() float64 {
+	return v.Threshold
+}
+
+// GetPeriod returns createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarm.Period, and is useful for accessing the field via an interface.
+func (v *createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarm) GetPeriod() int {
+	return v.Period
+}
+
+// GetMetric returns createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarm.Metric, and is useful for accessing the field via an interface.
+func (v *createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarm) GetMetric() *createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarmMetric {
+	return v.Metric
+}
+
+// createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarmMetric includes the requested fields of the GraphQL type AlarmMetric.
+// The GraphQL type's documentation follows.
+//
+// The cloud metric an alarm is evaluating.
+//
+// Shape and populated fields vary by provider. AWS and Azure populate
+// `statistic` (e.g., `Average`, `Sum`, `Maximum`); GCP does not. `dimensions`
+// are populated when the provider exposes them as structured key-value pairs.
+type createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarmMetric struct {
+	// Cloud service namespace that categorizes the metric. Examples: `AWS/RDS`, `Microsoft.Cache/Redis`, `cloudsql_database`.
+	Namespace string `json:"namespace"`
+	// Metric name within the namespace. Examples: `CPUUtilization` (AWS), `allpercentprocessortime` (Azure).
+	Name string `json:"name"`
+	// Aggregation function applied to metric samples. Examples: `Average`, `Sum`, `Maximum`. May be `null` for providers that don't use this concept (e.g., GCP).
+	Statistic string `json:"statistic"`
+	// Cloud region this metric is scoped to, when provider-reported.
+	Region string `json:"region"`
+	// Dimensions identifying the specific cloud resource being monitored. Empty list when the provider doesn't report structured dimensions.
+	Dimensions []createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarmMetricDimensionsAlarmMetricDimension `json:"dimensions"`
+}
+
+// GetNamespace returns createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarmMetric.Namespace, and is useful for accessing the field via an interface.
+func (v *createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarmMetric) GetNamespace() string {
+	return v.Namespace
+}
+
+// GetName returns createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarmMetric.Name, and is useful for accessing the field via an interface.
+func (v *createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarmMetric) GetName() string {
+	return v.Name
+}
+
+// GetStatistic returns createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarmMetric.Statistic, and is useful for accessing the field via an interface.
+func (v *createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarmMetric) GetStatistic() string {
+	return v.Statistic
+}
+
+// GetRegion returns createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarmMetric.Region, and is useful for accessing the field via an interface.
+func (v *createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarmMetric) GetRegion() string {
+	return v.Region
+}
+
+// GetDimensions returns createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarmMetric.Dimensions, and is useful for accessing the field via an interface.
+func (v *createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarmMetric) GetDimensions() []createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarmMetricDimensionsAlarmMetricDimension {
+	return v.Dimensions
+}
+
+// createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarmMetricDimensionsAlarmMetricDimension includes the requested fields of the GraphQL type AlarmMetricDimension.
+// The GraphQL type's documentation follows.
+//
+// A key-value pair identifying the specific cloud resource a metric applies to.
+//
+// Examples: `{ name: "DBInstanceIdentifier", value: "db-abc123" }` for AWS RDS,
+// `{ name: "InstanceId", value: "i-0a1b2c3d" }` for AWS EC2.
+type createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarmMetricDimensionsAlarmMetricDimension struct {
+	// Dimension name as defined by the cloud provider.
+	Name string `json:"name"`
+	// Dimension value identifying the monitored resource.
+	Value string `json:"value"`
+}
+
+// GetName returns createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarmMetricDimensionsAlarmMetricDimension.Name, and is useful for accessing the field via an interface.
+func (v *createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarmMetricDimensionsAlarmMetricDimension) GetName() string {
+	return v.Name
+}
+
+// GetValue returns createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarmMetricDimensionsAlarmMetricDimension.Value, and is useful for accessing the field via an interface.
+func (v *createInstanceAlarmCreateInstanceAlarmAlarmPayloadResultAlarmMetricDimensionsAlarmMetricDimension) GetValue() string {
+	return v.Value
+}
+
+// createInstanceAlarmResponse is returned by createInstanceAlarm on success.
+type createInstanceAlarmResponse struct {
+	// Register a cloud metric alarm with an instance.
+	//
+	// The alarm appears in the UI immediately and starts receiving state updates
+	// as soon as the cloud provider reports them. The `cloudResourceId` is used
+	// to correlate inbound webhooks (CloudWatch, Azure Monitor, GCP Cloud
+	// Monitoring, Alertmanager) back to this alarm — it must be unique within
+	// the instance.
+	//
+	// Requires `environment:edit` on the alarm's environment.
+	CreateInstanceAlarm createInstanceAlarmCreateInstanceAlarmAlarmPayload `json:"createInstanceAlarm"`
+}
+
+// GetCreateInstanceAlarm returns createInstanceAlarmResponse.CreateInstanceAlarm, and is useful for accessing the field via an interface.
+func (v *createInstanceAlarmResponse) GetCreateInstanceAlarm() createInstanceAlarmCreateInstanceAlarmAlarmPayload {
+	return v.CreateInstanceAlarm
 }
 
 // createProjectCreateProjectProjectPayload includes the requested fields of the GraphQL type ProjectPayload.
@@ -1519,6 +2351,8 @@ type createProjectCreateProjectProjectPayloadResultProject struct {
 	Name string `json:"name"`
 	// Free-text description of what this project is for.
 	Description string `json:"description"`
+	// Key-value attributes assigned directly to this project. Attributes cascade to environments and instances. Must conform to your organization's custom attributes for the `PROJECT` scope.
+	Attributes map[string]any `json:"-"`
 }
 
 // GetId returns createProjectCreateProjectProjectPayloadResultProject.Id, and is useful for accessing the field via an interface.
@@ -1530,6 +2364,83 @@ func (v *createProjectCreateProjectProjectPayloadResultProject) GetName() string
 // GetDescription returns createProjectCreateProjectProjectPayloadResultProject.Description, and is useful for accessing the field via an interface.
 func (v *createProjectCreateProjectProjectPayloadResultProject) GetDescription() string {
 	return v.Description
+}
+
+// GetAttributes returns createProjectCreateProjectProjectPayloadResultProject.Attributes, and is useful for accessing the field via an interface.
+func (v *createProjectCreateProjectProjectPayloadResultProject) GetAttributes() map[string]any {
+	return v.Attributes
+}
+
+func (v *createProjectCreateProjectProjectPayloadResultProject) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*createProjectCreateProjectProjectPayloadResultProject
+		Attributes json.RawMessage `json:"attributes"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.createProjectCreateProjectProjectPayloadResultProject = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.Attributes
+		src := firstPass.Attributes
+		if len(src) != 0 && string(src) != "null" {
+			err = scalars.UnmarshalJSON(
+				src, dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal createProjectCreateProjectProjectPayloadResultProject.Attributes: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalcreateProjectCreateProjectProjectPayloadResultProject struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+
+	Description string `json:"description"`
+
+	Attributes json.RawMessage `json:"attributes"`
+}
+
+func (v *createProjectCreateProjectProjectPayloadResultProject) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *createProjectCreateProjectProjectPayloadResultProject) __premarshalJSON() (*__premarshalcreateProjectCreateProjectProjectPayloadResultProject, error) {
+	var retval __premarshalcreateProjectCreateProjectProjectPayloadResultProject
+
+	retval.Id = v.Id
+	retval.Name = v.Name
+	retval.Description = v.Description
+	{
+
+		dst := &retval.Attributes
+		src := v.Attributes
+		var err error
+		*dst, err = scalars.MarshalJSON(
+			&src)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"unable to marshal createProjectCreateProjectProjectPayloadResultProject.Attributes: %w", err)
+		}
+	}
+	return &retval, nil
 }
 
 // createProjectResponse is returned by createProject on success.
@@ -1858,6 +2769,262 @@ func (v *deleteEnvironmentResponse) GetDeleteEnvironment() deleteEnvironmentDele
 	return v.DeleteEnvironment
 }
 
+// deleteGroupDeleteGroupGroupPayload includes the requested fields of the GraphQL type GroupPayload.
+type deleteGroupDeleteGroupGroupPayload struct {
+	// The object created/updated/deleted by the mutation. May be null if mutation failed.
+	Result deleteGroupDeleteGroupGroupPayloadResultGroup `json:"result"`
+	// Indicates if the mutation completed successfully or not.
+	Successful bool `json:"successful"`
+	// A list of failed validations. May be blank or null if mutation succeeded.
+	Messages []deleteGroupDeleteGroupGroupPayloadMessagesValidationMessage `json:"messages"`
+}
+
+// GetResult returns deleteGroupDeleteGroupGroupPayload.Result, and is useful for accessing the field via an interface.
+func (v *deleteGroupDeleteGroupGroupPayload) GetResult() deleteGroupDeleteGroupGroupPayloadResultGroup {
+	return v.Result
+}
+
+// GetSuccessful returns deleteGroupDeleteGroupGroupPayload.Successful, and is useful for accessing the field via an interface.
+func (v *deleteGroupDeleteGroupGroupPayload) GetSuccessful() bool { return v.Successful }
+
+// GetMessages returns deleteGroupDeleteGroupGroupPayload.Messages, and is useful for accessing the field via an interface.
+func (v *deleteGroupDeleteGroupGroupPayload) GetMessages() []deleteGroupDeleteGroupGroupPayloadMessagesValidationMessage {
+	return v.Messages
+}
+
+// deleteGroupDeleteGroupGroupPayloadMessagesValidationMessage includes the requested fields of the GraphQL type ValidationMessage.
+// The GraphQL type's documentation follows.
+//
+// Validation messages are returned when mutation input does not meet the requirements.
+// While client-side validation is highly recommended to provide the best User Experience,
+// All inputs will always be validated server-side.
+//
+// Some examples of validations are:
+//
+// * Username must be at least 10 characters
+// * Email field does not contain an email address
+// * Birth Date is required
+//
+// While GraphQL has support for required values, mutation data fields are always
+// set to optional in our API. This allows 'required field' messages
+// to be returned in the same manner as other validations. The only exceptions
+// are id fields, which may be required to perform updates or deletes.
+type deleteGroupDeleteGroupGroupPayloadMessagesValidationMessage struct {
+	// A unique error code for the type of validation used.
+	Code string `json:"code"`
+	// The input field that the error applies to. The field can be used to
+	// identify which field the error message should be displayed next to in the
+	// presentation layer.
+	//
+	// If there are multiple errors to display for a field, multiple validation
+	// messages will be in the result.
+	//
+	// This field may be null in cases where an error cannot be applied to a specific field.
+	Field string `json:"field"`
+	// A friendly error message, appropriate for display to the end user.
+	//
+	// The message is interpolated to include the appropriate variables.
+	//
+	// Example: `Username must be at least 10 characters`
+	//
+	// This message may change without notice, so we do not recommend you match against the text.
+	// Instead, use the *code* field for matching.
+	Message string `json:"message"`
+}
+
+// GetCode returns deleteGroupDeleteGroupGroupPayloadMessagesValidationMessage.Code, and is useful for accessing the field via an interface.
+func (v *deleteGroupDeleteGroupGroupPayloadMessagesValidationMessage) GetCode() string { return v.Code }
+
+// GetField returns deleteGroupDeleteGroupGroupPayloadMessagesValidationMessage.Field, and is useful for accessing the field via an interface.
+func (v *deleteGroupDeleteGroupGroupPayloadMessagesValidationMessage) GetField() string {
+	return v.Field
+}
+
+// GetMessage returns deleteGroupDeleteGroupGroupPayloadMessagesValidationMessage.Message, and is useful for accessing the field via an interface.
+func (v *deleteGroupDeleteGroupGroupPayloadMessagesValidationMessage) GetMessage() string {
+	return v.Message
+}
+
+// deleteGroupDeleteGroupGroupPayloadResultGroup includes the requested fields of the GraphQL type Group.
+// The GraphQL type's documentation follows.
+//
+// A collection of users and service accounts that share the same access level within your organization.
+//
+// Groups are the primary mechanism for managing access control in Massdriver. Rather than
+// assigning permissions to individual users, you add them to groups that define what they
+// can see and do.
+//
+// ```mermaid
+// graph TD
+// O["Organization"] --> G1["Group: Admins"]
+// O --> G2["Group: Developers"]
+// O --> G3["Group: Custom"]
+// G1 --> U1["User: alice@co.com"]
+// G2 --> U2["User: bob@co.com"]
+// G2 --> SA1["Service Account: ci-bot"]
+// G3 -->|"project_admin"| P1["Project: backend"]
+// G3 -->|"project_viewer"| P2["Project: frontend"]
+// ```
+//
+// **Built-in groups** — Every organization starts with an `Admins` group (`organization_admin` role)
+// and a `Viewers` group (`organization_viewer` role). These cannot be deleted.
+//
+// **Custom groups** — Create custom groups with the `CUSTOM` role to grant project-level access.
+// Each custom group can be assigned `project_admin` or `project_viewer` on specific projects.
+//
+// **Members** — Both human users and service accounts can be group members. Users live under
+// `members` and are added via `addAccountToGroup` (auto-adds existing org members or sends an
+// invitation otherwise). Service accounts live under `serviceAccounts` and are added via
+// `addServiceAccountToGroup`.
+type deleteGroupDeleteGroupGroupPayloadResultGroup struct {
+	// Unique identifier for this group.
+	Id string `json:"id"`
+	// Human-readable name displayed in the UI and API responses.
+	Name string `json:"name"`
+}
+
+// GetId returns deleteGroupDeleteGroupGroupPayloadResultGroup.Id, and is useful for accessing the field via an interface.
+func (v *deleteGroupDeleteGroupGroupPayloadResultGroup) GetId() string { return v.Id }
+
+// GetName returns deleteGroupDeleteGroupGroupPayloadResultGroup.Name, and is useful for accessing the field via an interface.
+func (v *deleteGroupDeleteGroupGroupPayloadResultGroup) GetName() string { return v.Name }
+
+// deleteGroupResponse is returned by deleteGroup on success.
+type deleteGroupResponse struct {
+	// Delete a group.
+	//
+	// Only groups with the `CUSTOM` role can be deleted. The built-in `organization_admin` and
+	// `organization_viewer` groups are permanent and cannot be removed. All members lose the
+	// access granted by this group immediately upon deletion. Requires `organization_admin` permissions.
+	DeleteGroup deleteGroupDeleteGroupGroupPayload `json:"deleteGroup"`
+}
+
+// GetDeleteGroup returns deleteGroupResponse.DeleteGroup, and is useful for accessing the field via an interface.
+func (v *deleteGroupResponse) GetDeleteGroup() deleteGroupDeleteGroupGroupPayload {
+	return v.DeleteGroup
+}
+
+// deleteInstanceAlarmDeleteInstanceAlarmAlarmPayload includes the requested fields of the GraphQL type AlarmPayload.
+type deleteInstanceAlarmDeleteInstanceAlarmAlarmPayload struct {
+	// The object created/updated/deleted by the mutation. May be null if mutation failed.
+	Result deleteInstanceAlarmDeleteInstanceAlarmAlarmPayloadResultAlarm `json:"result"`
+	// Indicates if the mutation completed successfully or not.
+	Successful bool `json:"successful"`
+	// A list of failed validations. May be blank or null if mutation succeeded.
+	Messages []deleteInstanceAlarmDeleteInstanceAlarmAlarmPayloadMessagesValidationMessage `json:"messages"`
+}
+
+// GetResult returns deleteInstanceAlarmDeleteInstanceAlarmAlarmPayload.Result, and is useful for accessing the field via an interface.
+func (v *deleteInstanceAlarmDeleteInstanceAlarmAlarmPayload) GetResult() deleteInstanceAlarmDeleteInstanceAlarmAlarmPayloadResultAlarm {
+	return v.Result
+}
+
+// GetSuccessful returns deleteInstanceAlarmDeleteInstanceAlarmAlarmPayload.Successful, and is useful for accessing the field via an interface.
+func (v *deleteInstanceAlarmDeleteInstanceAlarmAlarmPayload) GetSuccessful() bool {
+	return v.Successful
+}
+
+// GetMessages returns deleteInstanceAlarmDeleteInstanceAlarmAlarmPayload.Messages, and is useful for accessing the field via an interface.
+func (v *deleteInstanceAlarmDeleteInstanceAlarmAlarmPayload) GetMessages() []deleteInstanceAlarmDeleteInstanceAlarmAlarmPayloadMessagesValidationMessage {
+	return v.Messages
+}
+
+// deleteInstanceAlarmDeleteInstanceAlarmAlarmPayloadMessagesValidationMessage includes the requested fields of the GraphQL type ValidationMessage.
+// The GraphQL type's documentation follows.
+//
+// Validation messages are returned when mutation input does not meet the requirements.
+// While client-side validation is highly recommended to provide the best User Experience,
+// All inputs will always be validated server-side.
+//
+// Some examples of validations are:
+//
+// * Username must be at least 10 characters
+// * Email field does not contain an email address
+// * Birth Date is required
+//
+// While GraphQL has support for required values, mutation data fields are always
+// set to optional in our API. This allows 'required field' messages
+// to be returned in the same manner as other validations. The only exceptions
+// are id fields, which may be required to perform updates or deletes.
+type deleteInstanceAlarmDeleteInstanceAlarmAlarmPayloadMessagesValidationMessage struct {
+	// A unique error code for the type of validation used.
+	Code string `json:"code"`
+	// The input field that the error applies to. The field can be used to
+	// identify which field the error message should be displayed next to in the
+	// presentation layer.
+	//
+	// If there are multiple errors to display for a field, multiple validation
+	// messages will be in the result.
+	//
+	// This field may be null in cases where an error cannot be applied to a specific field.
+	Field string `json:"field"`
+	// A friendly error message, appropriate for display to the end user.
+	//
+	// The message is interpolated to include the appropriate variables.
+	//
+	// Example: `Username must be at least 10 characters`
+	//
+	// This message may change without notice, so we do not recommend you match against the text.
+	// Instead, use the *code* field for matching.
+	Message string `json:"message"`
+}
+
+// GetCode returns deleteInstanceAlarmDeleteInstanceAlarmAlarmPayloadMessagesValidationMessage.Code, and is useful for accessing the field via an interface.
+func (v *deleteInstanceAlarmDeleteInstanceAlarmAlarmPayloadMessagesValidationMessage) GetCode() string {
+	return v.Code
+}
+
+// GetField returns deleteInstanceAlarmDeleteInstanceAlarmAlarmPayloadMessagesValidationMessage.Field, and is useful for accessing the field via an interface.
+func (v *deleteInstanceAlarmDeleteInstanceAlarmAlarmPayloadMessagesValidationMessage) GetField() string {
+	return v.Field
+}
+
+// GetMessage returns deleteInstanceAlarmDeleteInstanceAlarmAlarmPayloadMessagesValidationMessage.Message, and is useful for accessing the field via an interface.
+func (v *deleteInstanceAlarmDeleteInstanceAlarmAlarmPayloadMessagesValidationMessage) GetMessage() string {
+	return v.Message
+}
+
+// deleteInstanceAlarmDeleteInstanceAlarmAlarmPayloadResultAlarm includes the requested fields of the GraphQL type Alarm.
+// The GraphQL type's documentation follows.
+//
+// A cloud metric alarm attached to an instance.
+//
+// Receives state updates via webhooks from AWS CloudWatch, Azure Monitor,
+// GCP Cloud Monitoring, or Prometheus Alertmanager.
+//
+// Check `currentState` to see whether the alarm is firing. A `null`
+// `currentState` means no state has been reported yet for this alarm.
+type deleteInstanceAlarmDeleteInstanceAlarmAlarmPayloadResultAlarm struct {
+	// Unique identifier for this alarm.
+	Id string `json:"id"`
+	// Human-readable name for the alarm, set by the cloud provider when the alarm was registered.
+	DisplayName string `json:"displayName"`
+}
+
+// GetId returns deleteInstanceAlarmDeleteInstanceAlarmAlarmPayloadResultAlarm.Id, and is useful for accessing the field via an interface.
+func (v *deleteInstanceAlarmDeleteInstanceAlarmAlarmPayloadResultAlarm) GetId() string { return v.Id }
+
+// GetDisplayName returns deleteInstanceAlarmDeleteInstanceAlarmAlarmPayloadResultAlarm.DisplayName, and is useful for accessing the field via an interface.
+func (v *deleteInstanceAlarmDeleteInstanceAlarmAlarmPayloadResultAlarm) GetDisplayName() string {
+	return v.DisplayName
+}
+
+// deleteInstanceAlarmResponse is returned by deleteInstanceAlarm on success.
+type deleteInstanceAlarmResponse struct {
+	// Delete an alarm registration.
+	//
+	// Removes the alarm and any recorded state transitions. The underlying cloud
+	// provider alarm is unaffected.
+	//
+	// Requires `environment:edit` on the alarm's environment.
+	DeleteInstanceAlarm deleteInstanceAlarmDeleteInstanceAlarmAlarmPayload `json:"deleteInstanceAlarm"`
+}
+
+// GetDeleteInstanceAlarm returns deleteInstanceAlarmResponse.DeleteInstanceAlarm, and is useful for accessing the field via an interface.
+func (v *deleteInstanceAlarmResponse) GetDeleteInstanceAlarm() deleteInstanceAlarmDeleteInstanceAlarmAlarmPayload {
+	return v.DeleteInstanceAlarm
+}
+
 // deleteProjectDeleteProjectProjectPayload includes the requested fields of the GraphQL type ProjectPayload.
 type deleteProjectDeleteProjectProjectPayload struct {
 	// The object created/updated/deleted by the mutation. May be null if mutation failed.
@@ -2140,6 +3307,8 @@ type getEnvironmentEnvironment struct {
 	Name string `json:"name"`
 	// Free-text description of what this environment is for.
 	Description string `json:"description"`
+	// Key-value attributes assigned directly to this environment. Attributes cascade to instances. Must conform to your organization's custom attributes for the `ENVIRONMENT` scope.
+	Attributes map[string]any `json:"-"`
 	// The parent project that this environment belongs to.
 	Project getEnvironmentEnvironmentProject `json:"project"`
 }
@@ -2153,8 +3322,86 @@ func (v *getEnvironmentEnvironment) GetName() string { return v.Name }
 // GetDescription returns getEnvironmentEnvironment.Description, and is useful for accessing the field via an interface.
 func (v *getEnvironmentEnvironment) GetDescription() string { return v.Description }
 
+// GetAttributes returns getEnvironmentEnvironment.Attributes, and is useful for accessing the field via an interface.
+func (v *getEnvironmentEnvironment) GetAttributes() map[string]any { return v.Attributes }
+
 // GetProject returns getEnvironmentEnvironment.Project, and is useful for accessing the field via an interface.
 func (v *getEnvironmentEnvironment) GetProject() getEnvironmentEnvironmentProject { return v.Project }
+
+func (v *getEnvironmentEnvironment) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*getEnvironmentEnvironment
+		Attributes json.RawMessage `json:"attributes"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.getEnvironmentEnvironment = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.Attributes
+		src := firstPass.Attributes
+		if len(src) != 0 && string(src) != "null" {
+			err = scalars.UnmarshalJSON(
+				src, dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal getEnvironmentEnvironment.Attributes: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalgetEnvironmentEnvironment struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+
+	Description string `json:"description"`
+
+	Attributes json.RawMessage `json:"attributes"`
+
+	Project getEnvironmentEnvironmentProject `json:"project"`
+}
+
+func (v *getEnvironmentEnvironment) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *getEnvironmentEnvironment) __premarshalJSON() (*__premarshalgetEnvironmentEnvironment, error) {
+	var retval __premarshalgetEnvironmentEnvironment
+
+	retval.Id = v.Id
+	retval.Name = v.Name
+	retval.Description = v.Description
+	{
+
+		dst := &retval.Attributes
+		src := v.Attributes
+		var err error
+		*dst, err = scalars.MarshalJSON(
+			&src)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"unable to marshal getEnvironmentEnvironment.Attributes: %w", err)
+		}
+	}
+	retval.Project = v.Project
+	return &retval, nil
+}
 
 // getEnvironmentEnvironmentProject includes the requested fields of the GraphQL type Project.
 // The GraphQL type's documentation follows.
@@ -2197,6 +3444,210 @@ type getEnvironmentResponse struct {
 // GetEnvironment returns getEnvironmentResponse.Environment, and is useful for accessing the field via an interface.
 func (v *getEnvironmentResponse) GetEnvironment() getEnvironmentEnvironment { return v.Environment }
 
+// getGroupGroup includes the requested fields of the GraphQL type Group.
+// The GraphQL type's documentation follows.
+//
+// A collection of users and service accounts that share the same access level within your organization.
+//
+// Groups are the primary mechanism for managing access control in Massdriver. Rather than
+// assigning permissions to individual users, you add them to groups that define what they
+// can see and do.
+//
+// ```mermaid
+// graph TD
+// O["Organization"] --> G1["Group: Admins"]
+// O --> G2["Group: Developers"]
+// O --> G3["Group: Custom"]
+// G1 --> U1["User: alice@co.com"]
+// G2 --> U2["User: bob@co.com"]
+// G2 --> SA1["Service Account: ci-bot"]
+// G3 -->|"project_admin"| P1["Project: backend"]
+// G3 -->|"project_viewer"| P2["Project: frontend"]
+// ```
+//
+// **Built-in groups** — Every organization starts with an `Admins` group (`organization_admin` role)
+// and a `Viewers` group (`organization_viewer` role). These cannot be deleted.
+//
+// **Custom groups** — Create custom groups with the `CUSTOM` role to grant project-level access.
+// Each custom group can be assigned `project_admin` or `project_viewer` on specific projects.
+//
+// **Members** — Both human users and service accounts can be group members. Users live under
+// `members` and are added via `addAccountToGroup` (auto-adds existing org members or sends an
+// invitation otherwise). Service accounts live under `serviceAccounts` and are added via
+// `addServiceAccountToGroup`.
+type getGroupGroup struct {
+	// Unique identifier for this group.
+	Id string `json:"id"`
+	// Human-readable name displayed in the UI and API responses.
+	Name string `json:"name"`
+	// Optional text explaining the purpose of this group.
+	Description string `json:"description"`
+	// The access level this group grants to its members.
+	Role GroupRole `json:"role"`
+}
+
+// GetId returns getGroupGroup.Id, and is useful for accessing the field via an interface.
+func (v *getGroupGroup) GetId() string { return v.Id }
+
+// GetName returns getGroupGroup.Name, and is useful for accessing the field via an interface.
+func (v *getGroupGroup) GetName() string { return v.Name }
+
+// GetDescription returns getGroupGroup.Description, and is useful for accessing the field via an interface.
+func (v *getGroupGroup) GetDescription() string { return v.Description }
+
+// GetRole returns getGroupGroup.Role, and is useful for accessing the field via an interface.
+func (v *getGroupGroup) GetRole() GroupRole { return v.Role }
+
+// getGroupResponse is returned by getGroup on success.
+type getGroupResponse struct {
+	// Retrieve a single group by its identifier.
+	//
+	// Returns `null` with a `NOT_FOUND` error if the group does not exist or you do not have
+	// permission to view it.
+	Group getGroupGroup `json:"group"`
+}
+
+// GetGroup returns getGroupResponse.Group, and is useful for accessing the field via an interface.
+func (v *getGroupResponse) GetGroup() getGroupGroup { return v.Group }
+
+// getInstanceAlarmInstanceAlarm includes the requested fields of the GraphQL type Alarm.
+// The GraphQL type's documentation follows.
+//
+// A cloud metric alarm attached to an instance.
+//
+// Receives state updates via webhooks from AWS CloudWatch, Azure Monitor,
+// GCP Cloud Monitoring, or Prometheus Alertmanager.
+//
+// Check `currentState` to see whether the alarm is firing. A `null`
+// `currentState` means no state has been reported yet for this alarm.
+type getInstanceAlarmInstanceAlarm struct {
+	// Unique identifier for this alarm.
+	Id string `json:"id"`
+	// Human-readable name for the alarm, set by the cloud provider when the alarm was registered.
+	DisplayName string `json:"displayName"`
+	// The cloud provider's unique identifier for the alarm (e.g., CloudWatch AlarmArn, GCP alert policy name, Azure alert id).
+	CloudResourceId string `json:"cloudResourceId"`
+	// How the metric is compared against `threshold` (e.g., `GREATER_THAN`, `LESS_THAN`, `GREATER_THAN_OR_EQUAL_TO`, `LESS_THAN_OR_EQUAL_TO`). May be null for Alertmanager and GCP alarms.
+	ComparisonOperator string `json:"comparisonOperator"`
+	// The value crossed to trigger the alarm, compared using `comparisonOperator`. May be null for Alertmanager alarms and some GCP conditions.
+	Threshold float64 `json:"threshold"`
+	// Evaluation window in seconds over which the metric is aggregated before the comparison is applied. May be null for alarms ingested from providers that don't expose a period.
+	Period int `json:"period"`
+	// The cloud metric this alarm evaluates. May be null for alarms from providers that don't supply structured metric data (e.g., Alertmanager).
+	Metric *getInstanceAlarmInstanceAlarmMetric `json:"metric"`
+}
+
+// GetId returns getInstanceAlarmInstanceAlarm.Id, and is useful for accessing the field via an interface.
+func (v *getInstanceAlarmInstanceAlarm) GetId() string { return v.Id }
+
+// GetDisplayName returns getInstanceAlarmInstanceAlarm.DisplayName, and is useful for accessing the field via an interface.
+func (v *getInstanceAlarmInstanceAlarm) GetDisplayName() string { return v.DisplayName }
+
+// GetCloudResourceId returns getInstanceAlarmInstanceAlarm.CloudResourceId, and is useful for accessing the field via an interface.
+func (v *getInstanceAlarmInstanceAlarm) GetCloudResourceId() string { return v.CloudResourceId }
+
+// GetComparisonOperator returns getInstanceAlarmInstanceAlarm.ComparisonOperator, and is useful for accessing the field via an interface.
+func (v *getInstanceAlarmInstanceAlarm) GetComparisonOperator() string { return v.ComparisonOperator }
+
+// GetThreshold returns getInstanceAlarmInstanceAlarm.Threshold, and is useful for accessing the field via an interface.
+func (v *getInstanceAlarmInstanceAlarm) GetThreshold() float64 { return v.Threshold }
+
+// GetPeriod returns getInstanceAlarmInstanceAlarm.Period, and is useful for accessing the field via an interface.
+func (v *getInstanceAlarmInstanceAlarm) GetPeriod() int { return v.Period }
+
+// GetMetric returns getInstanceAlarmInstanceAlarm.Metric, and is useful for accessing the field via an interface.
+func (v *getInstanceAlarmInstanceAlarm) GetMetric() *getInstanceAlarmInstanceAlarmMetric {
+	return v.Metric
+}
+
+// getInstanceAlarmInstanceAlarmMetric includes the requested fields of the GraphQL type AlarmMetric.
+// The GraphQL type's documentation follows.
+//
+// The cloud metric an alarm is evaluating.
+//
+// Shape and populated fields vary by provider. AWS and Azure populate
+// `statistic` (e.g., `Average`, `Sum`, `Maximum`); GCP does not. `dimensions`
+// are populated when the provider exposes them as structured key-value pairs.
+type getInstanceAlarmInstanceAlarmMetric struct {
+	// Cloud service namespace that categorizes the metric. Examples: `AWS/RDS`, `Microsoft.Cache/Redis`, `cloudsql_database`.
+	Namespace string `json:"namespace"`
+	// Metric name within the namespace. Examples: `CPUUtilization` (AWS), `allpercentprocessortime` (Azure).
+	Name string `json:"name"`
+	// Aggregation function applied to metric samples. Examples: `Average`, `Sum`, `Maximum`. May be `null` for providers that don't use this concept (e.g., GCP).
+	Statistic string `json:"statistic"`
+	// Cloud region this metric is scoped to, when provider-reported.
+	Region string `json:"region"`
+	// Dimensions identifying the specific cloud resource being monitored. Empty list when the provider doesn't report structured dimensions.
+	Dimensions []getInstanceAlarmInstanceAlarmMetricDimensionsAlarmMetricDimension `json:"dimensions"`
+}
+
+// GetNamespace returns getInstanceAlarmInstanceAlarmMetric.Namespace, and is useful for accessing the field via an interface.
+func (v *getInstanceAlarmInstanceAlarmMetric) GetNamespace() string { return v.Namespace }
+
+// GetName returns getInstanceAlarmInstanceAlarmMetric.Name, and is useful for accessing the field via an interface.
+func (v *getInstanceAlarmInstanceAlarmMetric) GetName() string { return v.Name }
+
+// GetStatistic returns getInstanceAlarmInstanceAlarmMetric.Statistic, and is useful for accessing the field via an interface.
+func (v *getInstanceAlarmInstanceAlarmMetric) GetStatistic() string { return v.Statistic }
+
+// GetRegion returns getInstanceAlarmInstanceAlarmMetric.Region, and is useful for accessing the field via an interface.
+func (v *getInstanceAlarmInstanceAlarmMetric) GetRegion() string { return v.Region }
+
+// GetDimensions returns getInstanceAlarmInstanceAlarmMetric.Dimensions, and is useful for accessing the field via an interface.
+func (v *getInstanceAlarmInstanceAlarmMetric) GetDimensions() []getInstanceAlarmInstanceAlarmMetricDimensionsAlarmMetricDimension {
+	return v.Dimensions
+}
+
+// getInstanceAlarmInstanceAlarmMetricDimensionsAlarmMetricDimension includes the requested fields of the GraphQL type AlarmMetricDimension.
+// The GraphQL type's documentation follows.
+//
+// A key-value pair identifying the specific cloud resource a metric applies to.
+//
+// Examples: `{ name: "DBInstanceIdentifier", value: "db-abc123" }` for AWS RDS,
+// `{ name: "InstanceId", value: "i-0a1b2c3d" }` for AWS EC2.
+type getInstanceAlarmInstanceAlarmMetricDimensionsAlarmMetricDimension struct {
+	// Dimension name as defined by the cloud provider.
+	Name string `json:"name"`
+	// Dimension value identifying the monitored resource.
+	Value string `json:"value"`
+}
+
+// GetName returns getInstanceAlarmInstanceAlarmMetricDimensionsAlarmMetricDimension.Name, and is useful for accessing the field via an interface.
+func (v *getInstanceAlarmInstanceAlarmMetricDimensionsAlarmMetricDimension) GetName() string {
+	return v.Name
+}
+
+// GetValue returns getInstanceAlarmInstanceAlarmMetricDimensionsAlarmMetricDimension.Value, and is useful for accessing the field via an interface.
+func (v *getInstanceAlarmInstanceAlarmMetricDimensionsAlarmMetricDimension) GetValue() string {
+	return v.Value
+}
+
+// getInstanceAlarmResponse is returned by getInstanceAlarm on success.
+type getInstanceAlarmResponse struct {
+	// Fetch a single alarm by its unique identifier.
+	//
+	// Returns the alarm with its most recent `currentState` attached, or a
+	// `NOT_FOUND` error if the alarm doesn't exist or its project isn't
+	// visible to the caller.
+	//
+	// ```graphql
+	// query {
+	// instanceAlarm(organizationId: "my-org", id: "0192…uuid") {
+	// id
+	// displayName
+	// currentState { status occurredAt }
+	// metric { namespace name }
+	// }
+	// }
+	// ```
+	InstanceAlarm getInstanceAlarmInstanceAlarm `json:"instanceAlarm"`
+}
+
+// GetInstanceAlarm returns getInstanceAlarmResponse.InstanceAlarm, and is useful for accessing the field via an interface.
+func (v *getInstanceAlarmResponse) GetInstanceAlarm() getInstanceAlarmInstanceAlarm {
+	return v.InstanceAlarm
+}
+
 // getProjectProject includes the requested fields of the GraphQL type Project.
 // The GraphQL type's documentation follows.
 //
@@ -2223,6 +3674,8 @@ type getProjectProject struct {
 	Name string `json:"name"`
 	// Free-text description of what this project is for.
 	Description string `json:"description"`
+	// Key-value attributes assigned directly to this project. Attributes cascade to environments and instances. Must conform to your organization's custom attributes for the `PROJECT` scope.
+	Attributes map[string]any `json:"-"`
 }
 
 // GetId returns getProjectProject.Id, and is useful for accessing the field via an interface.
@@ -2233,6 +3686,81 @@ func (v *getProjectProject) GetName() string { return v.Name }
 
 // GetDescription returns getProjectProject.Description, and is useful for accessing the field via an interface.
 func (v *getProjectProject) GetDescription() string { return v.Description }
+
+// GetAttributes returns getProjectProject.Attributes, and is useful for accessing the field via an interface.
+func (v *getProjectProject) GetAttributes() map[string]any { return v.Attributes }
+
+func (v *getProjectProject) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*getProjectProject
+		Attributes json.RawMessage `json:"attributes"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.getProjectProject = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.Attributes
+		src := firstPass.Attributes
+		if len(src) != 0 && string(src) != "null" {
+			err = scalars.UnmarshalJSON(
+				src, dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal getProjectProject.Attributes: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalgetProjectProject struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+
+	Description string `json:"description"`
+
+	Attributes json.RawMessage `json:"attributes"`
+}
+
+func (v *getProjectProject) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *getProjectProject) __premarshalJSON() (*__premarshalgetProjectProject, error) {
+	var retval __premarshalgetProjectProject
+
+	retval.Id = v.Id
+	retval.Name = v.Name
+	retval.Description = v.Description
+	{
+
+		dst := &retval.Attributes
+		src := v.Attributes
+		var err error
+		*dst, err = scalars.MarshalJSON(
+			&src)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"unable to marshal getProjectProject.Attributes: %w", err)
+		}
+	}
+	return &retval, nil
+}
 
 // getProjectResponse is returned by getProject on success.
 type getProjectResponse struct {
@@ -3305,6 +4833,268 @@ func (v *unlinkComponentsUnlinkComponentsLinkPayloadResultLink) GetFromField() s
 // GetToField returns unlinkComponentsUnlinkComponentsLinkPayloadResultLink.ToField, and is useful for accessing the field via an interface.
 func (v *unlinkComponentsUnlinkComponentsLinkPayloadResultLink) GetToField() string { return v.ToField }
 
+// updateComponentResponse is returned by updateComponent on success.
+type updateComponentResponse struct {
+	// Update a component's mutable fields (name, description, attributes).
+	//
+	// The component ID and underlying bundle cannot be changed after creation.
+	// Attributes are validated against the organization's custom-attribute schema
+	// for the component scope.
+	//
+	// ```graphql
+	// mutation {
+	// updateComponent(
+	// organizationId: "my-org"
+	// id: "my-project-database"
+	// input: { name: "Primary Database", description: "User data" }
+	// ) {
+	// result { id name description }
+	// successful
+	// }
+	// }
+	// ```
+	UpdateComponent updateComponentUpdateComponentComponentPayload `json:"updateComponent"`
+}
+
+// GetUpdateComponent returns updateComponentResponse.UpdateComponent, and is useful for accessing the field via an interface.
+func (v *updateComponentResponse) GetUpdateComponent() updateComponentUpdateComponentComponentPayload {
+	return v.UpdateComponent
+}
+
+// updateComponentUpdateComponentComponentPayload includes the requested fields of the GraphQL type ComponentPayload.
+type updateComponentUpdateComponentComponentPayload struct {
+	// The object created/updated/deleted by the mutation. May be null if mutation failed.
+	Result updateComponentUpdateComponentComponentPayloadResultComponent `json:"result"`
+	// Indicates if the mutation completed successfully or not.
+	Successful bool `json:"successful"`
+	// A list of failed validations. May be blank or null if mutation succeeded.
+	Messages []updateComponentUpdateComponentComponentPayloadMessagesValidationMessage `json:"messages"`
+}
+
+// GetResult returns updateComponentUpdateComponentComponentPayload.Result, and is useful for accessing the field via an interface.
+func (v *updateComponentUpdateComponentComponentPayload) GetResult() updateComponentUpdateComponentComponentPayloadResultComponent {
+	return v.Result
+}
+
+// GetSuccessful returns updateComponentUpdateComponentComponentPayload.Successful, and is useful for accessing the field via an interface.
+func (v *updateComponentUpdateComponentComponentPayload) GetSuccessful() bool { return v.Successful }
+
+// GetMessages returns updateComponentUpdateComponentComponentPayload.Messages, and is useful for accessing the field via an interface.
+func (v *updateComponentUpdateComponentComponentPayload) GetMessages() []updateComponentUpdateComponentComponentPayloadMessagesValidationMessage {
+	return v.Messages
+}
+
+// updateComponentUpdateComponentComponentPayloadMessagesValidationMessage includes the requested fields of the GraphQL type ValidationMessage.
+// The GraphQL type's documentation follows.
+//
+// Validation messages are returned when mutation input does not meet the requirements.
+// While client-side validation is highly recommended to provide the best User Experience,
+// All inputs will always be validated server-side.
+//
+// Some examples of validations are:
+//
+// * Username must be at least 10 characters
+// * Email field does not contain an email address
+// * Birth Date is required
+//
+// While GraphQL has support for required values, mutation data fields are always
+// set to optional in our API. This allows 'required field' messages
+// to be returned in the same manner as other validations. The only exceptions
+// are id fields, which may be required to perform updates or deletes.
+type updateComponentUpdateComponentComponentPayloadMessagesValidationMessage struct {
+	// A unique error code for the type of validation used.
+	Code string `json:"code"`
+	// The input field that the error applies to. The field can be used to
+	// identify which field the error message should be displayed next to in the
+	// presentation layer.
+	//
+	// If there are multiple errors to display for a field, multiple validation
+	// messages will be in the result.
+	//
+	// This field may be null in cases where an error cannot be applied to a specific field.
+	Field string `json:"field"`
+	// A friendly error message, appropriate for display to the end user.
+	//
+	// The message is interpolated to include the appropriate variables.
+	//
+	// Example: `Username must be at least 10 characters`
+	//
+	// This message may change without notice, so we do not recommend you match against the text.
+	// Instead, use the *code* field for matching.
+	Message string `json:"message"`
+}
+
+// GetCode returns updateComponentUpdateComponentComponentPayloadMessagesValidationMessage.Code, and is useful for accessing the field via an interface.
+func (v *updateComponentUpdateComponentComponentPayloadMessagesValidationMessage) GetCode() string {
+	return v.Code
+}
+
+// GetField returns updateComponentUpdateComponentComponentPayloadMessagesValidationMessage.Field, and is useful for accessing the field via an interface.
+func (v *updateComponentUpdateComponentComponentPayloadMessagesValidationMessage) GetField() string {
+	return v.Field
+}
+
+// GetMessage returns updateComponentUpdateComponentComponentPayloadMessagesValidationMessage.Message, and is useful for accessing the field via an interface.
+func (v *updateComponentUpdateComponentComponentPayloadMessagesValidationMessage) GetMessage() string {
+	return v.Message
+}
+
+// updateComponentUpdateComponentComponentPayloadResultComponent includes the requested fields of the GraphQL type Component.
+// The GraphQL type's documentation follows.
+//
+// A bundle placed in a project's blueprint, representing a slot for deployable infrastructure.
+//
+// A component is the **design-time** building block of your architecture. It says
+// "I want a database here" or "I need a Kubernetes cluster there." The component
+// defines *what* to deploy; the actual running infrastructure lives in **instances**
+// -- one per environment the component is deployed to.
+//
+// Components are connected to each other via **links**, which declare that one
+// component's output (e.g., a connection string) should be wired into another
+// component's input.
+type updateComponentUpdateComponentComponentPayloadResultComponent struct {
+	Id string `json:"id"`
+	// Human-readable display name shown in the UI.
+	Name string `json:"name"`
+	// Optional free-text description of this component's purpose.
+	Description string `json:"description"`
+	// Key-value attributes assigned directly to this component.
+	Attributes map[string]any `json:"-"`
+	// The OCI repository (bundle) this component is based on.
+	OciRepo updateComponentUpdateComponentComponentPayloadResultComponentOciRepo `json:"ociRepo"`
+}
+
+// GetId returns updateComponentUpdateComponentComponentPayloadResultComponent.Id, and is useful for accessing the field via an interface.
+func (v *updateComponentUpdateComponentComponentPayloadResultComponent) GetId() string { return v.Id }
+
+// GetName returns updateComponentUpdateComponentComponentPayloadResultComponent.Name, and is useful for accessing the field via an interface.
+func (v *updateComponentUpdateComponentComponentPayloadResultComponent) GetName() string {
+	return v.Name
+}
+
+// GetDescription returns updateComponentUpdateComponentComponentPayloadResultComponent.Description, and is useful for accessing the field via an interface.
+func (v *updateComponentUpdateComponentComponentPayloadResultComponent) GetDescription() string {
+	return v.Description
+}
+
+// GetAttributes returns updateComponentUpdateComponentComponentPayloadResultComponent.Attributes, and is useful for accessing the field via an interface.
+func (v *updateComponentUpdateComponentComponentPayloadResultComponent) GetAttributes() map[string]any {
+	return v.Attributes
+}
+
+// GetOciRepo returns updateComponentUpdateComponentComponentPayloadResultComponent.OciRepo, and is useful for accessing the field via an interface.
+func (v *updateComponentUpdateComponentComponentPayloadResultComponent) GetOciRepo() updateComponentUpdateComponentComponentPayloadResultComponentOciRepo {
+	return v.OciRepo
+}
+
+func (v *updateComponentUpdateComponentComponentPayloadResultComponent) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*updateComponentUpdateComponentComponentPayloadResultComponent
+		Attributes json.RawMessage `json:"attributes"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.updateComponentUpdateComponentComponentPayloadResultComponent = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.Attributes
+		src := firstPass.Attributes
+		if len(src) != 0 && string(src) != "null" {
+			err = scalars.UnmarshalJSON(
+				src, dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal updateComponentUpdateComponentComponentPayloadResultComponent.Attributes: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalupdateComponentUpdateComponentComponentPayloadResultComponent struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+
+	Description string `json:"description"`
+
+	Attributes json.RawMessage `json:"attributes"`
+
+	OciRepo updateComponentUpdateComponentComponentPayloadResultComponentOciRepo `json:"ociRepo"`
+}
+
+func (v *updateComponentUpdateComponentComponentPayloadResultComponent) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *updateComponentUpdateComponentComponentPayloadResultComponent) __premarshalJSON() (*__premarshalupdateComponentUpdateComponentComponentPayloadResultComponent, error) {
+	var retval __premarshalupdateComponentUpdateComponentComponentPayloadResultComponent
+
+	retval.Id = v.Id
+	retval.Name = v.Name
+	retval.Description = v.Description
+	{
+
+		dst := &retval.Attributes
+		src := v.Attributes
+		var err error
+		*dst, err = scalars.MarshalJSON(
+			&src)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"unable to marshal updateComponentUpdateComponentComponentPayloadResultComponent.Attributes: %w", err)
+		}
+	}
+	retval.OciRepo = v.OciRepo
+	return &retval, nil
+}
+
+// updateComponentUpdateComponentComponentPayloadResultComponentOciRepo includes the requested fields of the GraphQL type OciRepo.
+// The GraphQL type's documentation follows.
+//
+// An OCI repository in your organization's bundle catalog.
+//
+// An OCI repository is the container for all published versions of a single
+// infrastructure-as-code package. It is analogous to a Docker image repository
+// but for Massdriver bundles.
+//
+// Each repository has a unique `name` (e.g., `aws-aurora-postgres`) and contains:
+//
+// - **Tags** -- the individual published versions (`1.0.0`, `1.1.0`, `1.2.3`, etc.)
+// - **Release channels** -- auto-resolving version constraints (`latest`, `~1`, `~1.2`)
+// that always point to the newest matching tag
+//
+// To fetch a specific bundle version from a repository, use the `bundle` query
+// with a `BundleId` like `aws-aurora-postgres@1.2.3` or `aws-aurora-postgres@~1`.
+type updateComponentUpdateComponentComponentPayloadResultComponentOciRepo struct {
+	Id string `json:"id"`
+	// Repository name, unique within your organization (e.g., `aws-aurora-postgres`).
+	Name string `json:"name"`
+}
+
+// GetId returns updateComponentUpdateComponentComponentPayloadResultComponentOciRepo.Id, and is useful for accessing the field via an interface.
+func (v *updateComponentUpdateComponentComponentPayloadResultComponentOciRepo) GetId() string {
+	return v.Id
+}
+
+// GetName returns updateComponentUpdateComponentComponentPayloadResultComponentOciRepo.Name, and is useful for accessing the field via an interface.
+func (v *updateComponentUpdateComponentComponentPayloadResultComponentOciRepo) GetName() string {
+	return v.Name
+}
+
 // updateEnvironmentResponse is returned by updateEnvironment on success.
 type updateEnvironmentResponse struct {
 	// Update an environment's mutable fields (name, description, attributes).
@@ -3417,6 +5207,8 @@ type updateEnvironmentUpdateEnvironmentEnvironmentPayloadResultEnvironment struc
 	Name string `json:"name"`
 	// Free-text description of what this environment is for.
 	Description string `json:"description"`
+	// Key-value attributes assigned directly to this environment. Attributes cascade to instances. Must conform to your organization's custom attributes for the `ENVIRONMENT` scope.
+	Attributes map[string]any `json:"-"`
 }
 
 // GetId returns updateEnvironmentUpdateEnvironmentEnvironmentPayloadResultEnvironment.Id, and is useful for accessing the field via an interface.
@@ -3432,6 +5224,452 @@ func (v *updateEnvironmentUpdateEnvironmentEnvironmentPayloadResultEnvironment) 
 // GetDescription returns updateEnvironmentUpdateEnvironmentEnvironmentPayloadResultEnvironment.Description, and is useful for accessing the field via an interface.
 func (v *updateEnvironmentUpdateEnvironmentEnvironmentPayloadResultEnvironment) GetDescription() string {
 	return v.Description
+}
+
+// GetAttributes returns updateEnvironmentUpdateEnvironmentEnvironmentPayloadResultEnvironment.Attributes, and is useful for accessing the field via an interface.
+func (v *updateEnvironmentUpdateEnvironmentEnvironmentPayloadResultEnvironment) GetAttributes() map[string]any {
+	return v.Attributes
+}
+
+func (v *updateEnvironmentUpdateEnvironmentEnvironmentPayloadResultEnvironment) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*updateEnvironmentUpdateEnvironmentEnvironmentPayloadResultEnvironment
+		Attributes json.RawMessage `json:"attributes"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.updateEnvironmentUpdateEnvironmentEnvironmentPayloadResultEnvironment = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.Attributes
+		src := firstPass.Attributes
+		if len(src) != 0 && string(src) != "null" {
+			err = scalars.UnmarshalJSON(
+				src, dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal updateEnvironmentUpdateEnvironmentEnvironmentPayloadResultEnvironment.Attributes: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalupdateEnvironmentUpdateEnvironmentEnvironmentPayloadResultEnvironment struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+
+	Description string `json:"description"`
+
+	Attributes json.RawMessage `json:"attributes"`
+}
+
+func (v *updateEnvironmentUpdateEnvironmentEnvironmentPayloadResultEnvironment) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *updateEnvironmentUpdateEnvironmentEnvironmentPayloadResultEnvironment) __premarshalJSON() (*__premarshalupdateEnvironmentUpdateEnvironmentEnvironmentPayloadResultEnvironment, error) {
+	var retval __premarshalupdateEnvironmentUpdateEnvironmentEnvironmentPayloadResultEnvironment
+
+	retval.Id = v.Id
+	retval.Name = v.Name
+	retval.Description = v.Description
+	{
+
+		dst := &retval.Attributes
+		src := v.Attributes
+		var err error
+		*dst, err = scalars.MarshalJSON(
+			&src)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"unable to marshal updateEnvironmentUpdateEnvironmentEnvironmentPayloadResultEnvironment.Attributes: %w", err)
+		}
+	}
+	return &retval, nil
+}
+
+// updateGroupResponse is returned by updateGroup on success.
+type updateGroupResponse struct {
+	// Update a group's name or description.
+	//
+	// Only the `name` and `description` fields can be modified. The group's role cannot be
+	// changed after creation. Requires `organization_admin` permissions.
+	UpdateGroup updateGroupUpdateGroupGroupPayload `json:"updateGroup"`
+}
+
+// GetUpdateGroup returns updateGroupResponse.UpdateGroup, and is useful for accessing the field via an interface.
+func (v *updateGroupResponse) GetUpdateGroup() updateGroupUpdateGroupGroupPayload {
+	return v.UpdateGroup
+}
+
+// updateGroupUpdateGroupGroupPayload includes the requested fields of the GraphQL type GroupPayload.
+type updateGroupUpdateGroupGroupPayload struct {
+	// The object created/updated/deleted by the mutation. May be null if mutation failed.
+	Result updateGroupUpdateGroupGroupPayloadResultGroup `json:"result"`
+	// Indicates if the mutation completed successfully or not.
+	Successful bool `json:"successful"`
+	// A list of failed validations. May be blank or null if mutation succeeded.
+	Messages []updateGroupUpdateGroupGroupPayloadMessagesValidationMessage `json:"messages"`
+}
+
+// GetResult returns updateGroupUpdateGroupGroupPayload.Result, and is useful for accessing the field via an interface.
+func (v *updateGroupUpdateGroupGroupPayload) GetResult() updateGroupUpdateGroupGroupPayloadResultGroup {
+	return v.Result
+}
+
+// GetSuccessful returns updateGroupUpdateGroupGroupPayload.Successful, and is useful for accessing the field via an interface.
+func (v *updateGroupUpdateGroupGroupPayload) GetSuccessful() bool { return v.Successful }
+
+// GetMessages returns updateGroupUpdateGroupGroupPayload.Messages, and is useful for accessing the field via an interface.
+func (v *updateGroupUpdateGroupGroupPayload) GetMessages() []updateGroupUpdateGroupGroupPayloadMessagesValidationMessage {
+	return v.Messages
+}
+
+// updateGroupUpdateGroupGroupPayloadMessagesValidationMessage includes the requested fields of the GraphQL type ValidationMessage.
+// The GraphQL type's documentation follows.
+//
+// Validation messages are returned when mutation input does not meet the requirements.
+// While client-side validation is highly recommended to provide the best User Experience,
+// All inputs will always be validated server-side.
+//
+// Some examples of validations are:
+//
+// * Username must be at least 10 characters
+// * Email field does not contain an email address
+// * Birth Date is required
+//
+// While GraphQL has support for required values, mutation data fields are always
+// set to optional in our API. This allows 'required field' messages
+// to be returned in the same manner as other validations. The only exceptions
+// are id fields, which may be required to perform updates or deletes.
+type updateGroupUpdateGroupGroupPayloadMessagesValidationMessage struct {
+	// A unique error code for the type of validation used.
+	Code string `json:"code"`
+	// The input field that the error applies to. The field can be used to
+	// identify which field the error message should be displayed next to in the
+	// presentation layer.
+	//
+	// If there are multiple errors to display for a field, multiple validation
+	// messages will be in the result.
+	//
+	// This field may be null in cases where an error cannot be applied to a specific field.
+	Field string `json:"field"`
+	// A friendly error message, appropriate for display to the end user.
+	//
+	// The message is interpolated to include the appropriate variables.
+	//
+	// Example: `Username must be at least 10 characters`
+	//
+	// This message may change without notice, so we do not recommend you match against the text.
+	// Instead, use the *code* field for matching.
+	Message string `json:"message"`
+}
+
+// GetCode returns updateGroupUpdateGroupGroupPayloadMessagesValidationMessage.Code, and is useful for accessing the field via an interface.
+func (v *updateGroupUpdateGroupGroupPayloadMessagesValidationMessage) GetCode() string { return v.Code }
+
+// GetField returns updateGroupUpdateGroupGroupPayloadMessagesValidationMessage.Field, and is useful for accessing the field via an interface.
+func (v *updateGroupUpdateGroupGroupPayloadMessagesValidationMessage) GetField() string {
+	return v.Field
+}
+
+// GetMessage returns updateGroupUpdateGroupGroupPayloadMessagesValidationMessage.Message, and is useful for accessing the field via an interface.
+func (v *updateGroupUpdateGroupGroupPayloadMessagesValidationMessage) GetMessage() string {
+	return v.Message
+}
+
+// updateGroupUpdateGroupGroupPayloadResultGroup includes the requested fields of the GraphQL type Group.
+// The GraphQL type's documentation follows.
+//
+// A collection of users and service accounts that share the same access level within your organization.
+//
+// Groups are the primary mechanism for managing access control in Massdriver. Rather than
+// assigning permissions to individual users, you add them to groups that define what they
+// can see and do.
+//
+// ```mermaid
+// graph TD
+// O["Organization"] --> G1["Group: Admins"]
+// O --> G2["Group: Developers"]
+// O --> G3["Group: Custom"]
+// G1 --> U1["User: alice@co.com"]
+// G2 --> U2["User: bob@co.com"]
+// G2 --> SA1["Service Account: ci-bot"]
+// G3 -->|"project_admin"| P1["Project: backend"]
+// G3 -->|"project_viewer"| P2["Project: frontend"]
+// ```
+//
+// **Built-in groups** — Every organization starts with an `Admins` group (`organization_admin` role)
+// and a `Viewers` group (`organization_viewer` role). These cannot be deleted.
+//
+// **Custom groups** — Create custom groups with the `CUSTOM` role to grant project-level access.
+// Each custom group can be assigned `project_admin` or `project_viewer` on specific projects.
+//
+// **Members** — Both human users and service accounts can be group members. Users live under
+// `members` and are added via `addAccountToGroup` (auto-adds existing org members or sends an
+// invitation otherwise). Service accounts live under `serviceAccounts` and are added via
+// `addServiceAccountToGroup`.
+type updateGroupUpdateGroupGroupPayloadResultGroup struct {
+	// Unique identifier for this group.
+	Id string `json:"id"`
+	// Human-readable name displayed in the UI and API responses.
+	Name string `json:"name"`
+	// Optional text explaining the purpose of this group.
+	Description string `json:"description"`
+	// The access level this group grants to its members.
+	Role GroupRole `json:"role"`
+}
+
+// GetId returns updateGroupUpdateGroupGroupPayloadResultGroup.Id, and is useful for accessing the field via an interface.
+func (v *updateGroupUpdateGroupGroupPayloadResultGroup) GetId() string { return v.Id }
+
+// GetName returns updateGroupUpdateGroupGroupPayloadResultGroup.Name, and is useful for accessing the field via an interface.
+func (v *updateGroupUpdateGroupGroupPayloadResultGroup) GetName() string { return v.Name }
+
+// GetDescription returns updateGroupUpdateGroupGroupPayloadResultGroup.Description, and is useful for accessing the field via an interface.
+func (v *updateGroupUpdateGroupGroupPayloadResultGroup) GetDescription() string { return v.Description }
+
+// GetRole returns updateGroupUpdateGroupGroupPayloadResultGroup.Role, and is useful for accessing the field via an interface.
+func (v *updateGroupUpdateGroupGroupPayloadResultGroup) GetRole() GroupRole { return v.Role }
+
+// updateInstanceAlarmResponse is returned by updateInstanceAlarm on success.
+type updateInstanceAlarmResponse struct {
+	// Update a registered alarm's mutable fields.
+	//
+	// Omit a field from the input to leave it unchanged.
+	//
+	// Requires `environment:edit` on the alarm's environment.
+	UpdateInstanceAlarm updateInstanceAlarmUpdateInstanceAlarmAlarmPayload `json:"updateInstanceAlarm"`
+}
+
+// GetUpdateInstanceAlarm returns updateInstanceAlarmResponse.UpdateInstanceAlarm, and is useful for accessing the field via an interface.
+func (v *updateInstanceAlarmResponse) GetUpdateInstanceAlarm() updateInstanceAlarmUpdateInstanceAlarmAlarmPayload {
+	return v.UpdateInstanceAlarm
+}
+
+// updateInstanceAlarmUpdateInstanceAlarmAlarmPayload includes the requested fields of the GraphQL type AlarmPayload.
+type updateInstanceAlarmUpdateInstanceAlarmAlarmPayload struct {
+	// The object created/updated/deleted by the mutation. May be null if mutation failed.
+	Result updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarm `json:"result"`
+	// Indicates if the mutation completed successfully or not.
+	Successful bool `json:"successful"`
+	// A list of failed validations. May be blank or null if mutation succeeded.
+	Messages []updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadMessagesValidationMessage `json:"messages"`
+}
+
+// GetResult returns updateInstanceAlarmUpdateInstanceAlarmAlarmPayload.Result, and is useful for accessing the field via an interface.
+func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayload) GetResult() updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarm {
+	return v.Result
+}
+
+// GetSuccessful returns updateInstanceAlarmUpdateInstanceAlarmAlarmPayload.Successful, and is useful for accessing the field via an interface.
+func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayload) GetSuccessful() bool {
+	return v.Successful
+}
+
+// GetMessages returns updateInstanceAlarmUpdateInstanceAlarmAlarmPayload.Messages, and is useful for accessing the field via an interface.
+func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayload) GetMessages() []updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadMessagesValidationMessage {
+	return v.Messages
+}
+
+// updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadMessagesValidationMessage includes the requested fields of the GraphQL type ValidationMessage.
+// The GraphQL type's documentation follows.
+//
+// Validation messages are returned when mutation input does not meet the requirements.
+// While client-side validation is highly recommended to provide the best User Experience,
+// All inputs will always be validated server-side.
+//
+// Some examples of validations are:
+//
+// * Username must be at least 10 characters
+// * Email field does not contain an email address
+// * Birth Date is required
+//
+// While GraphQL has support for required values, mutation data fields are always
+// set to optional in our API. This allows 'required field' messages
+// to be returned in the same manner as other validations. The only exceptions
+// are id fields, which may be required to perform updates or deletes.
+type updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadMessagesValidationMessage struct {
+	// A unique error code for the type of validation used.
+	Code string `json:"code"`
+	// The input field that the error applies to. The field can be used to
+	// identify which field the error message should be displayed next to in the
+	// presentation layer.
+	//
+	// If there are multiple errors to display for a field, multiple validation
+	// messages will be in the result.
+	//
+	// This field may be null in cases where an error cannot be applied to a specific field.
+	Field string `json:"field"`
+	// A friendly error message, appropriate for display to the end user.
+	//
+	// The message is interpolated to include the appropriate variables.
+	//
+	// Example: `Username must be at least 10 characters`
+	//
+	// This message may change without notice, so we do not recommend you match against the text.
+	// Instead, use the *code* field for matching.
+	Message string `json:"message"`
+}
+
+// GetCode returns updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadMessagesValidationMessage.Code, and is useful for accessing the field via an interface.
+func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadMessagesValidationMessage) GetCode() string {
+	return v.Code
+}
+
+// GetField returns updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadMessagesValidationMessage.Field, and is useful for accessing the field via an interface.
+func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadMessagesValidationMessage) GetField() string {
+	return v.Field
+}
+
+// GetMessage returns updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadMessagesValidationMessage.Message, and is useful for accessing the field via an interface.
+func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadMessagesValidationMessage) GetMessage() string {
+	return v.Message
+}
+
+// updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarm includes the requested fields of the GraphQL type Alarm.
+// The GraphQL type's documentation follows.
+//
+// A cloud metric alarm attached to an instance.
+//
+// Receives state updates via webhooks from AWS CloudWatch, Azure Monitor,
+// GCP Cloud Monitoring, or Prometheus Alertmanager.
+//
+// Check `currentState` to see whether the alarm is firing. A `null`
+// `currentState` means no state has been reported yet for this alarm.
+type updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarm struct {
+	// Unique identifier for this alarm.
+	Id string `json:"id"`
+	// Human-readable name for the alarm, set by the cloud provider when the alarm was registered.
+	DisplayName string `json:"displayName"`
+	// The cloud provider's unique identifier for the alarm (e.g., CloudWatch AlarmArn, GCP alert policy name, Azure alert id).
+	CloudResourceId string `json:"cloudResourceId"`
+	// How the metric is compared against `threshold` (e.g., `GREATER_THAN`, `LESS_THAN`, `GREATER_THAN_OR_EQUAL_TO`, `LESS_THAN_OR_EQUAL_TO`). May be null for Alertmanager and GCP alarms.
+	ComparisonOperator string `json:"comparisonOperator"`
+	// The value crossed to trigger the alarm, compared using `comparisonOperator`. May be null for Alertmanager alarms and some GCP conditions.
+	Threshold float64 `json:"threshold"`
+	// Evaluation window in seconds over which the metric is aggregated before the comparison is applied. May be null for alarms ingested from providers that don't expose a period.
+	Period int `json:"period"`
+	// The cloud metric this alarm evaluates. May be null for alarms from providers that don't supply structured metric data (e.g., Alertmanager).
+	Metric *updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetric `json:"metric"`
+}
+
+// GetId returns updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarm.Id, and is useful for accessing the field via an interface.
+func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarm) GetId() string { return v.Id }
+
+// GetDisplayName returns updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarm.DisplayName, and is useful for accessing the field via an interface.
+func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarm) GetDisplayName() string {
+	return v.DisplayName
+}
+
+// GetCloudResourceId returns updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarm.CloudResourceId, and is useful for accessing the field via an interface.
+func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarm) GetCloudResourceId() string {
+	return v.CloudResourceId
+}
+
+// GetComparisonOperator returns updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarm.ComparisonOperator, and is useful for accessing the field via an interface.
+func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarm) GetComparisonOperator() string {
+	return v.ComparisonOperator
+}
+
+// GetThreshold returns updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarm.Threshold, and is useful for accessing the field via an interface.
+func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarm) GetThreshold() float64 {
+	return v.Threshold
+}
+
+// GetPeriod returns updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarm.Period, and is useful for accessing the field via an interface.
+func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarm) GetPeriod() int {
+	return v.Period
+}
+
+// GetMetric returns updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarm.Metric, and is useful for accessing the field via an interface.
+func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarm) GetMetric() *updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetric {
+	return v.Metric
+}
+
+// updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetric includes the requested fields of the GraphQL type AlarmMetric.
+// The GraphQL type's documentation follows.
+//
+// The cloud metric an alarm is evaluating.
+//
+// Shape and populated fields vary by provider. AWS and Azure populate
+// `statistic` (e.g., `Average`, `Sum`, `Maximum`); GCP does not. `dimensions`
+// are populated when the provider exposes them as structured key-value pairs.
+type updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetric struct {
+	// Cloud service namespace that categorizes the metric. Examples: `AWS/RDS`, `Microsoft.Cache/Redis`, `cloudsql_database`.
+	Namespace string `json:"namespace"`
+	// Metric name within the namespace. Examples: `CPUUtilization` (AWS), `allpercentprocessortime` (Azure).
+	Name string `json:"name"`
+	// Aggregation function applied to metric samples. Examples: `Average`, `Sum`, `Maximum`. May be `null` for providers that don't use this concept (e.g., GCP).
+	Statistic string `json:"statistic"`
+	// Cloud region this metric is scoped to, when provider-reported.
+	Region string `json:"region"`
+	// Dimensions identifying the specific cloud resource being monitored. Empty list when the provider doesn't report structured dimensions.
+	Dimensions []updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetricDimensionsAlarmMetricDimension `json:"dimensions"`
+}
+
+// GetNamespace returns updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetric.Namespace, and is useful for accessing the field via an interface.
+func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetric) GetNamespace() string {
+	return v.Namespace
+}
+
+// GetName returns updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetric.Name, and is useful for accessing the field via an interface.
+func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetric) GetName() string {
+	return v.Name
+}
+
+// GetStatistic returns updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetric.Statistic, and is useful for accessing the field via an interface.
+func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetric) GetStatistic() string {
+	return v.Statistic
+}
+
+// GetRegion returns updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetric.Region, and is useful for accessing the field via an interface.
+func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetric) GetRegion() string {
+	return v.Region
+}
+
+// GetDimensions returns updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetric.Dimensions, and is useful for accessing the field via an interface.
+func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetric) GetDimensions() []updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetricDimensionsAlarmMetricDimension {
+	return v.Dimensions
+}
+
+// updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetricDimensionsAlarmMetricDimension includes the requested fields of the GraphQL type AlarmMetricDimension.
+// The GraphQL type's documentation follows.
+//
+// A key-value pair identifying the specific cloud resource a metric applies to.
+//
+// Examples: `{ name: "DBInstanceIdentifier", value: "db-abc123" }` for AWS RDS,
+// `{ name: "InstanceId", value: "i-0a1b2c3d" }` for AWS EC2.
+type updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetricDimensionsAlarmMetricDimension struct {
+	// Dimension name as defined by the cloud provider.
+	Name string `json:"name"`
+	// Dimension value identifying the monitored resource.
+	Value string `json:"value"`
+}
+
+// GetName returns updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetricDimensionsAlarmMetricDimension.Name, and is useful for accessing the field via an interface.
+func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetricDimensionsAlarmMetricDimension) GetName() string {
+	return v.Name
+}
+
+// GetValue returns updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetricDimensionsAlarmMetricDimension.Value, and is useful for accessing the field via an interface.
+func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetricDimensionsAlarmMetricDimension) GetValue() string {
+	return v.Value
 }
 
 // updateProjectResponse is returned by updateProject on success.
@@ -3549,6 +5787,8 @@ type updateProjectUpdateProjectProjectPayloadResultProject struct {
 	Name string `json:"name"`
 	// Free-text description of what this project is for.
 	Description string `json:"description"`
+	// Key-value attributes assigned directly to this project. Attributes cascade to environments and instances. Must conform to your organization's custom attributes for the `PROJECT` scope.
+	Attributes map[string]any `json:"-"`
 }
 
 // GetId returns updateProjectUpdateProjectProjectPayloadResultProject.Id, and is useful for accessing the field via an interface.
@@ -3560,6 +5800,83 @@ func (v *updateProjectUpdateProjectProjectPayloadResultProject) GetName() string
 // GetDescription returns updateProjectUpdateProjectProjectPayloadResultProject.Description, and is useful for accessing the field via an interface.
 func (v *updateProjectUpdateProjectProjectPayloadResultProject) GetDescription() string {
 	return v.Description
+}
+
+// GetAttributes returns updateProjectUpdateProjectProjectPayloadResultProject.Attributes, and is useful for accessing the field via an interface.
+func (v *updateProjectUpdateProjectProjectPayloadResultProject) GetAttributes() map[string]any {
+	return v.Attributes
+}
+
+func (v *updateProjectUpdateProjectProjectPayloadResultProject) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*updateProjectUpdateProjectProjectPayloadResultProject
+		Attributes json.RawMessage `json:"attributes"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.updateProjectUpdateProjectProjectPayloadResultProject = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.Attributes
+		src := firstPass.Attributes
+		if len(src) != 0 && string(src) != "null" {
+			err = scalars.UnmarshalJSON(
+				src, dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal updateProjectUpdateProjectProjectPayloadResultProject.Attributes: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalupdateProjectUpdateProjectProjectPayloadResultProject struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+
+	Description string `json:"description"`
+
+	Attributes json.RawMessage `json:"attributes"`
+}
+
+func (v *updateProjectUpdateProjectProjectPayloadResultProject) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *updateProjectUpdateProjectProjectPayloadResultProject) __premarshalJSON() (*__premarshalupdateProjectUpdateProjectProjectPayloadResultProject, error) {
+	var retval __premarshalupdateProjectUpdateProjectProjectPayloadResultProject
+
+	retval.Id = v.Id
+	retval.Name = v.Name
+	retval.Description = v.Description
+	{
+
+		dst := &retval.Attributes
+		src := v.Attributes
+		var err error
+		*dst, err = scalars.MarshalJSON(
+			&src)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"unable to marshal updateProjectUpdateProjectProjectPayloadResultProject.Attributes: %w", err)
+		}
+	}
+	return &retval, nil
 }
 
 // updateResourceResponse is returned by updateResource on success.
@@ -3791,6 +6108,7 @@ mutation createEnvironment ($organizationId: ID!, $projectId: ID!, $input: Creat
 			id
 			name
 			description
+			attributes
 		}
 		successful
 		messages {
@@ -3831,6 +6149,114 @@ func createEnvironment(
 	return data_, err_
 }
 
+// The mutation executed by createGroup.
+const createGroup_Operation = `
+mutation createGroup ($organizationId: ID!, $input: CreateGroupInput!) {
+	createGroup(organizationId: $organizationId, input: $input) {
+		result {
+			id
+			name
+			description
+			role
+		}
+		successful
+		messages {
+			code
+			field
+			message
+		}
+	}
+}
+`
+
+func createGroup(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	organizationId string,
+	input CreateGroupInput,
+) (data_ *createGroupResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "createGroup",
+		Query:  createGroup_Operation,
+		Variables: &__createGroupInput{
+			OrganizationId: organizationId,
+			Input:          input,
+		},
+	}
+
+	data_ = &createGroupResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by createInstanceAlarm.
+const createInstanceAlarm_Operation = `
+mutation createInstanceAlarm ($organizationId: ID!, $instanceId: ID!, $input: CreateInstanceAlarmInput!) {
+	createInstanceAlarm(organizationId: $organizationId, instanceId: $instanceId, input: $input) {
+		result {
+			id
+			displayName
+			cloudResourceId
+			comparisonOperator
+			threshold
+			period
+			metric {
+				namespace
+				name
+				statistic
+				region
+				dimensions {
+					name
+					value
+				}
+			}
+		}
+		successful
+		messages {
+			code
+			field
+			message
+		}
+	}
+}
+`
+
+func createInstanceAlarm(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	organizationId string,
+	instanceId string,
+	input CreateInstanceAlarmInput,
+) (data_ *createInstanceAlarmResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "createInstanceAlarm",
+		Query:  createInstanceAlarm_Operation,
+		Variables: &__createInstanceAlarmInput{
+			OrganizationId: organizationId,
+			InstanceId:     instanceId,
+			Input:          input,
+		},
+	}
+
+	data_ = &createInstanceAlarmResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The mutation executed by createProject.
 const createProject_Operation = `
 mutation createProject ($organizationId: ID!, $input: CreateProjectInput!) {
@@ -3839,6 +6265,7 @@ mutation createProject ($organizationId: ID!, $input: CreateProjectInput!) {
 			id
 			name
 			description
+			attributes
 		}
 		successful
 		messages {
@@ -3975,6 +6402,96 @@ func deleteEnvironment(
 	return data_, err_
 }
 
+// The mutation executed by deleteGroup.
+const deleteGroup_Operation = `
+mutation deleteGroup ($organizationId: ID!, $id: ID!) {
+	deleteGroup(organizationId: $organizationId, id: $id) {
+		result {
+			id
+			name
+		}
+		successful
+		messages {
+			code
+			field
+			message
+		}
+	}
+}
+`
+
+func deleteGroup(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	organizationId string,
+	id string,
+) (data_ *deleteGroupResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "deleteGroup",
+		Query:  deleteGroup_Operation,
+		Variables: &__deleteGroupInput{
+			OrganizationId: organizationId,
+			Id:             id,
+		},
+	}
+
+	data_ = &deleteGroupResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by deleteInstanceAlarm.
+const deleteInstanceAlarm_Operation = `
+mutation deleteInstanceAlarm ($organizationId: ID!, $id: ID!) {
+	deleteInstanceAlarm(organizationId: $organizationId, id: $id) {
+		result {
+			id
+			displayName
+		}
+		successful
+		messages {
+			code
+			field
+			message
+		}
+	}
+}
+`
+
+func deleteInstanceAlarm(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	organizationId string,
+	id string,
+) (data_ *deleteInstanceAlarmResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "deleteInstanceAlarm",
+		Query:  deleteInstanceAlarm_Operation,
+		Variables: &__deleteInstanceAlarmInput{
+			OrganizationId: organizationId,
+			Id:             id,
+		},
+	}
+
+	data_ = &deleteInstanceAlarmResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The mutation executed by deleteProject.
 const deleteProject_Operation = `
 mutation deleteProject ($organizationId: ID!, $id: ID!) {
@@ -4074,6 +6591,7 @@ query getEnvironment ($organizationId: ID!, $id: ID!) {
 		id
 		name
 		description
+		attributes
 		project {
 			id
 			name
@@ -4109,6 +6627,96 @@ func getEnvironment(
 	return data_, err_
 }
 
+// The query executed by getGroup.
+const getGroup_Operation = `
+query getGroup ($organizationId: ID!, $id: ID!) {
+	group(organizationId: $organizationId, id: $id) {
+		id
+		name
+		description
+		role
+	}
+}
+`
+
+func getGroup(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	organizationId string,
+	id string,
+) (data_ *getGroupResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "getGroup",
+		Query:  getGroup_Operation,
+		Variables: &__getGroupInput{
+			OrganizationId: organizationId,
+			Id:             id,
+		},
+	}
+
+	data_ = &getGroupResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by getInstanceAlarm.
+const getInstanceAlarm_Operation = `
+query getInstanceAlarm ($organizationId: ID!, $id: ID!) {
+	instanceAlarm(organizationId: $organizationId, id: $id) {
+		id
+		displayName
+		cloudResourceId
+		comparisonOperator
+		threshold
+		period
+		metric {
+			namespace
+			name
+			statistic
+			region
+			dimensions {
+				name
+				value
+			}
+		}
+	}
+}
+`
+
+func getInstanceAlarm(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	organizationId string,
+	id string,
+) (data_ *getInstanceAlarmResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "getInstanceAlarm",
+		Query:  getInstanceAlarm_Operation,
+		Variables: &__getInstanceAlarmInput{
+			OrganizationId: organizationId,
+			Id:             id,
+		},
+	}
+
+	data_ = &getInstanceAlarmResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The query executed by getProject.
 const getProject_Operation = `
 query getProject ($organizationId: ID!, $id: ID!) {
@@ -4116,6 +6724,7 @@ query getProject ($organizationId: ID!, $id: ID!) {
 		id
 		name
 		description
+		attributes
 	}
 }
 `
@@ -4442,6 +7051,59 @@ func unlinkComponents(
 	return data_, err_
 }
 
+// The mutation executed by updateComponent.
+const updateComponent_Operation = `
+mutation updateComponent ($organizationId: ID!, $id: ID!, $input: UpdateComponentInput!) {
+	updateComponent(organizationId: $organizationId, id: $id, input: $input) {
+		result {
+			id
+			name
+			description
+			attributes
+			ociRepo {
+				id
+				name
+			}
+		}
+		successful
+		messages {
+			code
+			field
+			message
+		}
+	}
+}
+`
+
+func updateComponent(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	organizationId string,
+	id string,
+	input UpdateComponentInput,
+) (data_ *updateComponentResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "updateComponent",
+		Query:  updateComponent_Operation,
+		Variables: &__updateComponentInput{
+			OrganizationId: organizationId,
+			Id:             id,
+			Input:          input,
+		},
+	}
+
+	data_ = &updateComponentResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The mutation executed by updateEnvironment.
 const updateEnvironment_Operation = `
 mutation updateEnvironment ($organizationId: ID!, $id: ID!, $input: UpdateEnvironmentInput!) {
@@ -4450,6 +7112,7 @@ mutation updateEnvironment ($organizationId: ID!, $id: ID!, $input: UpdateEnviro
 			id
 			name
 			description
+			attributes
 		}
 		successful
 		messages {
@@ -4490,6 +7153,116 @@ func updateEnvironment(
 	return data_, err_
 }
 
+// The mutation executed by updateGroup.
+const updateGroup_Operation = `
+mutation updateGroup ($organizationId: ID!, $id: ID!, $input: UpdateGroupInput!) {
+	updateGroup(organizationId: $organizationId, id: $id, input: $input) {
+		result {
+			id
+			name
+			description
+			role
+		}
+		successful
+		messages {
+			code
+			field
+			message
+		}
+	}
+}
+`
+
+func updateGroup(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	organizationId string,
+	id string,
+	input UpdateGroupInput,
+) (data_ *updateGroupResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "updateGroup",
+		Query:  updateGroup_Operation,
+		Variables: &__updateGroupInput{
+			OrganizationId: organizationId,
+			Id:             id,
+			Input:          input,
+		},
+	}
+
+	data_ = &updateGroupResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by updateInstanceAlarm.
+const updateInstanceAlarm_Operation = `
+mutation updateInstanceAlarm ($organizationId: ID!, $id: ID!, $input: UpdateInstanceAlarmInput!) {
+	updateInstanceAlarm(organizationId: $organizationId, id: $id, input: $input) {
+		result {
+			id
+			displayName
+			cloudResourceId
+			comparisonOperator
+			threshold
+			period
+			metric {
+				namespace
+				name
+				statistic
+				region
+				dimensions {
+					name
+					value
+				}
+			}
+		}
+		successful
+		messages {
+			code
+			field
+			message
+		}
+	}
+}
+`
+
+func updateInstanceAlarm(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	organizationId string,
+	id string,
+	input UpdateInstanceAlarmInput,
+) (data_ *updateInstanceAlarmResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "updateInstanceAlarm",
+		Query:  updateInstanceAlarm_Operation,
+		Variables: &__updateInstanceAlarmInput{
+			OrganizationId: organizationId,
+			Id:             id,
+			Input:          input,
+		},
+	}
+
+	data_ = &updateInstanceAlarmResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The mutation executed by updateProject.
 const updateProject_Operation = `
 mutation updateProject ($organizationId: ID!, $id: ID!, $input: UpdateProjectInput!) {
@@ -4498,6 +7271,7 @@ mutation updateProject ($organizationId: ID!, $id: ID!, $input: UpdateProjectInp
 			id
 			name
 			description
+			attributes
 		}
 		successful
 		messages {

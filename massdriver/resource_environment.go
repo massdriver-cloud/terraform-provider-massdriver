@@ -42,6 +42,7 @@ func resourceEnvironment() *schema.Resource {
 				Optional:    true,
 				Computed:    true,
 			},
+			"attributes": attributesSchema("environment"),
 		},
 	}
 }
@@ -59,6 +60,7 @@ func resourceEnvironmentCreate(ctx context.Context, d *schema.ResourceData, meta
 		Id:          identifier,
 		Name:        name,
 		Description: d.Get("description").(string),
+		Attributes:  attributesFromConfig(d.Get("attributes")),
 	})
 	if err != nil {
 		return diag.FromErr(err)
@@ -78,6 +80,7 @@ func resourceEnvironmentRead(ctx context.Context, d *schema.ResourceData, meta a
 
 	d.Set("name", env.Name)
 	d.Set("description", env.Description)
+	d.Set("attributes", attributesToState(env.Attributes))
 
 	projectID := ""
 	if env.Project != nil {
@@ -98,6 +101,7 @@ func resourceEnvironmentUpdate(ctx context.Context, d *schema.ResourceData, meta
 	_, err := api.UpdateEnvironment(ctx, client, d.Id(), api.UpdateEnvironmentInput{
 		Name:        d.Get("name").(string),
 		Description: d.Get("description").(string),
+		Attributes:  attributesFromConfig(d.Get("attributes")),
 	})
 	if err != nil {
 		return diag.FromErr(err)

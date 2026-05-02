@@ -17,6 +17,7 @@ func TestResourceEnvironmentCreate(t *testing.T) {
 						"id":          "ecomm-prod",
 						"name":        "Production",
 						"description": "live env",
+						"attributes":  map[string]any{"env": "production"},
 					},
 					"successful": true,
 				},
@@ -28,6 +29,7 @@ func TestResourceEnvironmentCreate(t *testing.T) {
 					"id":          "ecomm-prod",
 					"name":        "Production",
 					"description": "live env",
+					"attributes":  map[string]any{"env": "production"},
 					"project": map[string]any{
 						"id":   "ecomm",
 						"name": "Ecomm",
@@ -42,6 +44,7 @@ func TestResourceEnvironmentCreate(t *testing.T) {
 		"project_id":  "ecomm",
 		"name":        "Production",
 		"description": "live env",
+		"attributes":  map[string]any{"env": "production"},
 	})
 
 	diags := resourceEnvironmentCreate(t.Context(), rd, pc)
@@ -73,6 +76,46 @@ func TestResourceEnvironmentCreate(t *testing.T) {
 	}
 	if input["name"] != "Production" {
 		t.Errorf("got input.name %v, want Production", input["name"])
+	}
+	if input["attributes"] != `{"env":"production"}` {
+		t.Errorf("got input.attributes %v, want JSON-encoded env=production", input["attributes"])
+	}
+	if attrs := rd.Get("attributes").(map[string]any); attrs["env"] != "production" {
+		t.Errorf("got attributes %v after Read, wanted env=production", attrs)
+	}
+}
+
+// Mirrors the project test: drift on attributes must surface, not be silenced.
+func TestResourceEnvironmentSurfacesAttributesDrift(t *testing.T) {
+	r := resourceEnvironment()
+
+	state := &terraform.InstanceState{
+		ID: "ecomm-prod",
+		Attributes: map[string]string{
+			"id":             "ecomm-prod",
+			"identifier":     "prod",
+			"project_id":     "ecomm",
+			"attributes.%":   "1",
+			"attributes.env": "staging", // drifted via console
+		},
+	}
+	cfg := terraform.NewResourceConfigRaw(map[string]any{
+		"identifier": "prod",
+		"project_id": "ecomm",
+		"attributes": map[string]any{"env": "production"},
+	})
+
+	diff, err := r.Diff(t.Context(), state, cfg, nil)
+	if err != nil {
+		t.Fatalf("unexpected diff error: %v", err)
+	}
+	if diff == nil || diff.Empty() {
+		t.Fatal("expected attributes drift to surface as a diff")
+	}
+	if attr := diff.Attributes["attributes.env"]; attr == nil {
+		t.Error("expected diff on attributes.env")
+	} else if attr.Old != "staging" || attr.New != "production" {
+		t.Errorf("got attributes.env diff %+v, want Old=staging New=production", attr)
 	}
 }
 
@@ -270,6 +313,9 @@ func TestResourceEnvironmentSchema(t *testing.T) {
 		if s == nil || s.Required || !s.Optional || !s.Computed {
 			t.Errorf("%s should be Optional+Computed (got Required=%v Optional=%v Computed=%v)", field, s.Required, s.Optional, s.Computed)
 		}
+	}
+	if attrs := r.Schema["attributes"]; attrs == nil || !attrs.Required {
+		t.Error("attributes should be Required (drift always surfaces)")
 	}
 	if _, present := r.Schema["id"]; present {
 		t.Error("id should not be defined in schema — terraform manages it automatically")

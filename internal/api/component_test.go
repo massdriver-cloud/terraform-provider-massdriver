@@ -55,6 +55,61 @@ func TestAddComponentFailure(t *testing.T) {
 	}
 }
 
+func TestUpdateComponent(t *testing.T) {
+	gqlClient := gqlmock.NewClientWithSingleJSONResponse(map[string]any{
+		"data": map[string]any{
+			"updateComponent": map[string]any{
+				"result": map[string]any{
+					"id":          "ecomm-db",
+					"name":        "Renamed Database",
+					"description": "updated",
+					"attributes":  map[string]any{"team": "platform"},
+				},
+				"successful": true,
+			},
+		},
+	})
+	mdClient := client.Client{GQLv1: gqlClient}
+
+	comp, err := api.UpdateComponent(t.Context(), &mdClient, "ecomm-db", api.UpdateComponentInput{
+		Name:        "Renamed Database",
+		Description: "updated",
+		Attributes:  map[string]any{"team": "platform"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if comp.Name != "Renamed Database" {
+		t.Errorf("got name %s, wanted Renamed Database", comp.Name)
+	}
+}
+
+// updateComponent rejects an unknown attribute key against the org's
+// custom-attribute schema. The wrapper must surface that as an error rather
+// than silently succeeding so terraform can fail the apply.
+func TestUpdateComponentFailure(t *testing.T) {
+	gqlClient := gqlmock.NewClientWithSingleJSONResponse(map[string]any{
+		"data": map[string]any{
+			"updateComponent": map[string]any{
+				"result":     nil,
+				"successful": false,
+				"messages": []map[string]any{
+					{"code": "validation", "field": "attributes", "message": "Schema does not allow additional properties"},
+				},
+			},
+		},
+	})
+	mdClient := client.Client{GQLv1: gqlClient}
+
+	_, err := api.UpdateComponent(t.Context(), &mdClient, "ecomm-db", api.UpdateComponentInput{
+		Name:       "x",
+		Attributes: map[string]any{"unknown": "key"},
+	})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
 func TestRemoveComponent(t *testing.T) {
 	gqlClient := gqlmock.NewClientWithSingleJSONResponse(map[string]any{
 		"data": map[string]any{

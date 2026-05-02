@@ -3,13 +3,11 @@ package massdriver
 import (
 	"testing"
 
+	"terraform-provider-massdriver/internal/gqlmock"
+
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
-	"terraform-provider-massdriver/internal/gqlmock"
 )
-
-// Component IDs use `*` as the project/identifier separator (e.g., `ecomm*db`)
-// rather than the `-` used elsewhere.
 
 func TestResourceComponentCreate(t *testing.T) {
 	pc, rec := newMockProvider(map[string]map[string]any{
@@ -17,7 +15,7 @@ func TestResourceComponentCreate(t *testing.T) {
 			"data": map[string]any{
 				"addComponent": map[string]any{
 					"result": map[string]any{
-						"id":   "ecomm*db",
+						"id":   "ecomm-db",
 						"name": "Primary Database",
 						"ociRepo": map[string]any{
 							"id":   "repo-1",
@@ -35,8 +33,9 @@ func TestResourceComponentCreate(t *testing.T) {
 						"components": map[string]any{
 							"items": []map[string]any{
 								{
-									"id":   "ecomm*db",
-									"name": "Primary Database",
+									"id":         "ecomm-db",
+									"name":       "Primary Database",
+									"attributes": map[string]any{"team": "platform"},
 									"ociRepo": map[string]any{
 										"id":   "repo-1",
 										"name": "aws-rds-cluster",
@@ -51,10 +50,11 @@ func TestResourceComponentCreate(t *testing.T) {
 	})
 
 	rd := schema.TestResourceDataRaw(t, resourceComponent().Schema, map[string]any{
-		"identifier":    "db",
-		"project_id":    "ecomm",
-		"name":          "Primary Database",
-		"oci_repo_name": "aws-rds-cluster",
+		"identifier":  "db",
+		"project_id":  "ecomm",
+		"name":        "Primary Database",
+		"bundle_name": "aws-rds-cluster",
+		"attributes":  map[string]any{"team": "platform"},
 	})
 
 	diags := resourceComponentCreate(t.Context(), rd, pc)
@@ -62,11 +62,8 @@ func TestResourceComponentCreate(t *testing.T) {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
 
-	if rd.Id() != "ecomm*db" {
-		t.Errorf("got id %q, want ecomm*db", rd.Id())
-	}
-	if rd.Get("identifier").(string) != "db" {
-		t.Errorf("got identifier %q, want db (recovered from `<project>*<identifier>`)", rd.Get("identifier"))
+	if rd.Id() != "ecomm-db" {
+		t.Errorf("got id %q, want ecomm-db", rd.Id())
 	}
 
 	addReq := rec.FindRequest("addComponent")
@@ -86,6 +83,15 @@ func TestResourceComponentCreate(t *testing.T) {
 	}
 	if input["name"] != "Primary Database" {
 		t.Errorf("got input.name %v, want Primary Database", input["name"])
+	}
+	// `attributes` is the JSON scalar that double-encodes; the wire payload is the JSON-encoded string.
+	if input["attributes"] != `{"team":"platform"}` {
+		t.Errorf("got input.attributes %v, want JSON-encoded team=platform", input["attributes"])
+	}
+
+	// Read populates attributes back into state from the API response.
+	if got := rd.Get("attributes").(map[string]any); got["team"] != "platform" {
+		t.Errorf("got attributes %v after Read, wanted team=platform", got)
 	}
 }
 
@@ -107,7 +113,7 @@ func TestResourceComponentReadDrops404(t *testing.T) {
 	rd := schema.TestResourceDataRaw(t, resourceComponent().Schema, map[string]any{
 		"project_id": "ecomm",
 	})
-	rd.SetId("ecomm*db")
+	rd.SetId("ecomm-db")
 
 	diags := resourceComponentRead(t.Context(), rd, pc)
 	if diags.HasError() {
@@ -127,7 +133,7 @@ func TestResourceComponentReadRecoversProjectIDOnImport(t *testing.T) {
 						"components": map[string]any{
 							"items": []map[string]any{
 								{
-									"id":   "ecomm*db",
+									"id":   "ecomm-db",
 									"name": "Primary Database",
 									"ociRepo": map[string]any{
 										"id":   "repo-1",
@@ -142,9 +148,9 @@ func TestResourceComponentReadRecoversProjectIDOnImport(t *testing.T) {
 		},
 	})
 
-	// Simulates `terraform import` — only the platform ID is set, project_id must be recovered by splitting on `*`.
+	// Simulates `terraform import` — only the platform ID is set, project_id must be recovered.
 	rd := schema.TestResourceDataRaw(t, resourceComponent().Schema, map[string]any{})
-	rd.SetId("ecomm*db")
+	rd.SetId("ecomm-db")
 
 	diags := resourceComponentRead(t.Context(), rd, pc)
 	if diags.HasError() {
@@ -156,8 +162,8 @@ func TestResourceComponentReadRecoversProjectIDOnImport(t *testing.T) {
 	if rd.Get("identifier").(string) != "db" {
 		t.Errorf("got identifier %q, want db", rd.Get("identifier"))
 	}
-	if rd.Get("oci_repo_name").(string) != "aws-rds-cluster" {
-		t.Errorf("got oci_repo_name %q, want aws-rds-cluster", rd.Get("oci_repo_name"))
+	if rd.Get("bundle_name").(string) != "aws-rds-cluster" {
+		t.Errorf("got bundle_name %q, want aws-rds-cluster", rd.Get("bundle_name"))
 	}
 
 	listReq := rec.FindRequest("listComponents")
@@ -170,39 +176,17 @@ func TestResourceComponentReadRecoversProjectIDOnImport(t *testing.T) {
 	}
 }
 
-func TestResourceComponentDelete(t *testing.T) {
+func TestResourceComponentUpdate(t *testing.T) {
 	pc, rec := newMockProvider(map[string]map[string]any{
-		"removeComponent": {
+		"updateComponent": {
 			"data": map[string]any{
-				"removeComponent": map[string]any{
-					"result":     map[string]any{"id": "ecomm*db", "name": "db"},
-					"successful": true,
-				},
-			},
-		},
-	})
-
-	rd := schema.TestResourceDataRaw(t, resourceComponent().Schema, map[string]any{})
-	rd.SetId("ecomm*db")
-
-	diags := resourceComponentDelete(t.Context(), rd, pc)
-	if diags.HasError() {
-		t.Fatalf("unexpected diagnostics: %v", diags)
-	}
-	if rd.Id() != "" {
-		t.Errorf("resource ID should be cleared, got %q", rd.Id())
-	}
-	if vars := gqlmock.Variables(rec.FindRequest("removeComponent")); vars["id"] != "ecomm*db" {
-		t.Errorf("got id %v, want ecomm*db", vars["id"])
-	}
-}
-
-func TestResourceComponentCreateDefaultsNameToIdentifier(t *testing.T) {
-	pc, rec := newMockProvider(map[string]map[string]any{
-		"addComponent": {
-			"data": map[string]any{
-				"addComponent": map[string]any{
-					"result":     map[string]any{"id": "ecomm*db", "name": "db"},
+				"updateComponent": map[string]any{
+					"result": map[string]any{
+						"id":          "ecomm-db",
+						"name":        "Renamed",
+						"description": "updated",
+						"attributes":  map[string]any{"team": "infra"},
+					},
 					"successful": true,
 				},
 			},
@@ -212,7 +196,18 @@ func TestResourceComponentCreateDefaultsNameToIdentifier(t *testing.T) {
 				"project": map[string]any{
 					"blueprint": map[string]any{
 						"components": map[string]any{
-							"items": []map[string]any{{"id": "ecomm*db", "name": "db"}},
+							"items": []map[string]any{
+								{
+									"id":          "ecomm-db",
+									"name":        "Renamed",
+									"description": "updated",
+									"attributes":  map[string]any{"team": "infra"},
+									"ociRepo": map[string]any{
+										"id":   "repo-1",
+										"name": "aws-rds-cluster",
+									},
+								},
+							},
 						},
 					},
 				},
@@ -221,9 +216,91 @@ func TestResourceComponentCreateDefaultsNameToIdentifier(t *testing.T) {
 	})
 
 	rd := schema.TestResourceDataRaw(t, resourceComponent().Schema, map[string]any{
-		"identifier":    "db",
-		"project_id":    "ecomm",
-		"oci_repo_name": "aws-rds-cluster",
+		"identifier":  "db",
+		"project_id":  "ecomm",
+		"name":        "Renamed",
+		"description": "updated",
+		"bundle_name": "aws-rds-cluster",
+		"attributes":  map[string]any{"team": "infra"},
+	})
+	rd.SetId("ecomm-db")
+
+	if diags := resourceComponentUpdate(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+
+	updateReq := rec.FindRequest("updateComponent")
+	if updateReq == nil {
+		t.Fatal("updateComponent was not called")
+	}
+	vars := gqlmock.Variables(updateReq)
+	if vars["id"] != "ecomm-db" {
+		t.Errorf("got id %v, want ecomm-db", vars["id"])
+	}
+	input, _ := vars["input"].(map[string]any)
+	if input["name"] != "Renamed" {
+		t.Errorf("got input.name %v, want Renamed", input["name"])
+	}
+	// The double-encoded JSON-scalar value should reflect the new attributes.
+	if input["attributes"] != `{"team":"infra"}` {
+		t.Errorf("got input.attributes %v, want JSON-encoded team=infra", input["attributes"])
+	}
+}
+
+func TestResourceComponentDelete(t *testing.T) {
+	pc, rec := newMockProvider(map[string]map[string]any{
+		"removeComponent": {
+			"data": map[string]any{
+				"removeComponent": map[string]any{
+					"result":     map[string]any{"id": "ecomm-db", "name": "db"},
+					"successful": true,
+				},
+			},
+		},
+	})
+
+	rd := schema.TestResourceDataRaw(t, resourceComponent().Schema, map[string]any{})
+	rd.SetId("ecomm-db")
+
+	diags := resourceComponentDelete(t.Context(), rd, pc)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	if rd.Id() != "" {
+		t.Errorf("resource ID should be cleared, got %q", rd.Id())
+	}
+	if vars := gqlmock.Variables(rec.FindRequest("removeComponent")); vars["id"] != "ecomm-db" {
+		t.Errorf("got id %v, want ecomm-db", vars["id"])
+	}
+}
+
+func TestResourceComponentCreateDefaultsNameToIdentifier(t *testing.T) {
+	pc, rec := newMockProvider(map[string]map[string]any{
+		"addComponent": {
+			"data": map[string]any{
+				"addComponent": map[string]any{
+					"result":     map[string]any{"id": "ecomm-db", "name": "db"},
+					"successful": true,
+				},
+			},
+		},
+		"listComponents": {
+			"data": map[string]any{
+				"project": map[string]any{
+					"blueprint": map[string]any{
+						"components": map[string]any{
+							"items": []map[string]any{{"id": "ecomm-db", "name": "db"}},
+						},
+					},
+				},
+			},
+		},
+	})
+
+	rd := schema.TestResourceDataRaw(t, resourceComponent().Schema, map[string]any{
+		"identifier":  "db",
+		"project_id":  "ecomm",
+		"bundle_name": "aws-rds-cluster",
 	})
 
 	if diags := resourceComponentCreate(t.Context(), rd, pc); diags.HasError() {
@@ -236,24 +313,29 @@ func TestResourceComponentCreateDefaultsNameToIdentifier(t *testing.T) {
 	}
 }
 
-func TestResourceComponentIgnoresDriftWhenConfigUnset(t *testing.T) {
+// Drift on name/description (Optional+Computed) must NOT show up as a plan
+// diff when the user omits those fields from config.
+func TestResourceComponentIgnoresNameDriftWhenConfigUnset(t *testing.T) {
 	r := resourceComponent()
 
 	state := &terraform.InstanceState{
-		ID: "ecomm*db",
+		ID: "ecomm-db",
 		Attributes: map[string]string{
-			"id":            "ecomm*db",
-			"identifier":    "db",
-			"project_id":    "ecomm",
-			"oci_repo_name": "aws-rds-cluster",
-			"name":          "Primary Database (manual edit)",
-			"description":   "edited in the console",
+			"id":             "ecomm-db",
+			"identifier":     "db",
+			"project_id":     "ecomm",
+			"bundle_name":    "aws-rds-cluster",
+			"name":           "Primary Database (manual edit)",
+			"description":    "edited in the console",
+			"attributes.%":   "1",
+			"attributes.team": "platform",
 		},
 	}
 	cfg := terraform.NewResourceConfigRaw(map[string]any{
-		"identifier":    "db",
-		"project_id":    "ecomm",
-		"oci_repo_name": "aws-rds-cluster",
+		"identifier":  "db",
+		"project_id":  "ecomm",
+		"bundle_name": "aws-rds-cluster",
+		"attributes":  map[string]any{"team": "platform"},
 	})
 
 	diff, err := r.Diff(t.Context(), state, cfg, nil)
@@ -269,18 +351,61 @@ func TestResourceComponentIgnoresDriftWhenConfigUnset(t *testing.T) {
 	}
 }
 
+// Conversely, drift on `attributes` MUST surface — these are how permissions
+// are calculated, so silent drift would be a security issue.
+func TestResourceComponentSurfacesAttributesDrift(t *testing.T) {
+	r := resourceComponent()
+
+	state := &terraform.InstanceState{
+		ID: "ecomm-db",
+		Attributes: map[string]string{
+			"id":              "ecomm-db",
+			"identifier":      "db",
+			"project_id":      "ecomm",
+			"bundle_name":     "aws-rds-cluster",
+			"attributes.%":    "1",
+			"attributes.team": "infra", // drifted via console edit
+		},
+	}
+	cfg := terraform.NewResourceConfigRaw(map[string]any{
+		"identifier":  "db",
+		"project_id":  "ecomm",
+		"bundle_name": "aws-rds-cluster",
+		"attributes":  map[string]any{"team": "platform"},
+	})
+
+	diff, err := r.Diff(t.Context(), state, cfg, nil)
+	if err != nil {
+		t.Fatalf("unexpected diff error: %v", err)
+	}
+	if diff == nil || diff.Empty() {
+		t.Fatal("expected attributes drift to surface as a diff")
+	}
+	if attr := diff.Attributes["attributes.team"]; attr == nil {
+		t.Error("expected diff on attributes.team")
+	} else if attr.Old != "infra" || attr.New != "platform" {
+		t.Errorf("got attributes.team diff %+v, want Old=infra New=platform", attr)
+	}
+}
+
 func TestResourceComponentSchema(t *testing.T) {
 	r := resourceComponent()
 	if err := r.InternalValidate(nil, true); err != nil {
 		t.Fatalf("schema invalid: %v", err)
 	}
-	if r.UpdateContext != nil {
-		t.Error("UpdateContext should be nil — component has no update mutation")
+	if r.UpdateContext == nil {
+		t.Error("UpdateContext should be set — updateComponent mutation now exists")
 	}
-	// Every user-facing input is ForceNew because there's no update mutation.
-	for _, field := range []string{"name", "oci_repo_name", "description", "identifier"} {
+	// Mutable fields are not ForceNew now that updateComponent exists.
+	for _, field := range []string{"name", "description", "attributes"} {
+		if r.Schema[field].ForceNew {
+			t.Errorf("%s should NOT be ForceNew — updateComponent supports changing it", field)
+		}
+	}
+	// Identity fields stay ForceNew.
+	for _, field := range []string{"identifier", "project_id", "bundle_name"} {
 		if !r.Schema[field].ForceNew {
-			t.Errorf("%s should be ForceNew (no update path)", field)
+			t.Errorf("%s should be ForceNew", field)
 		}
 	}
 	if id := r.Schema["identifier"]; id == nil || !id.Required || id.ValidateFunc == nil {
@@ -291,6 +416,9 @@ func TestResourceComponentSchema(t *testing.T) {
 		if s == nil || s.Required || !s.Optional || !s.Computed {
 			t.Errorf("%s should be Optional+Computed (got Required=%v Optional=%v Computed=%v)", field, s.Required, s.Optional, s.Computed)
 		}
+	}
+	if attrs := r.Schema["attributes"]; attrs == nil || !attrs.Required {
+		t.Error("attributes should be Required (drift always surfaces)")
 	}
 	if _, present := r.Schema["id"]; present {
 		t.Error("id should not be defined in schema — terraform manages it automatically")

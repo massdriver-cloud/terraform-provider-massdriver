@@ -5,15 +5,21 @@ query getProject($organizationId: ID!, $id: ID!) {
     id
     name
     description
+    attributes
   }
 }
 
-mutation createProject($organizationId: ID!, $input: CreateProjectInput!) {
+# @genqlient(for: "CreateProjectInput.attributes", omitempty: true)
+mutation createProject(
+  $organizationId: ID!,
+  $input: CreateProjectInput!
+) {
   createProject(organizationId: $organizationId, input: $input) {
     result {
       id
       name
       description
+      attributes
     }
     successful
     messages {
@@ -24,12 +30,18 @@ mutation createProject($organizationId: ID!, $input: CreateProjectInput!) {
   }
 }
 
-mutation updateProject($organizationId: ID!, $id: ID!, $input: UpdateProjectInput!) {
+# @genqlient(for: "UpdateProjectInput.attributes", omitempty: true)
+mutation updateProject(
+  $organizationId: ID!,
+  $id: ID!,
+  $input: UpdateProjectInput!
+) {
   updateProject(organizationId: $organizationId, id: $id, input: $input) {
     result {
       id
       name
       description
+      attributes
     }
     successful
     messages {
@@ -64,6 +76,7 @@ query getEnvironment($organizationId: ID!, $id: ID!) {
     id
     name
     description
+    attributes
     project {
       id
       name
@@ -71,12 +84,18 @@ query getEnvironment($organizationId: ID!, $id: ID!) {
   }
 }
 
-mutation createEnvironment($organizationId: ID!, $projectId: ID!, $input: CreateEnvironmentInput!) {
+# @genqlient(for: "CreateEnvironmentInput.attributes", omitempty: true)
+mutation createEnvironment(
+  $organizationId: ID!,
+  $projectId: ID!,
+  $input: CreateEnvironmentInput!
+) {
   createEnvironment(organizationId: $organizationId, projectId: $projectId, input: $input) {
     result {
       id
       name
       description
+      attributes
     }
     successful
     messages {
@@ -87,12 +106,18 @@ mutation createEnvironment($organizationId: ID!, $projectId: ID!, $input: Create
   }
 }
 
-mutation updateEnvironment($organizationId: ID!, $id: ID!, $input: UpdateEnvironmentInput!) {
+# @genqlient(for: "UpdateEnvironmentInput.attributes", omitempty: true)
+mutation updateEnvironment(
+  $organizationId: ID!,
+  $id: ID!,
+  $input: UpdateEnvironmentInput!
+) {
   updateEnvironment(organizationId: $organizationId, id: $id, input: $input) {
     result {
       id
       name
       description
+      attributes
     }
     successful
     messages {
@@ -167,6 +192,34 @@ mutation addComponent(
     ociRepoName: $ociRepoName,
     input: $input
   ) {
+    result {
+      id
+      name
+      description
+      attributes
+      ociRepo {
+        id
+        name
+      }
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+# @genqlient(for: "UpdateComponentInput.name", omitempty: true)
+# @genqlient(for: "UpdateComponentInput.description", omitempty: true)
+# @genqlient(for: "UpdateComponentInput.attributes", omitempty: true)
+mutation updateComponent(
+  $organizationId: ID!,
+  $id: ID!,
+  $input: UpdateComponentInput!
+) {
+  updateComponent(organizationId: $organizationId, id: $id, input: $input) {
     result {
       id
       name
@@ -345,6 +398,210 @@ mutation deleteResource($organizationId: ID!, $id: ID!) {
       id
       name
       origin
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+
+# INSTANCE ALARMS
+
+# @genqlient(for: "Alarm.metric", pointer: true)
+query getInstanceAlarm(
+  $organizationId: ID!,
+  $id: ID!
+) {
+  instanceAlarm(organizationId: $organizationId, id: $id) {
+    id
+    displayName
+    cloudResourceId
+    comparisonOperator
+    threshold
+    period
+    metric {
+      namespace
+      name
+      statistic
+      region
+      dimensions {
+        name
+        value
+      }
+    }
+  }
+}
+
+# @genqlient(for: "Alarm.metric", pointer: true)
+# @genqlient(for: "CreateInstanceAlarmInput.comparisonOperator", omitempty: true)
+# @genqlient(for: "CreateInstanceAlarmInput.threshold", omitempty: true, pointer: true)
+# @genqlient(for: "CreateInstanceAlarmInput.period", omitempty: true, pointer: true)
+# @genqlient(for: "CreateInstanceAlarmInput.metric", omitempty: true, pointer: true)
+# @genqlient(for: "AlarmMetricInput.namespace", omitempty: true)
+# @genqlient(for: "AlarmMetricInput.name", omitempty: true)
+# @genqlient(for: "AlarmMetricInput.statistic", omitempty: true)
+# @genqlient(for: "AlarmMetricInput.region", omitempty: true)
+# @genqlient(for: "AlarmMetricInput.dimensions", omitempty: true)
+mutation createInstanceAlarm(
+  $organizationId: ID!,
+  $instanceId: ID!,
+  $input: CreateInstanceAlarmInput!
+) {
+  createInstanceAlarm(
+    organizationId: $organizationId,
+    instanceId: $instanceId,
+    input: $input
+  ) {
+    result {
+      id
+      displayName
+      cloudResourceId
+      comparisonOperator
+      threshold
+      period
+      metric {
+        namespace
+        name
+        statistic
+        region
+        dimensions {
+          name
+          value
+        }
+      }
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+# @genqlient(for: "Alarm.metric", pointer: true)
+# @genqlient(for: "UpdateInstanceAlarmInput.cloudResourceId", omitempty: true)
+# @genqlient(for: "UpdateInstanceAlarmInput.comparisonOperator", omitempty: true)
+# @genqlient(for: "UpdateInstanceAlarmInput.displayName", omitempty: true)
+# @genqlient(for: "UpdateInstanceAlarmInput.threshold", omitempty: true, pointer: true)
+# @genqlient(for: "UpdateInstanceAlarmInput.period", omitempty: true, pointer: true)
+# @genqlient(for: "UpdateInstanceAlarmInput.metric", omitempty: true, pointer: true)
+mutation updateInstanceAlarm(
+  $organizationId: ID!,
+  $id: ID!,
+  $input: UpdateInstanceAlarmInput!
+) {
+  updateInstanceAlarm(
+    organizationId: $organizationId,
+    id: $id,
+    input: $input
+  ) {
+    result {
+      id
+      displayName
+      cloudResourceId
+      comparisonOperator
+      threshold
+      period
+      metric {
+        namespace
+        name
+        statistic
+        region
+        dimensions {
+          name
+          value
+        }
+      }
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+mutation deleteInstanceAlarm($organizationId: ID!, $id: ID!) {
+  deleteInstanceAlarm(organizationId: $organizationId, id: $id) {
+    result {
+      id
+      displayName
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+
+# GROUPS
+
+query getGroup($organizationId: ID!, $id: ID!) {
+  group(organizationId: $organizationId, id: $id) {
+    id
+    name
+    description
+    role
+  }
+}
+
+# @genqlient(for: "CreateGroupInput.description", omitempty: true)
+mutation createGroup(
+  $organizationId: ID!,
+  $input: CreateGroupInput!
+) {
+  createGroup(organizationId: $organizationId, input: $input) {
+    result {
+      id
+      name
+      description
+      role
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+# @genqlient(for: "UpdateGroupInput.description", omitempty: true)
+mutation updateGroup(
+  $organizationId: ID!,
+  $id: ID!,
+  $input: UpdateGroupInput!
+) {
+  updateGroup(organizationId: $organizationId, id: $id, input: $input) {
+    result {
+      id
+      name
+      description
+      role
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+mutation deleteGroup($organizationId: ID!, $id: ID!) {
+  deleteGroup(organizationId: $organizationId, id: $id) {
+    result {
+      id
+      name
     }
     successful
     messages {
