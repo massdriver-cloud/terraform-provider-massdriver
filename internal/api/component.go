@@ -19,12 +19,6 @@ type Component struct {
 	UpdatedAt   time.Time         `json:"updatedAt,omitzero" mapstructure:"updatedAt"`
 }
 
-// OciRepo identifies the OCI repository (bundle source) backing a component.
-type OciRepo struct {
-	ID   string `json:"id" mapstructure:"id"`
-	Name string `json:"name" mapstructure:"name"`
-}
-
 // Link represents a design-time wire between two components in a blueprint.
 type Link struct {
 	ID            string     `json:"id" mapstructure:"id"`

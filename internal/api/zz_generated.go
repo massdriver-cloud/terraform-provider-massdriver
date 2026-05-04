@@ -331,6 +331,86 @@ func (v *CreateInstanceAlarmInput) GetPeriod() *int { return v.Period }
 // GetThreshold returns CreateInstanceAlarmInput.Threshold, and is useful for accessing the field via an interface.
 func (v *CreateInstanceAlarmInput) GetThreshold() *float64 { return v.Threshold }
 
+// Create a new OCI repository in your organization's catalog. Repositories must exist before any version can be published to them.
+type CreateOciRepoInput struct {
+	// Key-value attributes for this repository. Used by ABAC policies for fine-grained access control. Reserved `md-*` keys are rejected. Must conform to the organization's custom attributes for the repo scope.
+	Attributes map[string]any `json:"-"`
+	// Unique repository name within your organization, e.g. `aws-aurora-postgres`. Lowercase letters, numbers, dashes, underscores only. Max 53 characters. Cannot be changed after creation.
+	Id string `json:"id"`
+}
+
+// GetAttributes returns CreateOciRepoInput.Attributes, and is useful for accessing the field via an interface.
+func (v *CreateOciRepoInput) GetAttributes() map[string]any { return v.Attributes }
+
+// GetId returns CreateOciRepoInput.Id, and is useful for accessing the field via an interface.
+func (v *CreateOciRepoInput) GetId() string { return v.Id }
+
+func (v *CreateOciRepoInput) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*CreateOciRepoInput
+		Attributes json.RawMessage `json:"attributes"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.CreateOciRepoInput = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.Attributes
+		src := firstPass.Attributes
+		if len(src) != 0 && string(src) != "null" {
+			err = scalars.UnmarshalJSON(
+				src, dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal CreateOciRepoInput.Attributes: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalCreateOciRepoInput struct {
+	Attributes json.RawMessage `json:"attributes,omitempty"`
+
+	Id string `json:"id"`
+}
+
+func (v *CreateOciRepoInput) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *CreateOciRepoInput) __premarshalJSON() (*__premarshalCreateOciRepoInput, error) {
+	var retval __premarshalCreateOciRepoInput
+
+	{
+
+		dst := &retval.Attributes
+		src := v.Attributes
+		var err error
+		*dst, err = scalars.MarshalJSON(
+			&src)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"unable to marshal CreateOciRepoInput.Attributes: %w", err)
+		}
+	}
+	retval.Id = v.Id
+	return &retval, nil
+}
+
 // Create a new project. A project is the complete model of your application—its infrastructure, architecture, configurations, and environments.
 type CreateProjectInput struct {
 	// Key-value attributes for this project. Keys and values must be strings. Must conform to the organization's custom attributes for the project scope.
@@ -897,6 +977,78 @@ func (v *UpdateInstanceAlarmInput) GetPeriod() *int { return v.Period }
 // GetThreshold returns UpdateInstanceAlarmInput.Threshold, and is useful for accessing the field via an interface.
 func (v *UpdateInstanceAlarmInput) GetThreshold() *float64 { return v.Threshold }
 
+// Update an OCI repository's user-settable metadata. The repository name and artifact type are immutable.
+type UpdateOciRepoInput struct {
+	// Replacement key-value attributes for this repository. Reserved `md-*` keys are rejected. Must conform to the organization's custom attributes for the repo scope.
+	Attributes map[string]any `json:"-"`
+}
+
+// GetAttributes returns UpdateOciRepoInput.Attributes, and is useful for accessing the field via an interface.
+func (v *UpdateOciRepoInput) GetAttributes() map[string]any { return v.Attributes }
+
+func (v *UpdateOciRepoInput) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*UpdateOciRepoInput
+		Attributes json.RawMessage `json:"attributes"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.UpdateOciRepoInput = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.Attributes
+		src := firstPass.Attributes
+		if len(src) != 0 && string(src) != "null" {
+			err = scalars.UnmarshalJSON(
+				src, dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal UpdateOciRepoInput.Attributes: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalUpdateOciRepoInput struct {
+	Attributes json.RawMessage `json:"attributes,omitempty"`
+}
+
+func (v *UpdateOciRepoInput) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *UpdateOciRepoInput) __premarshalJSON() (*__premarshalUpdateOciRepoInput, error) {
+	var retval __premarshalUpdateOciRepoInput
+
+	{
+
+		dst := &retval.Attributes
+		src := v.Attributes
+		var err error
+		*dst, err = scalars.MarshalJSON(
+			&src)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"unable to marshal UpdateOciRepoInput.Attributes: %w", err)
+		}
+	}
+	return &retval, nil
+}
+
 // Edit an existing policy in place. The principal cannot be changed.
 type UpdatePolicyInput struct {
 	// Replace the policy's full action list. Pass one or more action ids in `{entity}:{verb}` form. Omit the field to leave the existing list unchanged. Duplicate entries are rejected.
@@ -1164,6 +1316,18 @@ func (v *__createInstanceAlarmInput) GetInstanceId() string { return v.InstanceI
 // GetInput returns __createInstanceAlarmInput.Input, and is useful for accessing the field via an interface.
 func (v *__createInstanceAlarmInput) GetInput() CreateInstanceAlarmInput { return v.Input }
 
+// __createOciRepoInput is used internally by genqlient
+type __createOciRepoInput struct {
+	OrganizationId string             `json:"organizationId"`
+	Input          CreateOciRepoInput `json:"input"`
+}
+
+// GetOrganizationId returns __createOciRepoInput.OrganizationId, and is useful for accessing the field via an interface.
+func (v *__createOciRepoInput) GetOrganizationId() string { return v.OrganizationId }
+
+// GetInput returns __createOciRepoInput.Input, and is useful for accessing the field via an interface.
+func (v *__createOciRepoInput) GetInput() CreateOciRepoInput { return v.Input }
+
 // __createProjectInput is used internally by genqlient
 type __createProjectInput struct {
 	OrganizationId string             `json:"organizationId"`
@@ -1227,6 +1391,18 @@ func (v *__deleteInstanceAlarmInput) GetOrganizationId() string { return v.Organ
 
 // GetId returns __deleteInstanceAlarmInput.Id, and is useful for accessing the field via an interface.
 func (v *__deleteInstanceAlarmInput) GetId() string { return v.Id }
+
+// __deleteOciRepoInput is used internally by genqlient
+type __deleteOciRepoInput struct {
+	OrganizationId string `json:"organizationId"`
+	Id             string `json:"id"`
+}
+
+// GetOrganizationId returns __deleteOciRepoInput.OrganizationId, and is useful for accessing the field via an interface.
+func (v *__deleteOciRepoInput) GetOrganizationId() string { return v.OrganizationId }
+
+// GetId returns __deleteOciRepoInput.Id, and is useful for accessing the field via an interface.
+func (v *__deleteOciRepoInput) GetId() string { return v.Id }
 
 // __deletePolicyInput is used internally by genqlient
 type __deletePolicyInput struct {
@@ -1299,6 +1475,18 @@ func (v *__getInstanceAlarmInput) GetOrganizationId() string { return v.Organiza
 
 // GetId returns __getInstanceAlarmInput.Id, and is useful for accessing the field via an interface.
 func (v *__getInstanceAlarmInput) GetId() string { return v.Id }
+
+// __getOciRepoInput is used internally by genqlient
+type __getOciRepoInput struct {
+	OrganizationId string `json:"organizationId"`
+	Id             string `json:"id"`
+}
+
+// GetOrganizationId returns __getOciRepoInput.OrganizationId, and is useful for accessing the field via an interface.
+func (v *__getOciRepoInput) GetOrganizationId() string { return v.OrganizationId }
+
+// GetId returns __getOciRepoInput.Id, and is useful for accessing the field via an interface.
+func (v *__getOciRepoInput) GetId() string { return v.Id }
 
 // __getProjectInput is used internally by genqlient
 type __getProjectInput struct {
@@ -1467,6 +1655,22 @@ func (v *__updateInstanceAlarmInput) GetId() string { return v.Id }
 
 // GetInput returns __updateInstanceAlarmInput.Input, and is useful for accessing the field via an interface.
 func (v *__updateInstanceAlarmInput) GetInput() UpdateInstanceAlarmInput { return v.Input }
+
+// __updateOciRepoInput is used internally by genqlient
+type __updateOciRepoInput struct {
+	OrganizationId string             `json:"organizationId"`
+	Id             string             `json:"id"`
+	Input          UpdateOciRepoInput `json:"input"`
+}
+
+// GetOrganizationId returns __updateOciRepoInput.OrganizationId, and is useful for accessing the field via an interface.
+func (v *__updateOciRepoInput) GetOrganizationId() string { return v.OrganizationId }
+
+// GetId returns __updateOciRepoInput.Id, and is useful for accessing the field via an interface.
+func (v *__updateOciRepoInput) GetId() string { return v.Id }
+
+// GetInput returns __updateOciRepoInput.Input, and is useful for accessing the field via an interface.
+func (v *__updateOciRepoInput) GetInput() UpdateOciRepoInput { return v.Input }
 
 // __updatePolicyInput is used internally by genqlient
 type __updatePolicyInput struct {
@@ -2543,6 +2747,237 @@ func (v *createInstanceAlarmResponse) GetCreateInstanceAlarm() createInstanceAla
 	return v.CreateInstanceAlarm
 }
 
+// createOciRepoCreateOciRepoOciRepoPayload includes the requested fields of the GraphQL type OciRepoPayload.
+type createOciRepoCreateOciRepoOciRepoPayload struct {
+	// The object created/updated/deleted by the mutation. May be null if mutation failed.
+	Result createOciRepoCreateOciRepoOciRepoPayloadResultOciRepo `json:"result"`
+	// Indicates if the mutation completed successfully or not.
+	Successful bool `json:"successful"`
+	// A list of failed validations. May be blank or null if mutation succeeded.
+	Messages []createOciRepoCreateOciRepoOciRepoPayloadMessagesValidationMessage `json:"messages"`
+}
+
+// GetResult returns createOciRepoCreateOciRepoOciRepoPayload.Result, and is useful for accessing the field via an interface.
+func (v *createOciRepoCreateOciRepoOciRepoPayload) GetResult() createOciRepoCreateOciRepoOciRepoPayloadResultOciRepo {
+	return v.Result
+}
+
+// GetSuccessful returns createOciRepoCreateOciRepoOciRepoPayload.Successful, and is useful for accessing the field via an interface.
+func (v *createOciRepoCreateOciRepoOciRepoPayload) GetSuccessful() bool { return v.Successful }
+
+// GetMessages returns createOciRepoCreateOciRepoOciRepoPayload.Messages, and is useful for accessing the field via an interface.
+func (v *createOciRepoCreateOciRepoOciRepoPayload) GetMessages() []createOciRepoCreateOciRepoOciRepoPayloadMessagesValidationMessage {
+	return v.Messages
+}
+
+// createOciRepoCreateOciRepoOciRepoPayloadMessagesValidationMessage includes the requested fields of the GraphQL type ValidationMessage.
+// The GraphQL type's documentation follows.
+//
+// Validation messages are returned when mutation input does not meet the requirements.
+// While client-side validation is highly recommended to provide the best User Experience,
+// All inputs will always be validated server-side.
+//
+// Some examples of validations are:
+//
+// * Username must be at least 10 characters
+// * Email field does not contain an email address
+// * Birth Date is required
+//
+// While GraphQL has support for required values, mutation data fields are always
+// set to optional in our API. This allows 'required field' messages
+// to be returned in the same manner as other validations. The only exceptions
+// are id fields, which may be required to perform updates or deletes.
+type createOciRepoCreateOciRepoOciRepoPayloadMessagesValidationMessage struct {
+	// A unique error code for the type of validation used.
+	Code string `json:"code"`
+	// The input field that the error applies to. The field can be used to
+	// identify which field the error message should be displayed next to in the
+	// presentation layer.
+	//
+	// If there are multiple errors to display for a field, multiple validation
+	// messages will be in the result.
+	//
+	// This field may be null in cases where an error cannot be applied to a specific field.
+	Field string `json:"field"`
+	// A friendly error message, appropriate for display to the end user.
+	//
+	// The message is interpolated to include the appropriate variables.
+	//
+	// Example: `Username must be at least 10 characters`
+	//
+	// This message may change without notice, so we do not recommend you match against the text.
+	// Instead, use the *code* field for matching.
+	Message string `json:"message"`
+}
+
+// GetCode returns createOciRepoCreateOciRepoOciRepoPayloadMessagesValidationMessage.Code, and is useful for accessing the field via an interface.
+func (v *createOciRepoCreateOciRepoOciRepoPayloadMessagesValidationMessage) GetCode() string {
+	return v.Code
+}
+
+// GetField returns createOciRepoCreateOciRepoOciRepoPayloadMessagesValidationMessage.Field, and is useful for accessing the field via an interface.
+func (v *createOciRepoCreateOciRepoOciRepoPayloadMessagesValidationMessage) GetField() string {
+	return v.Field
+}
+
+// GetMessage returns createOciRepoCreateOciRepoOciRepoPayloadMessagesValidationMessage.Message, and is useful for accessing the field via an interface.
+func (v *createOciRepoCreateOciRepoOciRepoPayloadMessagesValidationMessage) GetMessage() string {
+	return v.Message
+}
+
+// createOciRepoCreateOciRepoOciRepoPayloadResultOciRepo includes the requested fields of the GraphQL type OciRepo.
+// The GraphQL type's documentation follows.
+//
+// An OCI repository in your organization's bundle catalog.
+//
+// An OCI repository is the container for all published versions of a single
+// infrastructure-as-code package. It is analogous to a Docker image repository
+// but for Massdriver bundles.
+//
+// Each repository has a unique `name` (e.g., `aws-aurora-postgres`) and contains:
+//
+// - **Tags** -- the individual published versions (`1.0.0`, `1.1.0`, `1.2.3`, etc.)
+// - **Release channels** -- auto-resolving version constraints (`latest`, `~1`, `~1.2`)
+// that always point to the newest matching tag
+//
+// To fetch a specific bundle version from a repository, use the `bundle` query
+// with a `BundleId` like `aws-aurora-postgres@1.2.3` or `aws-aurora-postgres@~1`.
+type createOciRepoCreateOciRepoOciRepoPayloadResultOciRepo struct {
+	Id string `json:"id"`
+	// Repository name, unique within your organization (e.g., `aws-aurora-postgres`).
+	Name string `json:"name"`
+	// The bare [OCI reference](https://github.com/opencontainers/distribution-spec/blob/main/spec.md#pulling-manifests)
+	// for this repository: `<registry>/<org>/<repo>` (for example,
+	// `api.massdriver.cloud/acme/aws-aurora-postgres`).
+	//
+	// Append `:<tag>` or `@<digest>` to address a specific manifest and use the
+	// result directly with `oras`, `docker`, or any OCI-compliant client:
+	//
+	// ```bash
+	// oras pull api.massdriver.cloud/acme/aws-aurora-postgres:1.2.3
+	// ```
+	Reference string `json:"reference"`
+	// The [OCI artifact type](https://github.com/opencontainers/image-spec/blob/main/manifest.md#guidelines-for-artifact-usage)
+	// stored in this repository. Currently always
+	// `application/vnd.massdriver.bundle.v1+json`.
+	ArtifactType string `json:"artifactType"`
+	// Key-value attributes assigned directly to this repository, used by ABAC
+	// policies. Reserved keys starting with `md-` are auto-injected by the system
+	// and excluded from this map — see `effectiveAttributes` for the merged view.
+	Attributes map[string]any `json:"-"`
+}
+
+// GetId returns createOciRepoCreateOciRepoOciRepoPayloadResultOciRepo.Id, and is useful for accessing the field via an interface.
+func (v *createOciRepoCreateOciRepoOciRepoPayloadResultOciRepo) GetId() string { return v.Id }
+
+// GetName returns createOciRepoCreateOciRepoOciRepoPayloadResultOciRepo.Name, and is useful for accessing the field via an interface.
+func (v *createOciRepoCreateOciRepoOciRepoPayloadResultOciRepo) GetName() string { return v.Name }
+
+// GetReference returns createOciRepoCreateOciRepoOciRepoPayloadResultOciRepo.Reference, and is useful for accessing the field via an interface.
+func (v *createOciRepoCreateOciRepoOciRepoPayloadResultOciRepo) GetReference() string {
+	return v.Reference
+}
+
+// GetArtifactType returns createOciRepoCreateOciRepoOciRepoPayloadResultOciRepo.ArtifactType, and is useful for accessing the field via an interface.
+func (v *createOciRepoCreateOciRepoOciRepoPayloadResultOciRepo) GetArtifactType() string {
+	return v.ArtifactType
+}
+
+// GetAttributes returns createOciRepoCreateOciRepoOciRepoPayloadResultOciRepo.Attributes, and is useful for accessing the field via an interface.
+func (v *createOciRepoCreateOciRepoOciRepoPayloadResultOciRepo) GetAttributes() map[string]any {
+	return v.Attributes
+}
+
+func (v *createOciRepoCreateOciRepoOciRepoPayloadResultOciRepo) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*createOciRepoCreateOciRepoOciRepoPayloadResultOciRepo
+		Attributes json.RawMessage `json:"attributes"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.createOciRepoCreateOciRepoOciRepoPayloadResultOciRepo = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.Attributes
+		src := firstPass.Attributes
+		if len(src) != 0 && string(src) != "null" {
+			err = scalars.UnmarshalJSON(
+				src, dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal createOciRepoCreateOciRepoOciRepoPayloadResultOciRepo.Attributes: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalcreateOciRepoCreateOciRepoOciRepoPayloadResultOciRepo struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+
+	Reference string `json:"reference"`
+
+	ArtifactType string `json:"artifactType"`
+
+	Attributes json.RawMessage `json:"attributes"`
+}
+
+func (v *createOciRepoCreateOciRepoOciRepoPayloadResultOciRepo) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *createOciRepoCreateOciRepoOciRepoPayloadResultOciRepo) __premarshalJSON() (*__premarshalcreateOciRepoCreateOciRepoOciRepoPayloadResultOciRepo, error) {
+	var retval __premarshalcreateOciRepoCreateOciRepoOciRepoPayloadResultOciRepo
+
+	retval.Id = v.Id
+	retval.Name = v.Name
+	retval.Reference = v.Reference
+	retval.ArtifactType = v.ArtifactType
+	{
+
+		dst := &retval.Attributes
+		src := v.Attributes
+		var err error
+		*dst, err = scalars.MarshalJSON(
+			&src)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"unable to marshal createOciRepoCreateOciRepoOciRepoPayloadResultOciRepo.Attributes: %w", err)
+		}
+	}
+	return &retval, nil
+}
+
+// createOciRepoResponse is returned by createOciRepo on success.
+type createOciRepoResponse struct {
+	// Create a new (empty) OCI repository in your organization's catalog.
+	//
+	// The `id` becomes the repository's permanent name and cannot be changed
+	// after creation. Repositories must exist before any version can be
+	// published — pushing to a non-existent repository returns 404.
+	CreateOciRepo createOciRepoCreateOciRepoOciRepoPayload `json:"createOciRepo"`
+}
+
+// GetCreateOciRepo returns createOciRepoResponse.CreateOciRepo, and is useful for accessing the field via an interface.
+func (v *createOciRepoResponse) GetCreateOciRepo() createOciRepoCreateOciRepoOciRepoPayload {
+	return v.CreateOciRepo
+}
+
 // createProjectCreateProjectProjectPayload includes the requested fields of the GraphQL type ProjectPayload.
 type createProjectCreateProjectProjectPayload struct {
 	// The object created/updated/deleted by the mutation. May be null if mutation failed.
@@ -3321,6 +3756,127 @@ func (v *deleteInstanceAlarmResponse) GetDeleteInstanceAlarm() deleteInstanceAla
 	return v.DeleteInstanceAlarm
 }
 
+// deleteOciRepoDeleteOciRepoOciRepoPayload includes the requested fields of the GraphQL type OciRepoPayload.
+type deleteOciRepoDeleteOciRepoOciRepoPayload struct {
+	// The object created/updated/deleted by the mutation. May be null if mutation failed.
+	Result deleteOciRepoDeleteOciRepoOciRepoPayloadResultOciRepo `json:"result"`
+	// Indicates if the mutation completed successfully or not.
+	Successful bool `json:"successful"`
+	// A list of failed validations. May be blank or null if mutation succeeded.
+	Messages []deleteOciRepoDeleteOciRepoOciRepoPayloadMessagesValidationMessage `json:"messages"`
+}
+
+// GetResult returns deleteOciRepoDeleteOciRepoOciRepoPayload.Result, and is useful for accessing the field via an interface.
+func (v *deleteOciRepoDeleteOciRepoOciRepoPayload) GetResult() deleteOciRepoDeleteOciRepoOciRepoPayloadResultOciRepo {
+	return v.Result
+}
+
+// GetSuccessful returns deleteOciRepoDeleteOciRepoOciRepoPayload.Successful, and is useful for accessing the field via an interface.
+func (v *deleteOciRepoDeleteOciRepoOciRepoPayload) GetSuccessful() bool { return v.Successful }
+
+// GetMessages returns deleteOciRepoDeleteOciRepoOciRepoPayload.Messages, and is useful for accessing the field via an interface.
+func (v *deleteOciRepoDeleteOciRepoOciRepoPayload) GetMessages() []deleteOciRepoDeleteOciRepoOciRepoPayloadMessagesValidationMessage {
+	return v.Messages
+}
+
+// deleteOciRepoDeleteOciRepoOciRepoPayloadMessagesValidationMessage includes the requested fields of the GraphQL type ValidationMessage.
+// The GraphQL type's documentation follows.
+//
+// Validation messages are returned when mutation input does not meet the requirements.
+// While client-side validation is highly recommended to provide the best User Experience,
+// All inputs will always be validated server-side.
+//
+// Some examples of validations are:
+//
+// * Username must be at least 10 characters
+// * Email field does not contain an email address
+// * Birth Date is required
+//
+// While GraphQL has support for required values, mutation data fields are always
+// set to optional in our API. This allows 'required field' messages
+// to be returned in the same manner as other validations. The only exceptions
+// are id fields, which may be required to perform updates or deletes.
+type deleteOciRepoDeleteOciRepoOciRepoPayloadMessagesValidationMessage struct {
+	// A unique error code for the type of validation used.
+	Code string `json:"code"`
+	// The input field that the error applies to. The field can be used to
+	// identify which field the error message should be displayed next to in the
+	// presentation layer.
+	//
+	// If there are multiple errors to display for a field, multiple validation
+	// messages will be in the result.
+	//
+	// This field may be null in cases where an error cannot be applied to a specific field.
+	Field string `json:"field"`
+	// A friendly error message, appropriate for display to the end user.
+	//
+	// The message is interpolated to include the appropriate variables.
+	//
+	// Example: `Username must be at least 10 characters`
+	//
+	// This message may change without notice, so we do not recommend you match against the text.
+	// Instead, use the *code* field for matching.
+	Message string `json:"message"`
+}
+
+// GetCode returns deleteOciRepoDeleteOciRepoOciRepoPayloadMessagesValidationMessage.Code, and is useful for accessing the field via an interface.
+func (v *deleteOciRepoDeleteOciRepoOciRepoPayloadMessagesValidationMessage) GetCode() string {
+	return v.Code
+}
+
+// GetField returns deleteOciRepoDeleteOciRepoOciRepoPayloadMessagesValidationMessage.Field, and is useful for accessing the field via an interface.
+func (v *deleteOciRepoDeleteOciRepoOciRepoPayloadMessagesValidationMessage) GetField() string {
+	return v.Field
+}
+
+// GetMessage returns deleteOciRepoDeleteOciRepoOciRepoPayloadMessagesValidationMessage.Message, and is useful for accessing the field via an interface.
+func (v *deleteOciRepoDeleteOciRepoOciRepoPayloadMessagesValidationMessage) GetMessage() string {
+	return v.Message
+}
+
+// deleteOciRepoDeleteOciRepoOciRepoPayloadResultOciRepo includes the requested fields of the GraphQL type OciRepo.
+// The GraphQL type's documentation follows.
+//
+// An OCI repository in your organization's bundle catalog.
+//
+// An OCI repository is the container for all published versions of a single
+// infrastructure-as-code package. It is analogous to a Docker image repository
+// but for Massdriver bundles.
+//
+// Each repository has a unique `name` (e.g., `aws-aurora-postgres`) and contains:
+//
+// - **Tags** -- the individual published versions (`1.0.0`, `1.1.0`, `1.2.3`, etc.)
+// - **Release channels** -- auto-resolving version constraints (`latest`, `~1`, `~1.2`)
+// that always point to the newest matching tag
+//
+// To fetch a specific bundle version from a repository, use the `bundle` query
+// with a `BundleId` like `aws-aurora-postgres@1.2.3` or `aws-aurora-postgres@~1`.
+type deleteOciRepoDeleteOciRepoOciRepoPayloadResultOciRepo struct {
+	Id string `json:"id"`
+	// Repository name, unique within your organization (e.g., `aws-aurora-postgres`).
+	Name string `json:"name"`
+}
+
+// GetId returns deleteOciRepoDeleteOciRepoOciRepoPayloadResultOciRepo.Id, and is useful for accessing the field via an interface.
+func (v *deleteOciRepoDeleteOciRepoOciRepoPayloadResultOciRepo) GetId() string { return v.Id }
+
+// GetName returns deleteOciRepoDeleteOciRepoOciRepoPayloadResultOciRepo.Name, and is useful for accessing the field via an interface.
+func (v *deleteOciRepoDeleteOciRepoOciRepoPayloadResultOciRepo) GetName() string { return v.Name }
+
+// deleteOciRepoResponse is returned by deleteOciRepo on success.
+type deleteOciRepoResponse struct {
+	// Delete an OCI repository.
+	//
+	// Refused if the repository has any published versions. Tags are immutable;
+	// to remove versions today, recreate the repository.
+	DeleteOciRepo deleteOciRepoDeleteOciRepoOciRepoPayload `json:"deleteOciRepo"`
+}
+
+// GetDeleteOciRepo returns deleteOciRepoResponse.DeleteOciRepo, and is useful for accessing the field via an interface.
+func (v *deleteOciRepoResponse) GetDeleteOciRepo() deleteOciRepoDeleteOciRepoOciRepoPayload {
+	return v.DeleteOciRepo
+}
+
 // deletePolicyDeletePolicyPolicyPayload includes the requested fields of the GraphQL type PolicyPayload.
 type deletePolicyDeletePolicyPolicyPayload struct {
 	// The object created/updated/deleted by the mutation. May be null if mutation failed.
@@ -4054,6 +4610,168 @@ type getInstanceAlarmResponse struct {
 func (v *getInstanceAlarmResponse) GetInstanceAlarm() getInstanceAlarmInstanceAlarm {
 	return v.InstanceAlarm
 }
+
+// getOciRepoOciRepo includes the requested fields of the GraphQL type OciRepo.
+// The GraphQL type's documentation follows.
+//
+// An OCI repository in your organization's bundle catalog.
+//
+// An OCI repository is the container for all published versions of a single
+// infrastructure-as-code package. It is analogous to a Docker image repository
+// but for Massdriver bundles.
+//
+// Each repository has a unique `name` (e.g., `aws-aurora-postgres`) and contains:
+//
+// - **Tags** -- the individual published versions (`1.0.0`, `1.1.0`, `1.2.3`, etc.)
+// - **Release channels** -- auto-resolving version constraints (`latest`, `~1`, `~1.2`)
+// that always point to the newest matching tag
+//
+// To fetch a specific bundle version from a repository, use the `bundle` query
+// with a `BundleId` like `aws-aurora-postgres@1.2.3` or `aws-aurora-postgres@~1`.
+type getOciRepoOciRepo struct {
+	Id string `json:"id"`
+	// Repository name, unique within your organization (e.g., `aws-aurora-postgres`).
+	Name string `json:"name"`
+	// The bare [OCI reference](https://github.com/opencontainers/distribution-spec/blob/main/spec.md#pulling-manifests)
+	// for this repository: `<registry>/<org>/<repo>` (for example,
+	// `api.massdriver.cloud/acme/aws-aurora-postgres`).
+	//
+	// Append `:<tag>` or `@<digest>` to address a specific manifest and use the
+	// result directly with `oras`, `docker`, or any OCI-compliant client:
+	//
+	// ```bash
+	// oras pull api.massdriver.cloud/acme/aws-aurora-postgres:1.2.3
+	// ```
+	Reference string `json:"reference"`
+	// The [OCI artifact type](https://github.com/opencontainers/image-spec/blob/main/manifest.md#guidelines-for-artifact-usage)
+	// stored in this repository. Currently always
+	// `application/vnd.massdriver.bundle.v1+json`.
+	ArtifactType string `json:"artifactType"`
+	// Key-value attributes assigned directly to this repository, used by ABAC
+	// policies. Reserved keys starting with `md-` are auto-injected by the system
+	// and excluded from this map — see `effectiveAttributes` for the merged view.
+	Attributes map[string]any `json:"-"`
+}
+
+// GetId returns getOciRepoOciRepo.Id, and is useful for accessing the field via an interface.
+func (v *getOciRepoOciRepo) GetId() string { return v.Id }
+
+// GetName returns getOciRepoOciRepo.Name, and is useful for accessing the field via an interface.
+func (v *getOciRepoOciRepo) GetName() string { return v.Name }
+
+// GetReference returns getOciRepoOciRepo.Reference, and is useful for accessing the field via an interface.
+func (v *getOciRepoOciRepo) GetReference() string { return v.Reference }
+
+// GetArtifactType returns getOciRepoOciRepo.ArtifactType, and is useful for accessing the field via an interface.
+func (v *getOciRepoOciRepo) GetArtifactType() string { return v.ArtifactType }
+
+// GetAttributes returns getOciRepoOciRepo.Attributes, and is useful for accessing the field via an interface.
+func (v *getOciRepoOciRepo) GetAttributes() map[string]any { return v.Attributes }
+
+func (v *getOciRepoOciRepo) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*getOciRepoOciRepo
+		Attributes json.RawMessage `json:"attributes"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.getOciRepoOciRepo = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.Attributes
+		src := firstPass.Attributes
+		if len(src) != 0 && string(src) != "null" {
+			err = scalars.UnmarshalJSON(
+				src, dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal getOciRepoOciRepo.Attributes: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalgetOciRepoOciRepo struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+
+	Reference string `json:"reference"`
+
+	ArtifactType string `json:"artifactType"`
+
+	Attributes json.RawMessage `json:"attributes"`
+}
+
+func (v *getOciRepoOciRepo) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *getOciRepoOciRepo) __premarshalJSON() (*__premarshalgetOciRepoOciRepo, error) {
+	var retval __premarshalgetOciRepoOciRepo
+
+	retval.Id = v.Id
+	retval.Name = v.Name
+	retval.Reference = v.Reference
+	retval.ArtifactType = v.ArtifactType
+	{
+
+		dst := &retval.Attributes
+		src := v.Attributes
+		var err error
+		*dst, err = scalars.MarshalJSON(
+			&src)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"unable to marshal getOciRepoOciRepo.Attributes: %w", err)
+		}
+	}
+	return &retval, nil
+}
+
+// getOciRepoResponse is returned by getOciRepo on success.
+type getOciRepoResponse struct {
+	// Fetch a single OCI repository by name.
+	//
+	// Returns the repository along with its nested `tags` and `releaseChannels`
+	// collections. Returns `null` with a `NOT_FOUND` error if the repository
+	// does not exist in your organization.
+	//
+	// ```graphql
+	// query {
+	// ociRepo(organizationId: "your-org-id", id: "aws-aurora-postgres") {
+	// id
+	// name
+	// artifactType
+	// tags(sort: { field: VERSION, order: DESC }) {
+	// items { tag createdAt }
+	// cursor { next }
+	// }
+	// releaseChannels(filter: { stable: true }) {
+	// items { name tag }
+	// }
+	// }
+	// }
+	// ```
+	OciRepo getOciRepoOciRepo `json:"ociRepo"`
+}
+
+// GetOciRepo returns getOciRepoResponse.OciRepo, and is useful for accessing the field via an interface.
+func (v *getOciRepoResponse) GetOciRepo() getOciRepoOciRepo { return v.OciRepo }
 
 // getProjectProject includes the requested fields of the GraphQL type Project.
 // The GraphQL type's documentation follows.
@@ -6234,6 +6952,233 @@ func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetricDime
 	return v.Value
 }
 
+// updateOciRepoResponse is returned by updateOciRepo on success.
+type updateOciRepoResponse struct {
+	// Update an OCI repository's mutable metadata (today: attributes).
+	UpdateOciRepo updateOciRepoUpdateOciRepoOciRepoPayload `json:"updateOciRepo"`
+}
+
+// GetUpdateOciRepo returns updateOciRepoResponse.UpdateOciRepo, and is useful for accessing the field via an interface.
+func (v *updateOciRepoResponse) GetUpdateOciRepo() updateOciRepoUpdateOciRepoOciRepoPayload {
+	return v.UpdateOciRepo
+}
+
+// updateOciRepoUpdateOciRepoOciRepoPayload includes the requested fields of the GraphQL type OciRepoPayload.
+type updateOciRepoUpdateOciRepoOciRepoPayload struct {
+	// The object created/updated/deleted by the mutation. May be null if mutation failed.
+	Result updateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo `json:"result"`
+	// Indicates if the mutation completed successfully or not.
+	Successful bool `json:"successful"`
+	// A list of failed validations. May be blank or null if mutation succeeded.
+	Messages []updateOciRepoUpdateOciRepoOciRepoPayloadMessagesValidationMessage `json:"messages"`
+}
+
+// GetResult returns updateOciRepoUpdateOciRepoOciRepoPayload.Result, and is useful for accessing the field via an interface.
+func (v *updateOciRepoUpdateOciRepoOciRepoPayload) GetResult() updateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo {
+	return v.Result
+}
+
+// GetSuccessful returns updateOciRepoUpdateOciRepoOciRepoPayload.Successful, and is useful for accessing the field via an interface.
+func (v *updateOciRepoUpdateOciRepoOciRepoPayload) GetSuccessful() bool { return v.Successful }
+
+// GetMessages returns updateOciRepoUpdateOciRepoOciRepoPayload.Messages, and is useful for accessing the field via an interface.
+func (v *updateOciRepoUpdateOciRepoOciRepoPayload) GetMessages() []updateOciRepoUpdateOciRepoOciRepoPayloadMessagesValidationMessage {
+	return v.Messages
+}
+
+// updateOciRepoUpdateOciRepoOciRepoPayloadMessagesValidationMessage includes the requested fields of the GraphQL type ValidationMessage.
+// The GraphQL type's documentation follows.
+//
+// Validation messages are returned when mutation input does not meet the requirements.
+// While client-side validation is highly recommended to provide the best User Experience,
+// All inputs will always be validated server-side.
+//
+// Some examples of validations are:
+//
+// * Username must be at least 10 characters
+// * Email field does not contain an email address
+// * Birth Date is required
+//
+// While GraphQL has support for required values, mutation data fields are always
+// set to optional in our API. This allows 'required field' messages
+// to be returned in the same manner as other validations. The only exceptions
+// are id fields, which may be required to perform updates or deletes.
+type updateOciRepoUpdateOciRepoOciRepoPayloadMessagesValidationMessage struct {
+	// A unique error code for the type of validation used.
+	Code string `json:"code"`
+	// The input field that the error applies to. The field can be used to
+	// identify which field the error message should be displayed next to in the
+	// presentation layer.
+	//
+	// If there are multiple errors to display for a field, multiple validation
+	// messages will be in the result.
+	//
+	// This field may be null in cases where an error cannot be applied to a specific field.
+	Field string `json:"field"`
+	// A friendly error message, appropriate for display to the end user.
+	//
+	// The message is interpolated to include the appropriate variables.
+	//
+	// Example: `Username must be at least 10 characters`
+	//
+	// This message may change without notice, so we do not recommend you match against the text.
+	// Instead, use the *code* field for matching.
+	Message string `json:"message"`
+}
+
+// GetCode returns updateOciRepoUpdateOciRepoOciRepoPayloadMessagesValidationMessage.Code, and is useful for accessing the field via an interface.
+func (v *updateOciRepoUpdateOciRepoOciRepoPayloadMessagesValidationMessage) GetCode() string {
+	return v.Code
+}
+
+// GetField returns updateOciRepoUpdateOciRepoOciRepoPayloadMessagesValidationMessage.Field, and is useful for accessing the field via an interface.
+func (v *updateOciRepoUpdateOciRepoOciRepoPayloadMessagesValidationMessage) GetField() string {
+	return v.Field
+}
+
+// GetMessage returns updateOciRepoUpdateOciRepoOciRepoPayloadMessagesValidationMessage.Message, and is useful for accessing the field via an interface.
+func (v *updateOciRepoUpdateOciRepoOciRepoPayloadMessagesValidationMessage) GetMessage() string {
+	return v.Message
+}
+
+// updateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo includes the requested fields of the GraphQL type OciRepo.
+// The GraphQL type's documentation follows.
+//
+// An OCI repository in your organization's bundle catalog.
+//
+// An OCI repository is the container for all published versions of a single
+// infrastructure-as-code package. It is analogous to a Docker image repository
+// but for Massdriver bundles.
+//
+// Each repository has a unique `name` (e.g., `aws-aurora-postgres`) and contains:
+//
+// - **Tags** -- the individual published versions (`1.0.0`, `1.1.0`, `1.2.3`, etc.)
+// - **Release channels** -- auto-resolving version constraints (`latest`, `~1`, `~1.2`)
+// that always point to the newest matching tag
+//
+// To fetch a specific bundle version from a repository, use the `bundle` query
+// with a `BundleId` like `aws-aurora-postgres@1.2.3` or `aws-aurora-postgres@~1`.
+type updateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo struct {
+	Id string `json:"id"`
+	// Repository name, unique within your organization (e.g., `aws-aurora-postgres`).
+	Name string `json:"name"`
+	// The bare [OCI reference](https://github.com/opencontainers/distribution-spec/blob/main/spec.md#pulling-manifests)
+	// for this repository: `<registry>/<org>/<repo>` (for example,
+	// `api.massdriver.cloud/acme/aws-aurora-postgres`).
+	//
+	// Append `:<tag>` or `@<digest>` to address a specific manifest and use the
+	// result directly with `oras`, `docker`, or any OCI-compliant client:
+	//
+	// ```bash
+	// oras pull api.massdriver.cloud/acme/aws-aurora-postgres:1.2.3
+	// ```
+	Reference string `json:"reference"`
+	// The [OCI artifact type](https://github.com/opencontainers/image-spec/blob/main/manifest.md#guidelines-for-artifact-usage)
+	// stored in this repository. Currently always
+	// `application/vnd.massdriver.bundle.v1+json`.
+	ArtifactType string `json:"artifactType"`
+	// Key-value attributes assigned directly to this repository, used by ABAC
+	// policies. Reserved keys starting with `md-` are auto-injected by the system
+	// and excluded from this map — see `effectiveAttributes` for the merged view.
+	Attributes map[string]any `json:"-"`
+}
+
+// GetId returns updateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo.Id, and is useful for accessing the field via an interface.
+func (v *updateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo) GetId() string { return v.Id }
+
+// GetName returns updateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo.Name, and is useful for accessing the field via an interface.
+func (v *updateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo) GetName() string { return v.Name }
+
+// GetReference returns updateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo.Reference, and is useful for accessing the field via an interface.
+func (v *updateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo) GetReference() string {
+	return v.Reference
+}
+
+// GetArtifactType returns updateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo.ArtifactType, and is useful for accessing the field via an interface.
+func (v *updateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo) GetArtifactType() string {
+	return v.ArtifactType
+}
+
+// GetAttributes returns updateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo.Attributes, and is useful for accessing the field via an interface.
+func (v *updateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo) GetAttributes() map[string]any {
+	return v.Attributes
+}
+
+func (v *updateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*updateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo
+		Attributes json.RawMessage `json:"attributes"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.updateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.Attributes
+		src := firstPass.Attributes
+		if len(src) != 0 && string(src) != "null" {
+			err = scalars.UnmarshalJSON(
+				src, dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal updateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo.Attributes: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalupdateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+
+	Reference string `json:"reference"`
+
+	ArtifactType string `json:"artifactType"`
+
+	Attributes json.RawMessage `json:"attributes"`
+}
+
+func (v *updateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *updateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo) __premarshalJSON() (*__premarshalupdateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo, error) {
+	var retval __premarshalupdateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo
+
+	retval.Id = v.Id
+	retval.Name = v.Name
+	retval.Reference = v.Reference
+	retval.ArtifactType = v.ArtifactType
+	{
+
+		dst := &retval.Attributes
+		src := v.Attributes
+		var err error
+		*dst, err = scalars.MarshalJSON(
+			&src)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"unable to marshal updateOciRepoUpdateOciRepoOciRepoPayloadResultOciRepo.Attributes: %w", err)
+		}
+	}
+	return &retval, nil
+}
+
 // updatePolicyResponse is returned by updatePolicy on success.
 type updatePolicyResponse struct {
 	// Edit a group policy's `effect`, `actions`, or `conditions` in place.
@@ -7051,6 +7996,54 @@ func createInstanceAlarm(
 	return data_, err_
 }
 
+// The mutation executed by createOciRepo.
+const createOciRepo_Operation = `
+mutation createOciRepo ($organizationId: ID!, $input: CreateOciRepoInput!) {
+	createOciRepo(organizationId: $organizationId, input: $input) {
+		result {
+			id
+			name
+			reference
+			artifactType
+			attributes
+		}
+		successful
+		messages {
+			code
+			field
+			message
+		}
+	}
+}
+`
+
+func createOciRepo(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	organizationId string,
+	input CreateOciRepoInput,
+) (data_ *createOciRepoResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "createOciRepo",
+		Query:  createOciRepo_Operation,
+		Variables: &__createOciRepoInput{
+			OrganizationId: organizationId,
+			Input:          input,
+		},
+	}
+
+	data_ = &createOciRepoResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The mutation executed by createProject.
 const createProject_Operation = `
 mutation createProject ($organizationId: ID!, $input: CreateProjectInput!) {
@@ -7275,6 +8268,51 @@ func deleteInstanceAlarm(
 	}
 
 	data_ = &deleteInstanceAlarmResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by deleteOciRepo.
+const deleteOciRepo_Operation = `
+mutation deleteOciRepo ($organizationId: ID!, $id: ID!) {
+	deleteOciRepo(organizationId: $organizationId, id: $id) {
+		result {
+			id
+			name
+		}
+		successful
+		messages {
+			code
+			field
+			message
+		}
+	}
+}
+`
+
+func deleteOciRepo(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	organizationId string,
+	id string,
+) (data_ *deleteOciRepoResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "deleteOciRepo",
+		Query:  deleteOciRepo_Operation,
+		Variables: &__deleteOciRepoInput{
+			OrganizationId: organizationId,
+			Id:             id,
+		},
+	}
+
+	data_ = &deleteOciRepoResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
@@ -7544,6 +8582,46 @@ func getInstanceAlarm(
 	}
 
 	data_ = &getInstanceAlarmResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by getOciRepo.
+const getOciRepo_Operation = `
+query getOciRepo ($organizationId: ID!, $id: ID!) {
+	ociRepo(organizationId: $organizationId, id: $id) {
+		id
+		name
+		reference
+		artifactType
+		attributes
+	}
+}
+`
+
+func getOciRepo(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	organizationId string,
+	id string,
+) (data_ *getOciRepoResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "getOciRepo",
+		Query:  getOciRepo_Operation,
+		Variables: &__getOciRepoInput{
+			OrganizationId: organizationId,
+			Id:             id,
+		},
+	}
+
+	data_ = &getOciRepoResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
@@ -8136,6 +9214,56 @@ func updateInstanceAlarm(
 	}
 
 	data_ = &updateInstanceAlarmResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by updateOciRepo.
+const updateOciRepo_Operation = `
+mutation updateOciRepo ($organizationId: ID!, $id: ID!, $input: UpdateOciRepoInput!) {
+	updateOciRepo(organizationId: $organizationId, id: $id, input: $input) {
+		result {
+			id
+			name
+			reference
+			artifactType
+			attributes
+		}
+		successful
+		messages {
+			code
+			field
+			message
+		}
+	}
+}
+`
+
+func updateOciRepo(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	organizationId string,
+	id string,
+	input UpdateOciRepoInput,
+) (data_ *updateOciRepoResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "updateOciRepo",
+		Query:  updateOciRepo_Operation,
+		Variables: &__updateOciRepoInput{
+			OrganizationId: organizationId,
+			Id:             id,
+			Input:          input,
+		},
+	}
+
+	data_ = &updateOciRepoResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

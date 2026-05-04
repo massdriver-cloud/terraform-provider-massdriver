@@ -695,3 +695,76 @@ mutation deletePolicy($organizationId: ID!, $id: UUID!) {
     }
   }
 }
+
+
+# OCI REPOSITORIES (a.k.a. bundle repositories)
+
+query getOciRepo($organizationId: ID!, $id: ID!) {
+  ociRepo(organizationId: $organizationId, id: $id) {
+    id
+    name
+    reference
+    artifactType
+    attributes
+  }
+}
+
+# @genqlient(for: "CreateOciRepoInput.attributes", omitempty: true)
+mutation createOciRepo(
+  $organizationId: ID!,
+  $input: CreateOciRepoInput!
+) {
+  createOciRepo(organizationId: $organizationId, input: $input) {
+    result {
+      id
+      name
+      reference
+      artifactType
+      attributes
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+# @genqlient(for: "UpdateOciRepoInput.attributes", omitempty: true)
+mutation updateOciRepo(
+  $organizationId: ID!,
+  $id: ID!,
+  $input: UpdateOciRepoInput!
+) {
+  updateOciRepo(organizationId: $organizationId, id: $id, input: $input) {
+    result {
+      id
+      name
+      reference
+      artifactType
+      attributes
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+mutation deleteOciRepo($organizationId: ID!, $id: ID!) {
+  deleteOciRepo(organizationId: $organizationId, id: $id) {
+    result {
+      id
+      name
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
