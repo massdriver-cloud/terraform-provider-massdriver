@@ -62,7 +62,7 @@ func decodeConditions(raw json.RawMessage) string {
 // Returns (nil, nil) when the policy doesn't exist — terraform Reads use
 // that signal to clear state.
 func GetGroupPolicy(ctx context.Context, mdClient *client.Client, groupID, policyID string) (*Policy, error) {
-	response, err := listGroupPolicies(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, groupID)
+	response, err := listGroupPolicies(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list policies for group %s: %w", groupID, err)
 	}
@@ -83,7 +83,7 @@ func GetGroupPolicy(ctx context.Context, mdClient *client.Client, groupID, polic
 
 // CreateGroupPolicy attaches a new policy to a group.
 func CreateGroupPolicy(ctx context.Context, mdClient *client.Client, groupID string, input CreateGroupPolicyInput) (*Policy, error) {
-	response, err := createGroupPolicy(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, groupID, input)
+	response, err := createGroupPolicy(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, groupID, input)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +107,7 @@ func CreateGroupPolicy(ctx context.Context, mdClient *client.Client, groupID str
 // UpdatePolicy edits a policy's effect/actions/conditions in place. The
 // principal (group) cannot be changed.
 func UpdatePolicy(ctx context.Context, mdClient *client.Client, id string, input UpdatePolicyInput) (*Policy, error) {
-	response, err := updatePolicy(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, id, input)
+	response, err := updatePolicy(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, id, input)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +130,7 @@ func UpdatePolicy(ctx context.Context, mdClient *client.Client, id string, input
 
 // DeletePolicy removes a policy by ID.
 func DeletePolicy(ctx context.Context, mdClient *client.Client, id string) (*Policy, error) {
-	response, err := deletePolicy(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, id)
+	response, err := deletePolicy(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, id)
 	if err != nil {
 		return nil, err
 	}

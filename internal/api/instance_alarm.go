@@ -40,7 +40,7 @@ type AlarmMetricDimension struct {
 
 // GetInstanceAlarm retrieves an alarm by ID.
 func GetInstanceAlarm(ctx context.Context, mdClient *client.Client, id string) (*InstanceAlarm, error) {
-	response, err := getInstanceAlarm(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, id)
+	response, err := getInstanceAlarm(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get instance alarm %s: %w", id, err)
 	}
@@ -49,7 +49,7 @@ func GetInstanceAlarm(ctx context.Context, mdClient *client.Client, id string) (
 
 // CreateInstanceAlarm registers an alarm against an existing instance.
 func CreateInstanceAlarm(ctx context.Context, mdClient *client.Client, instanceID string, input CreateInstanceAlarmInput) (*InstanceAlarm, error) {
-	response, err := createInstanceAlarm(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, instanceID, input)
+	response, err := createInstanceAlarm(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, instanceID, input)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func CreateInstanceAlarm(ctx context.Context, mdClient *client.Client, instanceI
 
 // UpdateInstanceAlarm updates an existing alarm. Pass only the fields you want to change.
 func UpdateInstanceAlarm(ctx context.Context, mdClient *client.Client, id string, input UpdateInstanceAlarmInput) (*InstanceAlarm, error) {
-	response, err := updateInstanceAlarm(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, id, input)
+	response, err := updateInstanceAlarm(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, id, input)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func UpdateInstanceAlarm(ctx context.Context, mdClient *client.Client, id string
 
 // DeleteInstanceAlarm removes an alarm registration. The underlying cloud provider alarm is unaffected.
 func DeleteInstanceAlarm(ctx context.Context, mdClient *client.Client, id string) (*InstanceAlarm, error) {
-	response, err := deleteInstanceAlarm(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, id)
+	response, err := deleteInstanceAlarm(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, id)
 	if err != nil {
 		return nil, err
 	}

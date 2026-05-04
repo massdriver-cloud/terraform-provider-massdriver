@@ -24,7 +24,7 @@ func TestGetResource(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	r, err := api.GetResource(t.Context(), &mdClient, "res-uuid1")
 	if err != nil {
@@ -68,7 +68,7 @@ func TestCreateResource(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	r, err := api.CreateResource(t.Context(), &mdClient, "aws-iam-role", api.CreateResourceInput{
 		Name: "CI/CD Role",
@@ -101,7 +101,7 @@ func TestCreateResourceFailure(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	_, err := api.CreateResource(t.Context(), &mdClient, "aws-iam-role", api.CreateResourceInput{})
 	if err == nil {
@@ -122,7 +122,7 @@ func TestUpdateResource(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	r, err := api.UpdateResource(t.Context(), &mdClient, "res-1", api.UpdateResourceInput{
 		Name: "Updated Name",
@@ -149,7 +149,7 @@ func TestDeleteResource(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	r, err := api.DeleteResource(t.Context(), &mdClient, "res-1")
 	if err != nil {
@@ -177,7 +177,7 @@ func TestDeleteResourceFailure(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	_, err := api.DeleteResource(t.Context(), &mdClient, "res-1")
 	if err == nil {

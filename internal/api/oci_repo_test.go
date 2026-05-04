@@ -20,7 +20,7 @@ func TestGetOciRepo(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	r, err := api.GetOciRepo(t.Context(), &mdClient, "aws-aurora-postgres")
 	if err != nil {
@@ -56,7 +56,7 @@ func TestCreateOciRepo(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	r, err := api.CreateOciRepo(t.Context(), &mdClient, api.CreateOciRepoInput{
 		Id:         "aws-aurora-postgres",
@@ -84,7 +84,7 @@ func TestCreateOciRepoFailure(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	_, err := api.CreateOciRepo(t.Context(), &mdClient, api.CreateOciRepoInput{
 		Id:         "aws-aurora-postgres",
@@ -108,7 +108,7 @@ func TestUpdateOciRepo(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	r, err := api.UpdateOciRepo(t.Context(), &mdClient, "aws-aurora-postgres", api.UpdateOciRepoInput{
 		Attributes: map[string]any{"team": "infra"},
@@ -130,7 +130,7 @@ func TestDeleteOciRepo(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	r, err := api.DeleteOciRepo(t.Context(), &mdClient, "aws-aurora-postgres")
 	if err != nil {
@@ -155,7 +155,7 @@ func TestDeleteOciRepoRejectsWhenVersionsExist(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	_, err := api.DeleteOciRepo(t.Context(), &mdClient, "aws-aurora-postgres")
 	if err == nil {

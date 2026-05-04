@@ -32,7 +32,7 @@ type Link struct {
 
 // ListComponents returns components in a project's blueprint, optionally filtered.
 func ListComponents(ctx context.Context, mdClient *client.Client, projectID string, filter *ComponentsFilter) ([]Component, error) {
-	response, err := listComponents(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, projectID, filter)
+	response, err := listComponents(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, projectID, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list components for project %s: %w", projectID, err)
 	}
@@ -51,7 +51,7 @@ func ListComponents(ctx context.Context, mdClient *client.Client, projectID stri
 
 // AddComponent adds a component to a project's blueprint.
 func AddComponent(ctx context.Context, mdClient *client.Client, projectID, ociRepoName string, input AddComponentInput) (*Component, error) {
-	response, err := addComponent(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, projectID, ociRepoName, input)
+	response, err := addComponent(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, projectID, ociRepoName, input)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func AddComponent(ctx context.Context, mdClient *client.Client, projectID, ociRe
 // UpdateComponent updates a component's name, description, and/or attributes.
 // The component ID and underlying bundle are immutable.
 func UpdateComponent(ctx context.Context, mdClient *client.Client, componentID string, input UpdateComponentInput) (*Component, error) {
-	response, err := updateComponent(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, componentID, input)
+	response, err := updateComponent(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, componentID, input)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func UpdateComponent(ctx context.Context, mdClient *client.Client, componentID s
 
 // RemoveComponent removes a component from a project's blueprint.
 func RemoveComponent(ctx context.Context, mdClient *client.Client, componentID string) (*Component, error) {
-	response, err := removeComponent(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, componentID)
+	response, err := removeComponent(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, componentID)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func RemoveComponent(ctx context.Context, mdClient *client.Client, componentID s
 
 // ListLinks returns links in a project's blueprint, optionally filtered by source/destination component.
 func ListLinks(ctx context.Context, mdClient *client.Client, projectID string, filter *LinksFilter) ([]Link, error) {
-	response, err := listLinks(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, projectID, filter)
+	response, err := listLinks(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, projectID, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list links for project %s: %w", projectID, err)
 	}
@@ -119,7 +119,7 @@ func ListLinks(ctx context.Context, mdClient *client.Client, projectID string, f
 
 // LinkComponents creates a design-time link between two components.
 func LinkComponents(ctx context.Context, mdClient *client.Client, input LinkComponentsInput) (*Link, error) {
-	response, err := linkComponents(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, input)
+	response, err := linkComponents(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, input)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +135,7 @@ func LinkComponents(ctx context.Context, mdClient *client.Client, input LinkComp
 
 // UnlinkComponents removes a link by its ID.
 func UnlinkComponents(ctx context.Context, mdClient *client.Client, linkID string) (*Link, error) {
-	response, err := unlinkComponents(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, linkID)
+	response, err := unlinkComponents(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, linkID)
 	if err != nil {
 		return nil, err
 	}

@@ -20,7 +20,7 @@ type OciRepo struct {
 
 // GetOciRepo retrieves an OCI repository by name (the API treats the name as the ID).
 func GetOciRepo(ctx context.Context, mdClient *client.Client, id string) (*OciRepo, error) {
-	response, err := getOciRepo(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, id)
+	response, err := getOciRepo(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get OCI repo %s: %w", id, err)
 	}
@@ -30,7 +30,7 @@ func GetOciRepo(ctx context.Context, mdClient *client.Client, id string) (*OciRe
 // CreateOciRepo creates a new (empty) OCI repository in the org's catalog.
 // The `id` becomes the repository's permanent name; immutable after creation.
 func CreateOciRepo(ctx context.Context, mdClient *client.Client, input CreateOciRepoInput) (*OciRepo, error) {
-	response, err := createOciRepo(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, input)
+	response, err := createOciRepo(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, input)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func CreateOciRepo(ctx context.Context, mdClient *client.Client, input CreateOci
 // UpdateOciRepo replaces a repository's user-settable attributes. The
 // repository name and artifact type are immutable.
 func UpdateOciRepo(ctx context.Context, mdClient *client.Client, id string, input UpdateOciRepoInput) (*OciRepo, error) {
-	response, err := updateOciRepo(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, id, input)
+	response, err := updateOciRepo(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, id, input)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func UpdateOciRepo(ctx context.Context, mdClient *client.Client, id string, inpu
 // DeleteOciRepo removes an OCI repository. The API refuses if the repository
 // has any published versions — surface that as an error.
 func DeleteOciRepo(ctx context.Context, mdClient *client.Client, id string) (*OciRepo, error) {
-	response, err := deleteOciRepo(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, id)
+	response, err := deleteOciRepo(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, id)
 	if err != nil {
 		return nil, err
 	}

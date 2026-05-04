@@ -15,11 +15,11 @@ import (
 func resourcePackageAlarm() *schema.Resource {
 	return &schema.Resource{
 		Description:        "This resource registers a package alarm in the Massdriver console for presentation to the user",
-		DeprecationMessage: "massdriver_package_alarm is deprecated and will be removed in a future release.",
+		DeprecationMessage: "massdriver_package_alarm is deprecated. Create and update operations are no longer supported — use massdriver_instance_alarm instead. Existing massdriver_package_alarm resources can still be refreshed and destroyed.",
 
-		CreateContext: resourcePackageAlarmCreate,
+		CreateContext: resourcePackageAlarmWritesDisabled,
 		ReadContext:   resourcePackageAlarmRead,
-		UpdateContext: resourcePackageAlarmUpdate,
+		UpdateContext: resourcePackageAlarmWritesDisabled,
 		DeleteContext: resourcePackageAlarmDelete,
 
 		Schema: map[string]*schema.Schema{
@@ -97,6 +97,16 @@ func resourcePackageAlarm() *schema.Resource {
 			},
 		},
 	}
+}
+
+// resourcePackageAlarmWritesDisabled is the wired-in CreateContext /
+// UpdateContext for the deprecated massdriver_package_alarm resource. It
+// returns a hard error so users can't introduce new package alarms or mutate
+// existing ones — they must migrate to massdriver_instance_alarm. Read and
+// Delete are intentionally still functional so existing state remains usable
+// while users transition off.
+func resourcePackageAlarmWritesDisabled(_ context.Context, _ *schema.ResourceData, _ any) diag.Diagnostics {
+	return diag.Errorf("massdriver_package_alarm no longer supports create or update operations. Use massdriver_instance_alarm instead. Existing massdriver_package_alarm resources in state can still be refreshed and destroyed.")
 }
 
 func resourcePackageAlarmCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {

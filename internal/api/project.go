@@ -1,4 +1,4 @@
-// Package api provides a client for the Massdriver v1 GraphQL API.
+// Package api provides a client for the Massdriver v2 GraphQL API.
 package api
 
 import (
@@ -20,7 +20,7 @@ type Project struct {
 
 // GetProject retrieves a project by ID from the Massdriver API.
 func GetProject(ctx context.Context, mdClient *client.Client, id string) (*Project, error) {
-	response, err := getProject(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, id)
+	response, err := getProject(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get project %s: %w", id, err)
 	}
@@ -38,7 +38,7 @@ func toProject(p any) (*Project, error) {
 
 // CreateProject creates a new project in the Massdriver API.
 func CreateProject(ctx context.Context, mdClient *client.Client, input CreateProjectInput) (*Project, error) {
-	response, err := createProject(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, input)
+	response, err := createProject(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, input)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func CreateProject(ctx context.Context, mdClient *client.Client, input CreatePro
 
 // UpdateProject updates a project in the Massdriver API.
 func UpdateProject(ctx context.Context, mdClient *client.Client, id string, input UpdateProjectInput) (*Project, error) {
-	response, err := updateProject(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, id, input)
+	response, err := updateProject(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, id, input)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func UpdateProject(ctx context.Context, mdClient *client.Client, id string, inpu
 
 // DeleteProject removes a project by ID from the Massdriver API.
 func DeleteProject(ctx context.Context, mdClient *client.Client, id string) (*Project, error) {
-	response, err := deleteProject(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, id)
+	response, err := deleteProject(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, id)
 	if err != nil {
 		return nil, err
 	}

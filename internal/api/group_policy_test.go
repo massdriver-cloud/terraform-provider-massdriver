@@ -34,7 +34,7 @@ func TestGetGroupPolicy(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	p, err := api.GetGroupPolicy(t.Context(), &mdClient, "group-1", "policy-2")
 	if err != nil {
@@ -61,7 +61,7 @@ func TestGetGroupPolicyReturnsNilWhenMissing(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	p, err := api.GetGroupPolicy(t.Context(), &mdClient, "group-1", "nope")
 	if err != nil {
@@ -87,7 +87,7 @@ func TestCreateGroupPolicy(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	p, err := api.CreateGroupPolicy(t.Context(), &mdClient, "group-1", api.CreateGroupPolicyInput{
 		Actions:    []string{"project:view"},
@@ -123,7 +123,7 @@ func TestCreateGroupPolicyWildcard(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	p, err := api.CreateGroupPolicy(t.Context(), &mdClient, "group-1", api.CreateGroupPolicyInput{
 		Actions:    []string{"project:delete"},
@@ -150,7 +150,7 @@ func TestCreateGroupPolicyFailure(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	_, err := api.CreateGroupPolicy(t.Context(), &mdClient, "group-1", api.CreateGroupPolicyInput{
 		Actions: []string{"foo:bar"},
@@ -175,7 +175,7 @@ func TestUpdatePolicy(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	p, err := api.UpdatePolicy(t.Context(), &mdClient, "policy-1", api.UpdatePolicyInput{
 		Effect:     api.PolicyEffectDeny,
@@ -198,7 +198,7 @@ func TestDeletePolicy(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	p, err := api.DeletePolicy(t.Context(), &mdClient, "policy-1")
 	if err != nil {
@@ -221,7 +221,7 @@ func TestDeletePolicyFailure(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	_, err := api.DeletePolicy(t.Context(), &mdClient, "policy-1")
 	if err == nil {

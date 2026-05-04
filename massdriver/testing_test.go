@@ -17,7 +17,7 @@ func newMockProvider(responses map[string]map[string]any) (*ProviderClient, *gql
 	return &ProviderClient{
 		Client: &client.Client{
 			Config: config.Config{OrganizationID: testOrgID},
-			GQLv1:  rec,
+			GQLv2:  rec,
 		},
 	}, rec
 }

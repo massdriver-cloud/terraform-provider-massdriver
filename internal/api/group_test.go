@@ -19,7 +19,7 @@ func TestGetGroup(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	group, err := api.GetGroup(t.Context(), &mdClient, "group-uuid1")
 	if err != nil {
@@ -52,7 +52,7 @@ func TestGetGroup_PreservesBuiltInRole(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	group, err := api.GetGroup(t.Context(), &mdClient, "group-admins")
 	if err != nil {
@@ -77,7 +77,7 @@ func TestCreateGroup(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	group, err := api.CreateGroup(t.Context(), &mdClient, api.CreateGroupInput{
 		Name:        "Platform Engineering",
@@ -108,7 +108,7 @@ func TestCreateGroupFailure(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	_, err := api.CreateGroup(t.Context(), &mdClient, api.CreateGroupInput{Name: "Admins"})
 	if err == nil {
@@ -130,7 +130,7 @@ func TestUpdateGroup(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	group, err := api.UpdateGroup(t.Context(), &mdClient, "group-1", api.UpdateGroupInput{
 		Name:        "Renamed",
@@ -153,7 +153,7 @@ func TestDeleteGroup(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	group, err := api.DeleteGroup(t.Context(), &mdClient, "group-1")
 	if err != nil {
@@ -179,7 +179,7 @@ func TestDeleteGroupRejectsBuiltIn(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	_, err := api.DeleteGroup(t.Context(), &mdClient, "group-admins")
 	if err == nil {

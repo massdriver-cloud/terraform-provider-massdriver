@@ -21,7 +21,7 @@ type Group struct {
 
 // GetGroup retrieves a group by ID.
 func GetGroup(ctx context.Context, mdClient *client.Client, id string) (*Group, error) {
-	response, err := getGroup(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, id)
+	response, err := getGroup(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get group %s: %w", id, err)
 	}
@@ -30,7 +30,7 @@ func GetGroup(ctx context.Context, mdClient *client.Client, id string) (*Group, 
 
 // CreateGroup creates a new custom group.
 func CreateGroup(ctx context.Context, mdClient *client.Client, input CreateGroupInput) (*Group, error) {
-	response, err := createGroup(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, input)
+	response, err := createGroup(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, input)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func CreateGroup(ctx context.Context, mdClient *client.Client, input CreateGroup
 
 // UpdateGroup updates a group's name or description. The role is immutable.
 func UpdateGroup(ctx context.Context, mdClient *client.Client, id string, input UpdateGroupInput) (*Group, error) {
-	response, err := updateGroup(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, id, input)
+	response, err := updateGroup(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, id, input)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func UpdateGroup(ctx context.Context, mdClient *client.Client, id string, input 
 // DeleteGroup deletes a custom group. Built-in groups (`organization_admin`,
 // `organization_viewer`) cannot be deleted; the API rejects those requests.
 func DeleteGroup(ctx context.Context, mdClient *client.Client, id string) (*Group, error) {
-	response, err := deleteGroup(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, id)
+	response, err := deleteGroup(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, id)
 	if err != nil {
 		return nil, err
 	}

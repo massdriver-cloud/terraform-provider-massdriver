@@ -19,7 +19,7 @@ func TestGetProject(t *testing.T) {
 		},
 	})
 	mdClient := client.Client{
-		GQLv1: gqlClient,
+		GQLv2: gqlClient,
 	}
 
 	project, err := api.GetProject(t.Context(), &mdClient, "proj-uuid1")
@@ -49,7 +49,7 @@ func TestCreateProject(t *testing.T) {
 		},
 	})
 	mdClient := client.Client{
-		GQLv1: gqlClient,
+		GQLv2: gqlClient,
 	}
 
 	project, err := api.CreateProject(t.Context(), &mdClient, api.CreateProjectInput{
@@ -86,7 +86,7 @@ func TestCreateProjectFailure(t *testing.T) {
 		},
 	})
 	mdClient := client.Client{
-		GQLv1: gqlClient,
+		GQLv2: gqlClient,
 	}
 
 	_, err := api.CreateProject(t.Context(), &mdClient, api.CreateProjectInput{})
@@ -108,7 +108,7 @@ func TestDeleteProject(t *testing.T) {
 		},
 	})
 	mdClient := client.Client{
-		GQLv1: gqlClient,
+		GQLv2: gqlClient,
 	}
 
 	project, err := api.DeleteProject(t.Context(), &mdClient, "proj-1")

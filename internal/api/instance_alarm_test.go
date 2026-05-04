@@ -30,7 +30,7 @@ func TestGetInstanceAlarm(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	alarm, err := api.GetInstanceAlarm(t.Context(), &mdClient, "alarm-uuid1")
 	if err != nil {
@@ -80,7 +80,7 @@ func TestGetInstanceAlarm_HandlesMissingMetric(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	alarm, err := api.GetInstanceAlarm(t.Context(), &mdClient, "alarm-no-metric")
 	if err != nil {
@@ -104,7 +104,7 @@ func TestCreateInstanceAlarm(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	threshold := 80.0
 	period := 300
@@ -135,7 +135,7 @@ func TestCreateInstanceAlarmFailure(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	_, err := api.CreateInstanceAlarm(t.Context(), &mdClient, "ecomm-prod-db", api.CreateInstanceAlarmInput{})
 	if err == nil {
@@ -155,7 +155,7 @@ func TestUpdateInstanceAlarm(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	alarm, err := api.UpdateInstanceAlarm(t.Context(), &mdClient, "alarm-1", api.UpdateInstanceAlarmInput{
 		DisplayName: "Renamed",
@@ -180,7 +180,7 @@ func TestDeleteInstanceAlarm(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	alarm, err := api.DeleteInstanceAlarm(t.Context(), &mdClient, "alarm-1")
 	if err != nil {
@@ -203,7 +203,7 @@ func TestDeleteInstanceAlarmFailure(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	_, err := api.DeleteInstanceAlarm(t.Context(), &mdClient, "alarm-1")
 	if err == nil {

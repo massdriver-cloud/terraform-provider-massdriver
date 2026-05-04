@@ -20,7 +20,7 @@ func TestAddComponent(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	comp, err := api.AddComponent(t.Context(), &mdClient, "ecomm", "aws-rds-cluster", api.AddComponentInput{
 		Id:   "db",
@@ -47,7 +47,7 @@ func TestAddComponentFailure(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	_, err := api.AddComponent(t.Context(), &mdClient, "ecomm", "aws-rds-cluster", api.AddComponentInput{})
 	if err == nil {
@@ -69,7 +69,7 @@ func TestUpdateComponent(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	comp, err := api.UpdateComponent(t.Context(), &mdClient, "ecomm-db", api.UpdateComponentInput{
 		Name:        "Renamed Database",
@@ -99,7 +99,7 @@ func TestUpdateComponentFailure(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	_, err := api.UpdateComponent(t.Context(), &mdClient, "ecomm-db", api.UpdateComponentInput{
 		Name:       "x",
@@ -119,7 +119,7 @@ func TestRemoveComponent(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	comp, err := api.RemoveComponent(t.Context(), &mdClient, "ecomm-db")
 	if err != nil {
@@ -143,7 +143,7 @@ func TestLinkComponents(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	link, err := api.LinkComponents(t.Context(), &mdClient, api.LinkComponentsInput{
 		FromComponentId: "ecomm-db",
@@ -175,7 +175,7 @@ func TestUnlinkComponents(t *testing.T) {
 			},
 		},
 	})
-	mdClient := client.Client{GQLv1: gqlClient}
+	mdClient := client.Client{GQLv2: gqlClient}
 
 	link, err := api.UnlinkComponents(t.Context(), &mdClient, "link-1")
 	if err != nil {

@@ -35,11 +35,11 @@ type ArtifactSpecification struct {
 func resourceArtifact() *schema.Resource {
 	return &schema.Resource{
 		Description:        "A Massdriver artifact for exporting a connectable type",
-		DeprecationMessage: "massdriver_artifact is deprecated and will be removed in a future release. Use massdriver_resource (inside a Massdriver bundle deployment) or massdriver_imported_resource (for cloud assets you manage outside of Massdriver) instead.",
+		DeprecationMessage: "massdriver_artifact is deprecated. Create and update operations are no longer supported — use massdriver_resource instead. Existing massdriver_artifact resources can still be refreshed and destroyed.",
 
-		CreateContext: resourceArtifactCreate,
+		CreateContext: resourceArtifactWritesDisabled,
 		ReadContext:   schema.NoopContext,
-		UpdateContext: resourceArtifactUpdate,
+		UpdateContext: resourceArtifactWritesDisabled,
 		DeleteContext: resourceArtifactDelete,
 
 		Schema: map[string]*schema.Schema{
@@ -95,6 +95,16 @@ func resourceArtifact() *schema.Resource {
 			},
 		},
 	}
+}
+
+// resourceArtifactWritesDisabled is the wired-in CreateContext / UpdateContext
+// for the deprecated massdriver_artifact resource. It returns a hard error so
+// users can't introduce new artifacts or mutate existing ones — they must
+// migrate to massdriver_resource or massdriver_imported_resource. Read and
+// Delete are intentionally still functional so existing state remains usable
+// while users transition off.
+func resourceArtifactWritesDisabled(_ context.Context, _ *schema.ResourceData, _ any) diag.Diagnostics {
+	return diag.Errorf("massdriver_artifact no longer supports create or update operations. Use massdriver_resource (inside a Massdriver bundle deployment) or massdriver_imported_resource (for cloud assets managed outside of Massdriver). Existing massdriver_artifact resources in state can still be refreshed and destroyed.")
 }
 
 func resourceArtifactCreate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {

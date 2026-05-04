@@ -18,7 +18,7 @@ type Environment struct {
 
 // GetEnvironment retrieves an environment by ID from the Massdriver API.
 func GetEnvironment(ctx context.Context, mdClient *client.Client, id string) (*Environment, error) {
-	response, err := getEnvironment(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, id)
+	response, err := getEnvironment(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get environment %s: %w", id, err)
 	}
@@ -36,7 +36,7 @@ func toEnvironment(v any) (*Environment, error) {
 
 // CreateEnvironment creates a new environment within the given project.
 func CreateEnvironment(ctx context.Context, mdClient *client.Client, projectID string, input CreateEnvironmentInput) (*Environment, error) {
-	response, err := createEnvironment(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, projectID, input)
+	response, err := createEnvironment(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, projectID, input)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func CreateEnvironment(ctx context.Context, mdClient *client.Client, projectID s
 
 // UpdateEnvironment updates an environment in the Massdriver API.
 func UpdateEnvironment(ctx context.Context, mdClient *client.Client, id string, input UpdateEnvironmentInput) (*Environment, error) {
-	response, err := updateEnvironment(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, id, input)
+	response, err := updateEnvironment(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, id, input)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func UpdateEnvironment(ctx context.Context, mdClient *client.Client, id string, 
 
 // DeleteEnvironment removes an environment by ID from the Massdriver API.
 func DeleteEnvironment(ctx context.Context, mdClient *client.Client, id string) (*Environment, error) {
-	response, err := deleteEnvironment(ctx, mdClient.GQLv1, mdClient.Config.OrganizationID, id)
+	response, err := deleteEnvironment(ctx, mdClient.GQLv2, mdClient.Config.OrganizationID, id)
 	if err != nil {
 		return nil, err
 	}
