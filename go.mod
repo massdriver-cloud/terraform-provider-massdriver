@@ -5,7 +5,7 @@ go 1.24.2
 require (
 	github.com/Khan/genqlient v0.8.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.16.0
-	github.com/massdriver-cloud/massdriver-sdk-go v0.1.0
+	github.com/massdriver-cloud/massdriver-sdk-go v0.1.1-0.20260504035737-32e311122b94
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/xeipuuv/gojsonschema v1.2.0
 	gopkg.in/yaml.v2 v2.4.0

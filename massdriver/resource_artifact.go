@@ -35,7 +35,7 @@ type ArtifactSpecification struct {
 func resourceArtifact() *schema.Resource {
 	return &schema.Resource{
 		Description:        "A Massdriver artifact for exporting a connectable type",
-		DeprecationMessage: "massdriver_artifact is deprecated and will be removed in a future release. Use massdriver_resource instead.",
+		DeprecationMessage: "massdriver_artifact is deprecated and will be removed in a future release. Use massdriver_resource (inside a Massdriver bundle deployment) or massdriver_imported_resource (for cloud assets you manage outside of Massdriver) instead.",
 
 		CreateContext: resourceArtifactCreate,
 		ReadContext:   schema.NoopContext,

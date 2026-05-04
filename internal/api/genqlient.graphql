@@ -307,7 +307,7 @@ mutation linkComponents($organizationId: ID!, $input: LinkComponentsInput!) {
   }
 }
 
-mutation unlinkComponents($organizationId: ID!, $id: ID!) {
+mutation unlinkComponents($organizationId: ID!, $id: UUID!) {
   unlinkComponents(organizationId: $organizationId, id: $id) {
     result {
       id
@@ -414,7 +414,7 @@ mutation deleteResource($organizationId: ID!, $id: ID!) {
 # @genqlient(for: "Alarm.metric", pointer: true)
 query getInstanceAlarm(
   $organizationId: ID!,
-  $id: ID!
+  $id: UUID!
 ) {
   instanceAlarm(organizationId: $organizationId, id: $id) {
     id
@@ -492,7 +492,7 @@ mutation createInstanceAlarm(
 # @genqlient(for: "UpdateInstanceAlarmInput.metric", omitempty: true, pointer: true)
 mutation updateInstanceAlarm(
   $organizationId: ID!,
-  $id: ID!,
+  $id: UUID!,
   $input: UpdateInstanceAlarmInput!
 ) {
   updateInstanceAlarm(
@@ -527,7 +527,7 @@ mutation updateInstanceAlarm(
   }
 }
 
-mutation deleteInstanceAlarm($organizationId: ID!, $id: ID!) {
+mutation deleteInstanceAlarm($organizationId: ID!, $id: UUID!) {
   deleteInstanceAlarm(organizationId: $organizationId, id: $id) {
     result {
       id
@@ -545,7 +545,7 @@ mutation deleteInstanceAlarm($organizationId: ID!, $id: ID!) {
 
 # GROUPS
 
-query getGroup($organizationId: ID!, $id: ID!) {
+query getGroup($organizationId: ID!, $id: UUID!) {
   group(organizationId: $organizationId, id: $id) {
     id
     name
@@ -578,7 +578,7 @@ mutation createGroup(
 # @genqlient(for: "UpdateGroupInput.description", omitempty: true)
 mutation updateGroup(
   $organizationId: ID!,
-  $id: ID!,
+  $id: UUID!,
   $input: UpdateGroupInput!
 ) {
   updateGroup(organizationId: $organizationId, id: $id, input: $input) {
@@ -597,11 +597,95 @@ mutation updateGroup(
   }
 }
 
-mutation deleteGroup($organizationId: ID!, $id: ID!) {
+mutation deleteGroup($organizationId: ID!, $id: UUID!) {
   deleteGroup(organizationId: $organizationId, id: $id) {
     result {
       id
       name
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+
+# GROUP POLICIES
+
+query listGroupPolicies($organizationId: ID!, $groupId: UUID!) {
+  group(organizationId: $organizationId, id: $groupId) {
+    policies {
+      items {
+        id
+        effect
+        actions
+        conditions
+        group {
+          id
+        }
+      }
+    }
+  }
+}
+
+mutation createGroupPolicy(
+  $organizationId: ID!,
+  $groupId: UUID!,
+  $input: CreateGroupPolicyInput!
+) {
+  createGroupPolicy(organizationId: $organizationId, groupId: $groupId, input: $input) {
+    result {
+      id
+      effect
+      actions
+      conditions
+      group {
+        id
+      }
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+# @genqlient(for: "UpdatePolicyInput.actions", omitempty: true)
+# @genqlient(for: "UpdatePolicyInput.conditions", omitempty: true)
+# @genqlient(for: "UpdatePolicyInput.effect", omitempty: true)
+mutation updatePolicy(
+  $organizationId: ID!,
+  $id: UUID!,
+  $input: UpdatePolicyInput!
+) {
+  updatePolicy(organizationId: $organizationId, id: $id, input: $input) {
+    result {
+      id
+      effect
+      actions
+      conditions
+      group {
+        id
+      }
+    }
+    successful
+    messages {
+      code
+      field
+      message
+    }
+  }
+}
+
+mutation deletePolicy($organizationId: ID!, $id: UUID!) {
+  deletePolicy(organizationId: $organizationId, id: $id) {
+    result {
+      id
     }
     successful
     messages {

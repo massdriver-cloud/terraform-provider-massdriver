@@ -284,7 +284,7 @@ type RootQueryType {
     organizationId: ID!
 
     "The deployment's unique identifier."
-    id: ID!
+    id: UUID!
   ): Deployment
 
   """
@@ -315,10 +315,10 @@ type RootQueryType {
     organizationId: ID!
 
     "The source deployment's unique identifier."
-    sourceId: ID!
+    sourceId: UUID!
 
     "The target deployment's unique identifier."
-    targetId: ID!
+    targetId: UUID!
   ): DeploymentComparison
 
   """
@@ -510,7 +510,7 @@ type RootQueryType {
     organizationId: ID!
 
     "The group's unique identifier."
-    id: ID!
+    id: UUID!
   ): Group
 
   """
@@ -945,19 +945,36 @@ type RootQueryType {
   ): [EventType!]!
 
   """
-  List all service accounts in the organization.
+  List the service accounts in your organization.
 
-  Returns a cursor-paginated list. Use `sort` to control ordering (defaults to name ascending).
+  Returns a cursor-paginated list. Use `filter` to narrow by id or to search across each
+  service account's name and description. Use `sort` to control ordering (defaults to name
+  ascending; relevance ranking is used instead when `search` is active and no `sort` is given).
   Requires `organization_admin` permissions.
+
+  ```graphql
+  query {
+    serviceAccounts(organizationId: "my-org", filter: { search: "deploy" }) {
+      items { id name description createdAt }
+      cursor { next }
+    }
+  }
+  ```
+
+  **Note:** when a `search` filter is active, pagination cursors are offset-based and are
+  not interchangeable with the keyset cursors returned by non-search queries.
   """
   serviceAccounts(
     "Your organization's unique identifier."
     organizationId: ID!
 
-    "How to sort results. Defaults to name ascending."
+    "Narrow results by id or full-text search."
+    filter: ServiceAccountsFilter
+
+    "Explicit sort order. Defaults to `name` ascending. When a `search` filter is active and no sort is provided, results are ranked by relevance."
     sort: ServiceAccountsSort
 
-    "Cursor from a previous page to fetch the next set of results."
+    "Cursor from a previous page's `cursor.next` or `cursor.previous`."
     cursor: Cursor
   ): ServiceAccountsPage
 
@@ -967,7 +984,7 @@ type RootQueryType {
     organizationId: ID!
 
     "The service account's unique identifier."
-    id: ID!
+    id: UUID!
   ): ServiceAccount
 
   """
@@ -993,7 +1010,7 @@ type RootQueryType {
     organizationId: ID!
 
     "The alarm's unique identifier."
-    id: ID!
+    id: UUID!
   ): Alarm
 
   """
@@ -1070,6 +1087,54 @@ type RootQueryType {
     "The list of permissions to evaluate. Capped at 10 entries."
     checks: [PolicyDecisionInput!]!
   ): [PolicyDecision!]!
+
+  """
+  Returns a JSON Schema document describing the custom-attribute keys and
+  permitted values for a given action, narrowed by the caller's policies.
+
+  The schema is the org's custom-attribute schema for the action's scope
+  (e.g. `project:create` → project-scope attributes), with each key's
+  `enum` reduced to the values the caller's allow policies permit for
+  that action. Org admins see the full closed set; non-admins with no
+  matching policy receive `{"properties": {}, "additionalProperties": false}`,
+  which rejects any write. Actions whose entity has no custom-attribute
+  scope (group, organization, resource, resource_type) return
+  `{"type": "object"}` (no constraints).
+
+  Renders well as a form schema for `createProject`, `createEnvironment`,
+  `setComponentAttributes`, etc. — only the choices the API will actually
+  accept on write are surfaced.
+
+  Returns a `NOT_FOUND` error when `action` is not in the policy catalog.
+  """
+  customAttributeSchema(
+    "Your organization's unique identifier."
+    organizationId: ID!
+
+    "Action id in `entity:verb` form (for example `project:create`). Query `policyActions` for the catalog."
+    action: String!
+  ): Map!
+
+  """
+  Returns the closed set of values declared for one custom attribute.
+
+  Equivalent to looking up `customAttribute.values` for a single
+  `(scope, key)` pair without paginating through `organization.customAttributes`.
+  Useful for populating a single dropdown (e.g. a `TEAM` picker) by key.
+
+  Returns a `NOT_FOUND` error when `(scope, key)` does not correspond to a
+  declared custom attribute in the organization.
+  """
+  customAttributeValues(
+    "Your organization's unique identifier."
+    organizationId: ID!
+
+    "The custom attribute's declared scope (matches `customAttribute.scope`)."
+    scope: AttributeScope!
+
+    "The custom attribute's key (matches `customAttribute.key`)."
+    key: String!
+  ): [String!]!
 }
 
 type RootSubscriptionType {
@@ -1426,7 +1491,7 @@ type RootMutationType {
     organizationId: ID!
 
     "The identifier of the environment default to remove."
-    id: ID!
+    id: UUID!
   ): EnvironmentDefaultPayload
 
   """
@@ -1555,7 +1620,7 @@ type RootMutationType {
     organizationId: ID!
 
     "The link ID to remove."
-    id: ID!
+    id: UUID!
   ): LinkPayload
 
   "Set the pixel position of a component on the visual canvas."
@@ -1579,7 +1644,7 @@ type RootMutationType {
   """
   acceptGroupInvite(
     "The invitation's unique identifier."
-    id: ID!
+    id: UUID!
   ): InviteViewerPayload
 
   """
@@ -1626,7 +1691,7 @@ type RootMutationType {
     organizationId: ID!
 
     "The group's unique identifier."
-    id: ID!
+    id: UUID!
 
     "Update a group's name or description."
     input: UpdateGroupInput!
@@ -1644,7 +1709,7 @@ type RootMutationType {
     organizationId: ID!
 
     "The group's unique identifier."
-    id: ID!
+    id: UUID!
   ): GroupPayload
 
   """
@@ -1665,7 +1730,7 @@ type RootMutationType {
     organizationId: ID!
 
     "The group to add the account to."
-    groupId: ID!
+    groupId: UUID!
 
     "Add an account to a group by email. If the email belongs to an existing organization member they are added directly; otherwise an invitation is sent."
     input: AddAccountToGroupInput!
@@ -1682,7 +1747,7 @@ type RootMutationType {
     organizationId: ID!
 
     "The group the invitation belongs to."
-    groupId: ID!
+    groupId: UUID!
 
     "Email address of the invitation to revoke."
     email: String!
@@ -1700,7 +1765,7 @@ type RootMutationType {
     organizationId: ID!
 
     "The group to remove the member from."
-    groupId: ID!
+    groupId: UUID!
 
     "Email address of the member to remove."
     email: String!
@@ -1733,7 +1798,7 @@ type RootMutationType {
     organizationId: ID!
 
     "The identifier of the custom attribute to update."
-    id: ID!
+    id: UUID!
 
     "Replace the closed set of values for an existing custom attribute. The key and scope are immutable."
     input: UpdateCustomAttributeInput!
@@ -1750,7 +1815,7 @@ type RootMutationType {
     organizationId: ID!
 
     "The identifier of the custom attribute to delete."
-    id: ID!
+    id: UUID!
   ): CustomAttributePayload
 
   """
@@ -1900,11 +1965,10 @@ type RootMutationType {
   ): IntegrationPayload
 
   """
-  Create a scoped, time-limited access token.
+  Create a scoped, time-limited access token for the authenticated identity.
 
   Accounts create personal access tokens for themselves; service accounts create tokens for
-  their own identity. An organization admin can additionally create a token on behalf of a
-  service account by passing `serviceAccountId` — account-to-account delegation is not supported.
+  their own identity.
 
   The `token` field in the response contains the full bearer token value — **it is only
   shown once**. Store it securely before navigating away. If you lose it, revoke the
@@ -1936,7 +2000,7 @@ type RootMutationType {
     "Your organization's unique identifier."
     organizationId: ID!
 
-    "Create a scoped, time-limited access token for API authentication."
+    "Create a scoped, time-limited access token for the authenticated identity."
     input: CreateAccessTokenInput!
   ): AccessTokenWithValuePayload @inputs(name: "createAccessToken", schema: "\/graphql\/v1\/inputs\/createAccessToken.json", ui: "\/graphql\/v1\/inputs\/createAccessToken.ui.json")
 
@@ -1953,14 +2017,17 @@ type RootMutationType {
     organizationId: ID!
 
     "The access token's unique identifier."
-    id: ID!
+    id: UUID!
   ): AccessTokenPayload
 
   """
   Create a new service account in your organization.
 
-  The new service account has no permissions until you add it to a group, and it has no
-  credentials until you issue an access token for it via `createAccessToken`. Requires
+  A default access token is issued in the same request — its raw `token` value is returned
+  once on the response and **cannot be retrieved later**. Capture it before navigating away;
+  if it's lost, revoke the token and issue a new one via `createAccessToken`.
+
+  The new service account has no permissions until you add it to a group. Requires
   `organization_admin` permissions.
 
   **Example:**
@@ -1969,11 +2036,16 @@ type RootMutationType {
   mutation {
     createServiceAccount(
       organizationId: "my-org"
-      input: { name: "ci-deploy-bot", description: "GitHub Actions deployer" }
+      input: {
+        name: "ci-deploy-bot"
+        description: "GitHub Actions deployer"
+        defaultAccessTokenExpirationInMinutes: 525600
+      }
     ) {
       result {
         id
         name
+        defaultAccessToken { token prefix expiresAt }
       }
       successful
       messages { field message }
@@ -1985,9 +2057,9 @@ type RootMutationType {
     "Your organization's unique identifier."
     organizationId: ID!
 
-    "Create a new service account for programmatic API access."
+    "Create a new service account for programmatic API access. Issues a default access token alongside the service account; the raw token value is returned once and cannot be retrieved later."
     input: CreateServiceAccountInput!
-  ): ServiceAccountPayload @inputs(name: "createServiceAccount", schema: "\/graphql\/v1\/inputs\/createServiceAccount.json", ui: "\/graphql\/v1\/inputs\/createServiceAccount.ui.json")
+  ): ServiceAccountWithDefaultAccessTokenPayload @inputs(name: "createServiceAccount", schema: "\/graphql\/v1\/inputs\/createServiceAccount.json", ui: "\/graphql\/v1\/inputs\/createServiceAccount.ui.json")
 
   """
   Update a service account's name or description.
@@ -1999,7 +2071,7 @@ type RootMutationType {
     organizationId: ID!
 
     "The service account's unique identifier."
-    id: ID!
+    id: UUID!
 
     "Update a service account's name or description. Both fields are optional; send only the fields you want to change."
     input: UpdateServiceAccountInput!
@@ -2017,7 +2089,7 @@ type RootMutationType {
     organizationId: ID!
 
     "The service account's unique identifier."
-    id: ID!
+    id: UUID!
   ): ServiceAccountPayload
 
   """
@@ -2032,10 +2104,10 @@ type RootMutationType {
     organizationId: ID!
 
     "The service account to add."
-    serviceAccountId: ID!
+    serviceAccountId: UUID!
 
     "The group to add the service account to."
-    groupId: ID!
+    groupId: UUID!
   ): ServiceAccountGroupPayload
 
   """
@@ -2050,10 +2122,10 @@ type RootMutationType {
     organizationId: ID!
 
     "The service account to remove."
-    serviceAccountId: ID!
+    serviceAccountId: UUID!
 
     "The group to remove the service account from."
-    groupId: ID!
+    groupId: UUID!
   ): ServiceAccountGroupPayload
 
   """
@@ -2469,7 +2541,7 @@ type RootMutationType {
     organizationId: ID!
 
     "The proposed deployment's unique identifier."
-    id: ID!
+    id: UUID!
   ): DeploymentPayload
 
   """
@@ -2484,7 +2556,7 @@ type RootMutationType {
     organizationId: ID!
 
     "The proposed deployment's unique identifier."
-    id: ID!
+    id: UUID!
   ): DeploymentPayload
 
   """
@@ -2499,26 +2571,27 @@ type RootMutationType {
     organizationId: ID!
 
     "The group to attach the policy to."
-    groupId: ID!
+    groupId: UUID!
 
-    "Attach an ABAC policy to a group. Each policy grants or denies a single action on resources whose attributes satisfy the conditions."
+    "Attach an ABAC policy to a group. Each policy grants or denies one or more actions on entities whose attributes satisfy the conditions."
     input: CreateGroupPolicyInput!
   ): PolicyPayload @inputs(name: "createGroupPolicy", schema: "\/graphql\/v1\/inputs\/createGroupPolicy.json", ui: "\/graphql\/v1\/inputs\/createGroupPolicy.ui.json")
 
   """
-  Edit a group policy's `effect`, `action`, or `conditions` in place.
+  Edit a group policy's `effect`, `actions`, or `conditions` in place.
 
   The group is fixed at create time and cannot be changed — to retarget a
   policy, delete it and create a new one. Omit a field from the input to
   leave it unchanged. Set `conditions` to `"*"` explicitly to clear
-  conditions and turn the policy into a wildcard.
+  conditions and turn the policy into a wildcard. Setting `actions`
+  replaces the entire list (no merge).
   """
   updatePolicy(
     "Your organization's unique identifier."
     organizationId: ID!
 
     "The policy's unique identifier."
-    id: ID!
+    id: UUID!
 
     "Edit an existing policy in place. The principal cannot be changed."
     input: UpdatePolicyInput!
@@ -2530,7 +2603,7 @@ type RootMutationType {
     organizationId: ID!
 
     "The policy's unique identifier."
-    id: ID!
+    id: UUID!
   ): PolicyPayload
 
   """
@@ -2542,7 +2615,7 @@ type RootMutationType {
   Monitoring, Alertmanager) back to this alarm — it must be unique within
   the instance.
 
-  Requires `environment:edit` on the alarm's environment.
+  Requires `environment:update` on the alarm's environment.
   """
   createInstanceAlarm(
     "Your organization's unique identifier."
@@ -2560,14 +2633,14 @@ type RootMutationType {
 
   Omit a field from the input to leave it unchanged.
 
-  Requires `environment:edit` on the alarm's environment.
+  Requires `environment:update` on the alarm's environment.
   """
   updateInstanceAlarm(
     "Your organization's unique identifier."
     organizationId: ID!
 
     "The alarm's unique identifier."
-    id: ID!
+    id: UUID!
 
     "Update a registered alarm's mutable fields. Omit a field to leave it unchanged."
     input: UpdateInstanceAlarmInput!
@@ -2579,14 +2652,14 @@ type RootMutationType {
   Removes the alarm and any recorded state transitions. The underlying cloud
   provider alarm is unaffected.
 
-  Requires `environment:edit` on the alarm's environment.
+  Requires `environment:update` on the alarm's environment.
   """
   deleteInstanceAlarm(
     "Your organization's unique identifier."
     organizationId: ID!
 
     "The alarm's unique identifier."
-    id: ID!
+    id: UUID!
   ): AlarmPayload
 
   """
@@ -2633,7 +2706,7 @@ type RootMutationType {
   """
   Share an OCI repo with recipient projects matching `recipientConditions`.
 
-  The caller must have `repo:edit` on the source repo. Grants are immutable —
+  The caller must have `repo:update` on the source repo. Grants are immutable —
   to change `action` or `recipientConditions`, delete and re-create.
   """
   createRepoGrant(
@@ -2643,14 +2716,14 @@ type RootMutationType {
     "The repository name (e.g., `aws-aurora-postgres`)."
     repoId: ID!
 
-    "Share an OCI repo with recipient projects matching attribute conditions. The caller must have `repo:edit` on the source repo."
+    "Share an OCI repo with recipient projects matching attribute conditions. The caller must have `repo:update` on the source repo."
     input: CreateRepoGrantInput!
   ): GrantPayload @inputs(name: "createRepoGrant", schema: "\/graphql\/v1\/inputs\/createRepoGrant.json", ui: "\/graphql\/v1\/inputs\/createRepoGrant.ui.json")
 
   """
   Share a resource with recipient environments matching `recipientConditions`.
 
-  The caller must have `resource:edit` on the source resource. Grants are
+  The caller must have `resource:update` on the source resource. Grants are
   immutable — to change `action` or `recipientConditions`, delete and re-create.
   """
   createResourceGrant(
@@ -2660,13 +2733,13 @@ type RootMutationType {
     "The resource's unique identifier."
     resourceId: ID!
 
-    "Share a resource with recipient environments matching attribute conditions. The caller must have `resource:edit` on the source resource."
+    "Share a resource with recipient environments matching attribute conditions. The caller must have `resource:update` on the source resource."
     input: CreateResourceGrantInput!
   ): GrantPayload @inputs(name: "createResourceGrant", schema: "\/graphql\/v1\/inputs\/createResourceGrant.json", ui: "\/graphql\/v1\/inputs\/createResourceGrant.ui.json")
 
   """
-  Delete a grant by its id. The caller must have `repo:edit` on the grant's
-  source repo (for repo grants) or `resource:edit` on its source resource
+  Delete a grant by its id. The caller must have `repo:update` on the grant's
+  source repo (for repo grants) or `resource:update` on its source resource
   (for resource grants).
   """
   deleteGrant(
@@ -2674,7 +2747,7 @@ type RootMutationType {
     organizationId: ID!
 
     "The grant's unique identifier."
-    id: ID!
+    id: UUID!
   ): GrantPayload
 }
 
@@ -3039,8 +3112,8 @@ union DeploymentEventsPayload = DeploymentEvent
 
 """
 The thing a grant is sharing — exactly one of an OCI repo or a resource. The
-caller authoring the grant must have `repo:edit` (for repo grants) or
-`resource:edit` (for resource grants) on this source.
+caller authoring the grant must have `repo:update` (for repo grants) or
+`resource:update` (for resource grants) on this source.
 """
 union GrantSource = OciRepo | Resource
 
@@ -3087,7 +3160,7 @@ type GrantsPage {
   items: [Grant]
 }
 
-"Share an OCI repo with recipient projects matching attribute conditions. The caller must have `repo:edit` on the source repo."
+"Share an OCI repo with recipient projects matching attribute conditions. The caller must have `repo:update` on the source repo."
 input CreateRepoGrantInput {
   "The action being granted on the repo. Currently the only grantable repo action is `repo:pull` — repo visibility is inferred from any granted action, and publishing is not a sharing concern."
   action: String!
@@ -3096,7 +3169,7 @@ input CreateRepoGrantInput {
   recipientConditions: Conditions!
 }
 
-"Share a resource with recipient environments matching attribute conditions. The caller must have `resource:edit` on the source resource."
+"Share a resource with recipient environments matching attribute conditions. The caller must have `resource:update` on the source resource."
 input CreateResourceGrantInput {
   "The action being granted on the resource. Currently the only grantable resource action is `resource:export` — resource visibility is inferred from any granted action."
   action: String!
@@ -3106,16 +3179,16 @@ input CreateResourceGrantInput {
 }
 
 """
-Whether a policy grants or blocks the action.
+Whether a policy grants or blocks its actions.
 
 `DENY` always wins over `ALLOW` — if any deny policy matches a resource, the
 action is blocked even if other allow policies also match.
 """
 enum PolicyEffect {
-  "Grant the action when the conditions match."
+  "Grant the policy's actions when the conditions match."
   ALLOW
 
-  "Block the action when the conditions match. Deny policies override every matching allow policy."
+  "Block the policy's actions when the conditions match. Deny policies override every matching allow policy."
   DENY
 }
 
@@ -3166,23 +3239,27 @@ type PolicyAction {
 }
 
 """
-A single ABAC group policy: an effect (`ALLOW`/`DENY`), an action, optional
-attribute conditions, and the group whose members the policy applies to.
+A single ABAC group policy: an effect (`ALLOW`/`DENY`), one or more actions,
+optional attribute conditions, and the group whose members the policy
+applies to.
 
 Conditions are evaluated AND within a policy and OR across policies on the
 same group. A policy with no conditions is a wildcard — it matches any
-resource of the action's entity. Deny policies win over allow policies. See
+resource of each action's entity. Deny policies win over allow policies. A
+policy can list actions across different entities (for example
+`project:view` together with `instance:deploy`); conditions whose attributes
+do not apply to a given entity simply never match for it. See
 `docs/guides/abac.md` for the full evaluation model.
 """
 type Policy {
   "Unique identifier for this policy."
   id: ID!
 
-  "Whether this policy grants (`ALLOW`) or blocks (`DENY`) the action."
+  "Whether this policy grants (`ALLOW`) or blocks (`DENY`) the actions."
   effect: PolicyEffect!
 
-  "The action this policy applies to, in `{entity}:{verb}` form (for example `repo:pull`)."
-  action: String!
+  "The actions this policy authorizes, each in `{entity}:{verb}` form (for example `[\"repo:pull\", \"instance:deploy\"]`). Always non-empty."
+  actions: [String!]!
 
   "Either `\"*\"` (the policy is a wildcard — every resource of the entity matches) or a JSON-encoded object of attribute conditions. Keys are attribute names; values are a string or list of strings."
   conditions: Conditions!
@@ -3230,7 +3307,7 @@ input PoliciesFilter {
   "Filter by `ALLOW` or `DENY`. Use `in` to match either."
   effect: PolicyEffectFilter
 
-  "Filter by action id (e.g. `project:view`, `instance:deploy`). Use `in` to match a list of actions."
+  "Filter by action id (e.g. `project:view`, `instance:deploy`). Returns policies whose `actions` list contains the value. Use `in` to return policies whose `actions` list intersects the supplied list."
   action: StringFilter
 }
 
@@ -3243,27 +3320,27 @@ input PolicyEffectFilter {
   in: [PolicyEffect!]
 }
 
-"Attach an ABAC policy to a group. Each policy grants or denies a single action on resources whose attributes satisfy the conditions."
+"Attach an ABAC policy to a group. Each policy grants or denies one or more actions on entities whose attributes satisfy the conditions."
 input CreateGroupPolicyInput {
-  "What members of this group can do. Each policy covers one action."
-  action: String!
+  "What members of this group can do. Pass one or more action ids in `{entity}:{verb}` form. Conditions apply to every action; actions whose entity does not support a given condition simply never match. Duplicate entries are rejected."
+  actions: [String!]!
 
-  "Restrict the action to entities whose attributes match every condition. Send the literal `\"*\"` to apply to all entities of the action's type. Per-key, send `\"*\"` to match any value or a non-empty list of strings to match a closed set. Within a policy all conditions are AND. Across policies, evaluation is OR."
+  "Restrict the actions to entities whose attributes match every condition. Send the literal `\"*\"` to apply to all entities of each action's type. Per-key, send `\"*\"` to match any value or a non-empty list of strings to match a closed set. Within a policy all conditions are AND. Across policies, evaluation is OR."
   conditions: Conditions!
 
-  "ALLOW grants the action. DENY blocks it and wins over any matching ALLOW."
+  "ALLOW grants the actions. DENY blocks them and wins over any matching ALLOW."
   effect: PolicyEffect!
 }
 
 "Edit an existing policy in place. The principal cannot be changed."
 input UpdatePolicyInput {
-  "What members of this group can do."
-  action: String
+  "Replace the policy's full action list. Pass one or more action ids in `{entity}:{verb}` form. Omit the field to leave the existing list unchanged. Duplicate entries are rejected."
+  actions: [String!]
 
-  "Restrict the action to entities whose attributes match every condition. Pass `\"*\"` to clear all conditions and make the policy a wildcard. Per-key, send `\"*\"` to match any value or a non-empty list of strings to match a closed set. Omit the field to leave conditions unchanged."
+  "Restrict the actions to entities whose attributes match every condition. Pass `\"*\"` to clear all conditions and make the policy a wildcard. Per-key, send `\"*\"` to match any value or a non-empty list of strings to match a closed set. Omit the field to leave conditions unchanged."
   conditions: Conditions
 
-  "ALLOW grants the action. DENY blocks it and wins over any matching ALLOW."
+  "ALLOW grants the actions. DENY blocks them and wins over any matching ALLOW."
   effect: PolicyEffect
 }
 
@@ -3316,6 +3393,9 @@ input ResourcesFilter {
 
   "Return only resources of the given resource type, matched by the type's identifier (e.g., `aws-iam-role`, `kubernetes-cluster`)."
   resourceType: StringFilter
+
+  "Return only resources provisioned into the specified environment(s). Imported resources have no environment and are excluded when this filter is set."
+  environmentId: IdFilter
 
   "Full-text search across the resource name. Results are ranked by relevance unless you provide an explicit `sort`. For terms longer than 3 characters, name-prefix matches are also included. **Note:** pagination cursors returned by search results use offset-based pagination and are not interchangeable with cursors from non-search queries."
   search: String
@@ -3782,6 +3862,33 @@ type ServiceAccount {
   updatedAt: DateTime!
 }
 
+"""
+A service account returned from `createServiceAccount`, including the raw default access token.
+
+The `defaultAccessToken.token` value is the only opportunity to capture the bearer credential
+for this service account — store it securely before navigating away. If lost, revoke the token
+and issue a new one with `createAccessToken`.
+"""
+type ServiceAccountWithDefaultAccessToken {
+  "Unique identifier for this service account."
+  id: ID!
+
+  "Human-readable name displayed in the UI, logs, and audit trail."
+  name: String!
+
+  "Optional text explaining what this service account is used for."
+  description: String
+
+  "When this service account was created (UTC)."
+  createdAt: DateTime!
+
+  "When this service account was last modified (UTC)."
+  updatedAt: DateTime!
+
+  "The default access token issued for this service account. The raw `token` value is only included in this response — store it securely."
+  defaultAccessToken: AccessTokenWithValue!
+}
+
 type ServiceAccountsPage {
   "Pagination cursors for navigating between pages."
   cursor: PaginationCursor!
@@ -3812,6 +3919,17 @@ type ServiceAccountGroupPayload {
   result: ServiceAccount
 }
 
+type ServiceAccountWithDefaultAccessTokenPayload {
+  "Indicates if the mutation completed successfully or not."
+  successful: Boolean!
+
+  "A list of failed validations. May be blank or null if mutation succeeded."
+  messages: [ValidationMessage]
+
+  "The object created\/updated\/deleted by the mutation. May be null if mutation failed."
+  result: ServiceAccountWithDefaultAccessToken
+}
+
 "Fields available for sorting the service accounts list."
 enum ServiceAccountsSortField {
   "Sort alphabetically by service account name (A-Z or Z-A)."
@@ -3830,8 +3948,36 @@ input ServiceAccountsSort {
   order: SortOrder!
 }
 
-"Create a new service account for programmatic API access."
+"""
+Filter criteria for narrowing which service accounts are returned.
+
+All filters are combined with AND logic — a service account must match every specified
+filter to appear in the results. Omit a filter to not restrict on that field.
+"""
+input ServiceAccountsFilter {
+  """
+  Case-insensitive substring search across the service account's `name` and `description`.
+
+  Useful for finding a service account when you remember part of what it's called or what
+  it does but don't have its exact id. So `search: "deploy"` will match a service account
+  named `ci-deploy-bot`, one whose description mentions "deploys to staging", and any
+  other combination of substring matches in either field.
+
+  Blank or whitespace-only values skip this filter. When `search` is active and no
+  explicit `sort` is provided, results are ranked by relevance — name-prefix matches
+  outrank tsvector-only matches in either field.
+  """
+  search: String
+
+  "Restrict results to one or more service accounts by their unique identifier."
+  id: IdFilter
+}
+
+"Create a new service account for programmatic API access. Issues a default access token alongside the service account; the raw token value is returned once and cannot be retrieved later."
 input CreateServiceAccountInput {
+  "How long the default access token issued alongside the service account remains valid, in minutes. The raw token value is returned once on creation and cannot be retrieved again. Capped at 5,256,000 minutes (10 years) by the service-account expiry policy."
+  defaultAccessTokenExpirationInMinutes: Int!
+
   "What this service account is used for"
   description: String
 
@@ -3974,7 +4120,7 @@ input AccessTokensFilter {
   revoked: Boolean
 }
 
-"Create a scoped, time-limited access token for API authentication."
+"Create a scoped, time-limited access token for the authenticated identity."
 input CreateAccessTokenInput {
   "How many minutes until this token expires. Defaults to 60 (1 hour). Maximum ~5,256,000 (10 years)."
   expiresInMinutes: Int
@@ -3984,9 +4130,6 @@ input CreateAccessTokenInput {
 
   "Permission scopes. At least one required. Currently only [\"*\"] (full access) is supported."
   scopes: [String!]!
-
-  "Create the token on behalf of this service account. Omit to create for the authenticated identity."
-  serviceAccountId: String
 }
 
 """
@@ -4534,8 +4677,10 @@ mandating them.
 System attributes (`md-*`) are auto-injected by Massdriver and are not declared here —
 only user-defined keys live in this list.
 
-Use the `attributeSchema` field on the Organization type to generate a JSON Schema
-document from your custom attributes for client-side validation.
+Use the `customAttributeSchema` query to generate a JSON Schema document narrowed
+to the values your policies permit for a given action — useful for client-side
+validation that mirrors what the API will accept on write. Use
+`customAttributeValues` to fetch just the closed set for a single key.
 
 **Example:** A custom attribute with `key: "TEAM"`, `scope: PROJECT`, `required: true`
 means every project must have a `TEAM` attribute set at creation time.
@@ -5098,18 +5243,6 @@ type Organization {
   `subscriptionStatus` field at the top of the type stays visible to every member.
   """
   billing: OrganizationBilling
-
-  """
-  Returns a JSON Schema document you can use to validate attributes for a given resource scope.
-
-  The schema is derived from this organization's custom attributes. It includes
-  `properties` for each allowed attribute key and a `required` array for mandatory attributes.
-  If no custom attributes exist for the scope, returns `{"type": "object"}`.
-  """
-  attributeSchema(
-    "The resource scope to generate the schema for (e.g., `PROJECT`, `ENVIRONMENT`)."
-    scope: AttributeScope!
-  ): Map!
 }
 
 "Confirmation payload returned after removing a member from the organization."
@@ -8074,6 +8207,17 @@ type OciRepo {
     "Cursor from a previous page's `cursor.next` or `cursor.previous`."
     cursor: Cursor
   ): OciRepoTagsPage
+
+  """
+  Grants the publisher has authored on this repository — what it is shared as,
+  and which recipient projects qualify. If you can see this repository you can
+  see all of its grants; grants are publisher-side metadata, not visibility-gated
+  themselves.
+  """
+  grants(
+    "Cursor from a previous page's `cursor.next` or `cursor.previous`."
+    cursor: Cursor
+  ): GrantsPage
 }
 
 type OciReposPage {
@@ -8516,6 +8660,9 @@ type PaginationCursor {
 
 "Either the literal `\"*\"` (explicit whole-field wildcard) or a JSON-encoded non-empty object of attribute conditions. Per-key values are each either `\"*\"` (any value matches) or a non-empty array of strings (closed set). Empty `{}`, `null`, malformed JSON, top-level arrays, and bare strings other than `\"*\"` are rejected."
 scalar Conditions
+
+"An RFC 4122 UUID, formatted as a 36-character lowercase hex string with hyphens (e.g., `550e8400-e29b-41d4-a716-446655440000`)."
+scalar UUID
 
 "A JSON object (key-value map) encoded as a string. Accepts only `{}` objects — arrays, strings, numbers, booleans, and `null` are rejected. Pass values as a JSON-encoded string, e.g. `{\"key\": \"value\"}`. Used for dynamic configuration data like integration configs, parameter overrides, and schemas."
 scalar Map

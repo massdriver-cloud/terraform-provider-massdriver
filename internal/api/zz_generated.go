@@ -278,6 +278,25 @@ func (v *CreateGroupInput) GetDescription() string { return v.Description }
 // GetName returns CreateGroupInput.Name, and is useful for accessing the field via an interface.
 func (v *CreateGroupInput) GetName() string { return v.Name }
 
+// Attach an ABAC policy to a group. Each policy grants or denies one or more actions on entities whose attributes satisfy the conditions.
+type CreateGroupPolicyInput struct {
+	// What members of this group can do. Pass one or more action ids in `{entity}:{verb}` form. Conditions apply to every action; actions whose entity does not support a given condition simply never match. Duplicate entries are rejected.
+	Actions []string `json:"actions"`
+	// Restrict the actions to entities whose attributes match every condition. Send the literal `"*"` to apply to all entities of each action's type. Per-key, send `"*"` to match any value or a non-empty list of strings to match a closed set. Within a policy all conditions are AND. Across policies, evaluation is OR.
+	Conditions json.RawMessage `json:"conditions"`
+	// ALLOW grants the actions. DENY blocks them and wins over any matching ALLOW.
+	Effect PolicyEffect `json:"effect"`
+}
+
+// GetActions returns CreateGroupPolicyInput.Actions, and is useful for accessing the field via an interface.
+func (v *CreateGroupPolicyInput) GetActions() []string { return v.Actions }
+
+// GetConditions returns CreateGroupPolicyInput.Conditions, and is useful for accessing the field via an interface.
+func (v *CreateGroupPolicyInput) GetConditions() json.RawMessage { return v.Conditions }
+
+// GetEffect returns CreateGroupPolicyInput.Effect, and is useful for accessing the field via an interface.
+func (v *CreateGroupPolicyInput) GetEffect() PolicyEffect { return v.Effect }
+
 // Register a cloud metric alarm with an instance. The alarm appears in the UI immediately and receives state transitions as soon as the cloud provider reports them. Webhooks from AWS CloudWatch, Azure Monitor, GCP Cloud Monitoring, and Prometheus Alertmanager match against `cloudResourceId` to attach state.
 type CreateInstanceAlarmInput struct {
 	// The cloud provider's unique identifier for the alarm. Used to correlate incoming state transition webhooks back to this alarm. Examples: a CloudWatch AlarmArn, a GCP alert policy name, an Azure alert id.
@@ -616,6 +635,24 @@ func (v *OciRepoNameFilter) GetIn() []string { return v.In }
 // GetStartsWith returns OciRepoNameFilter.StartsWith, and is useful for accessing the field via an interface.
 func (v *OciRepoNameFilter) GetStartsWith() string { return v.StartsWith }
 
+// Whether a policy grants or blocks its actions.
+//
+// `DENY` always wins over `ALLOW` — if any deny policy matches a resource, the
+// action is blocked even if other allow policies also match.
+type PolicyEffect string
+
+const (
+	// Grant the policy's actions when the conditions match.
+	PolicyEffectAllow PolicyEffect = "ALLOW"
+	// Block the policy's actions when the conditions match. Deny policies override every matching allow policy.
+	PolicyEffectDeny PolicyEffect = "DENY"
+)
+
+var AllPolicyEffect = []PolicyEffect{
+	PolicyEffectAllow,
+	PolicyEffectDeny,
+}
+
 // How a resource was created, which determines how it can be managed.
 //
 // - **IMPORTED** resources are created and managed directly through the API.
@@ -860,6 +897,25 @@ func (v *UpdateInstanceAlarmInput) GetPeriod() *int { return v.Period }
 // GetThreshold returns UpdateInstanceAlarmInput.Threshold, and is useful for accessing the field via an interface.
 func (v *UpdateInstanceAlarmInput) GetThreshold() *float64 { return v.Threshold }
 
+// Edit an existing policy in place. The principal cannot be changed.
+type UpdatePolicyInput struct {
+	// Replace the policy's full action list. Pass one or more action ids in `{entity}:{verb}` form. Omit the field to leave the existing list unchanged. Duplicate entries are rejected.
+	Actions []string `json:"actions,omitempty"`
+	// Restrict the actions to entities whose attributes match every condition. Pass `"*"` to clear all conditions and make the policy a wildcard. Per-key, send `"*"` to match any value or a non-empty list of strings to match a closed set. Omit the field to leave conditions unchanged.
+	Conditions json.RawMessage `json:"conditions,omitempty"`
+	// ALLOW grants the actions. DENY blocks them and wins over any matching ALLOW.
+	Effect PolicyEffect `json:"effect,omitempty"`
+}
+
+// GetActions returns UpdatePolicyInput.Actions, and is useful for accessing the field via an interface.
+func (v *UpdatePolicyInput) GetActions() []string { return v.Actions }
+
+// GetConditions returns UpdatePolicyInput.Conditions, and is useful for accessing the field via an interface.
+func (v *UpdatePolicyInput) GetConditions() json.RawMessage { return v.Conditions }
+
+// GetEffect returns UpdatePolicyInput.Effect, and is useful for accessing the field via an interface.
+func (v *UpdatePolicyInput) GetEffect() PolicyEffect { return v.Effect }
+
 // Update an existing project's name and description. The ID cannot be changed after creation.
 type UpdateProjectInput struct {
 	// Key-value attributes for this project. Keys and values must be strings. Must conform to the organization's custom attributes for the project scope.
@@ -1076,6 +1132,22 @@ func (v *__createGroupInput) GetOrganizationId() string { return v.OrganizationI
 // GetInput returns __createGroupInput.Input, and is useful for accessing the field via an interface.
 func (v *__createGroupInput) GetInput() CreateGroupInput { return v.Input }
 
+// __createGroupPolicyInput is used internally by genqlient
+type __createGroupPolicyInput struct {
+	OrganizationId string                 `json:"organizationId"`
+	GroupId        string                 `json:"groupId"`
+	Input          CreateGroupPolicyInput `json:"input"`
+}
+
+// GetOrganizationId returns __createGroupPolicyInput.OrganizationId, and is useful for accessing the field via an interface.
+func (v *__createGroupPolicyInput) GetOrganizationId() string { return v.OrganizationId }
+
+// GetGroupId returns __createGroupPolicyInput.GroupId, and is useful for accessing the field via an interface.
+func (v *__createGroupPolicyInput) GetGroupId() string { return v.GroupId }
+
+// GetInput returns __createGroupPolicyInput.Input, and is useful for accessing the field via an interface.
+func (v *__createGroupPolicyInput) GetInput() CreateGroupPolicyInput { return v.Input }
+
 // __createInstanceAlarmInput is used internally by genqlient
 type __createInstanceAlarmInput struct {
 	OrganizationId string                   `json:"organizationId"`
@@ -1155,6 +1227,18 @@ func (v *__deleteInstanceAlarmInput) GetOrganizationId() string { return v.Organ
 
 // GetId returns __deleteInstanceAlarmInput.Id, and is useful for accessing the field via an interface.
 func (v *__deleteInstanceAlarmInput) GetId() string { return v.Id }
+
+// __deletePolicyInput is used internally by genqlient
+type __deletePolicyInput struct {
+	OrganizationId string `json:"organizationId"`
+	Id             string `json:"id"`
+}
+
+// GetOrganizationId returns __deletePolicyInput.OrganizationId, and is useful for accessing the field via an interface.
+func (v *__deletePolicyInput) GetOrganizationId() string { return v.OrganizationId }
+
+// GetId returns __deletePolicyInput.Id, and is useful for accessing the field via an interface.
+func (v *__deletePolicyInput) GetId() string { return v.Id }
 
 // __deleteProjectInput is used internally by genqlient
 type __deleteProjectInput struct {
@@ -1268,6 +1352,18 @@ func (v *__listComponentsInput) GetProjectId() string { return v.ProjectId }
 // GetFilter returns __listComponentsInput.Filter, and is useful for accessing the field via an interface.
 func (v *__listComponentsInput) GetFilter() *ComponentsFilter { return v.Filter }
 
+// __listGroupPoliciesInput is used internally by genqlient
+type __listGroupPoliciesInput struct {
+	OrganizationId string `json:"organizationId"`
+	GroupId        string `json:"groupId"`
+}
+
+// GetOrganizationId returns __listGroupPoliciesInput.OrganizationId, and is useful for accessing the field via an interface.
+func (v *__listGroupPoliciesInput) GetOrganizationId() string { return v.OrganizationId }
+
+// GetGroupId returns __listGroupPoliciesInput.GroupId, and is useful for accessing the field via an interface.
+func (v *__listGroupPoliciesInput) GetGroupId() string { return v.GroupId }
+
 // __listLinksInput is used internally by genqlient
 type __listLinksInput struct {
 	OrganizationId string       `json:"organizationId"`
@@ -1371,6 +1467,22 @@ func (v *__updateInstanceAlarmInput) GetId() string { return v.Id }
 
 // GetInput returns __updateInstanceAlarmInput.Input, and is useful for accessing the field via an interface.
 func (v *__updateInstanceAlarmInput) GetInput() UpdateInstanceAlarmInput { return v.Input }
+
+// __updatePolicyInput is used internally by genqlient
+type __updatePolicyInput struct {
+	OrganizationId string            `json:"organizationId"`
+	Id             string            `json:"id"`
+	Input          UpdatePolicyInput `json:"input"`
+}
+
+// GetOrganizationId returns __updatePolicyInput.OrganizationId, and is useful for accessing the field via an interface.
+func (v *__updatePolicyInput) GetOrganizationId() string { return v.OrganizationId }
+
+// GetId returns __updatePolicyInput.Id, and is useful for accessing the field via an interface.
+func (v *__updatePolicyInput) GetId() string { return v.Id }
+
+// GetInput returns __updatePolicyInput.Input, and is useful for accessing the field via an interface.
+func (v *__updatePolicyInput) GetInput() UpdatePolicyInput { return v.Input }
 
 // __updateProjectInput is used internally by genqlient
 type __updateProjectInput struct {
@@ -2004,6 +2116,190 @@ func (v *createGroupCreateGroupGroupPayloadResultGroup) GetDescription() string 
 // GetRole returns createGroupCreateGroupGroupPayloadResultGroup.Role, and is useful for accessing the field via an interface.
 func (v *createGroupCreateGroupGroupPayloadResultGroup) GetRole() GroupRole { return v.Role }
 
+// createGroupPolicyCreateGroupPolicyPolicyPayload includes the requested fields of the GraphQL type PolicyPayload.
+type createGroupPolicyCreateGroupPolicyPolicyPayload struct {
+	// The object created/updated/deleted by the mutation. May be null if mutation failed.
+	Result createGroupPolicyCreateGroupPolicyPolicyPayloadResultPolicy `json:"result"`
+	// Indicates if the mutation completed successfully or not.
+	Successful bool `json:"successful"`
+	// A list of failed validations. May be blank or null if mutation succeeded.
+	Messages []createGroupPolicyCreateGroupPolicyPolicyPayloadMessagesValidationMessage `json:"messages"`
+}
+
+// GetResult returns createGroupPolicyCreateGroupPolicyPolicyPayload.Result, and is useful for accessing the field via an interface.
+func (v *createGroupPolicyCreateGroupPolicyPolicyPayload) GetResult() createGroupPolicyCreateGroupPolicyPolicyPayloadResultPolicy {
+	return v.Result
+}
+
+// GetSuccessful returns createGroupPolicyCreateGroupPolicyPolicyPayload.Successful, and is useful for accessing the field via an interface.
+func (v *createGroupPolicyCreateGroupPolicyPolicyPayload) GetSuccessful() bool { return v.Successful }
+
+// GetMessages returns createGroupPolicyCreateGroupPolicyPolicyPayload.Messages, and is useful for accessing the field via an interface.
+func (v *createGroupPolicyCreateGroupPolicyPolicyPayload) GetMessages() []createGroupPolicyCreateGroupPolicyPolicyPayloadMessagesValidationMessage {
+	return v.Messages
+}
+
+// createGroupPolicyCreateGroupPolicyPolicyPayloadMessagesValidationMessage includes the requested fields of the GraphQL type ValidationMessage.
+// The GraphQL type's documentation follows.
+//
+// Validation messages are returned when mutation input does not meet the requirements.
+// While client-side validation is highly recommended to provide the best User Experience,
+// All inputs will always be validated server-side.
+//
+// Some examples of validations are:
+//
+// * Username must be at least 10 characters
+// * Email field does not contain an email address
+// * Birth Date is required
+//
+// While GraphQL has support for required values, mutation data fields are always
+// set to optional in our API. This allows 'required field' messages
+// to be returned in the same manner as other validations. The only exceptions
+// are id fields, which may be required to perform updates or deletes.
+type createGroupPolicyCreateGroupPolicyPolicyPayloadMessagesValidationMessage struct {
+	// A unique error code for the type of validation used.
+	Code string `json:"code"`
+	// The input field that the error applies to. The field can be used to
+	// identify which field the error message should be displayed next to in the
+	// presentation layer.
+	//
+	// If there are multiple errors to display for a field, multiple validation
+	// messages will be in the result.
+	//
+	// This field may be null in cases where an error cannot be applied to a specific field.
+	Field string `json:"field"`
+	// A friendly error message, appropriate for display to the end user.
+	//
+	// The message is interpolated to include the appropriate variables.
+	//
+	// Example: `Username must be at least 10 characters`
+	//
+	// This message may change without notice, so we do not recommend you match against the text.
+	// Instead, use the *code* field for matching.
+	Message string `json:"message"`
+}
+
+// GetCode returns createGroupPolicyCreateGroupPolicyPolicyPayloadMessagesValidationMessage.Code, and is useful for accessing the field via an interface.
+func (v *createGroupPolicyCreateGroupPolicyPolicyPayloadMessagesValidationMessage) GetCode() string {
+	return v.Code
+}
+
+// GetField returns createGroupPolicyCreateGroupPolicyPolicyPayloadMessagesValidationMessage.Field, and is useful for accessing the field via an interface.
+func (v *createGroupPolicyCreateGroupPolicyPolicyPayloadMessagesValidationMessage) GetField() string {
+	return v.Field
+}
+
+// GetMessage returns createGroupPolicyCreateGroupPolicyPolicyPayloadMessagesValidationMessage.Message, and is useful for accessing the field via an interface.
+func (v *createGroupPolicyCreateGroupPolicyPolicyPayloadMessagesValidationMessage) GetMessage() string {
+	return v.Message
+}
+
+// createGroupPolicyCreateGroupPolicyPolicyPayloadResultPolicy includes the requested fields of the GraphQL type Policy.
+// The GraphQL type's documentation follows.
+//
+// A single ABAC group policy: an effect (`ALLOW`/`DENY`), one or more actions,
+// optional attribute conditions, and the group whose members the policy
+// applies to.
+//
+// Conditions are evaluated AND within a policy and OR across policies on the
+// same group. A policy with no conditions is a wildcard — it matches any
+// resource of each action's entity. Deny policies win over allow policies. A
+// policy can list actions across different entities (for example
+// `project:view` together with `instance:deploy`); conditions whose attributes
+// do not apply to a given entity simply never match for it. See
+// `docs/guides/abac.md` for the full evaluation model.
+type createGroupPolicyCreateGroupPolicyPolicyPayloadResultPolicy struct {
+	// Unique identifier for this policy.
+	Id string `json:"id"`
+	// Whether this policy grants (`ALLOW`) or blocks (`DENY`) the actions.
+	Effect PolicyEffect `json:"effect"`
+	// The actions this policy authorizes, each in `{entity}:{verb}` form (for example `["repo:pull", "instance:deploy"]`). Always non-empty.
+	Actions []string `json:"actions"`
+	// Either `"*"` (the policy is a wildcard — every resource of the entity matches) or a JSON-encoded object of attribute conditions. Keys are attribute names; values are a string or list of strings.
+	Conditions json.RawMessage `json:"conditions"`
+	// The group this policy applies to.
+	Group createGroupPolicyCreateGroupPolicyPolicyPayloadResultPolicyGroup `json:"group"`
+}
+
+// GetId returns createGroupPolicyCreateGroupPolicyPolicyPayloadResultPolicy.Id, and is useful for accessing the field via an interface.
+func (v *createGroupPolicyCreateGroupPolicyPolicyPayloadResultPolicy) GetId() string { return v.Id }
+
+// GetEffect returns createGroupPolicyCreateGroupPolicyPolicyPayloadResultPolicy.Effect, and is useful for accessing the field via an interface.
+func (v *createGroupPolicyCreateGroupPolicyPolicyPayloadResultPolicy) GetEffect() PolicyEffect {
+	return v.Effect
+}
+
+// GetActions returns createGroupPolicyCreateGroupPolicyPolicyPayloadResultPolicy.Actions, and is useful for accessing the field via an interface.
+func (v *createGroupPolicyCreateGroupPolicyPolicyPayloadResultPolicy) GetActions() []string {
+	return v.Actions
+}
+
+// GetConditions returns createGroupPolicyCreateGroupPolicyPolicyPayloadResultPolicy.Conditions, and is useful for accessing the field via an interface.
+func (v *createGroupPolicyCreateGroupPolicyPolicyPayloadResultPolicy) GetConditions() json.RawMessage {
+	return v.Conditions
+}
+
+// GetGroup returns createGroupPolicyCreateGroupPolicyPolicyPayloadResultPolicy.Group, and is useful for accessing the field via an interface.
+func (v *createGroupPolicyCreateGroupPolicyPolicyPayloadResultPolicy) GetGroup() createGroupPolicyCreateGroupPolicyPolicyPayloadResultPolicyGroup {
+	return v.Group
+}
+
+// createGroupPolicyCreateGroupPolicyPolicyPayloadResultPolicyGroup includes the requested fields of the GraphQL type Group.
+// The GraphQL type's documentation follows.
+//
+// A collection of users and service accounts that share the same access level within your organization.
+//
+// Groups are the primary mechanism for managing access control in Massdriver. Rather than
+// assigning permissions to individual users, you add them to groups that define what they
+// can see and do.
+//
+// ```mermaid
+// graph TD
+// O["Organization"] --> G1["Group: Admins"]
+// O --> G2["Group: Developers"]
+// O --> G3["Group: Custom"]
+// G1 --> U1["User: alice@co.com"]
+// G2 --> U2["User: bob@co.com"]
+// G2 --> SA1["Service Account: ci-bot"]
+// G3 -->|"project_admin"| P1["Project: backend"]
+// G3 -->|"project_viewer"| P2["Project: frontend"]
+// ```
+//
+// **Built-in groups** — Every organization starts with an `Admins` group (`organization_admin` role)
+// and a `Viewers` group (`organization_viewer` role). These cannot be deleted.
+//
+// **Custom groups** — Create custom groups with the `CUSTOM` role to grant project-level access.
+// Each custom group can be assigned `project_admin` or `project_viewer` on specific projects.
+//
+// **Members** — Both human users and service accounts can be group members. Users live under
+// `members` and are added via `addAccountToGroup` (auto-adds existing org members or sends an
+// invitation otherwise). Service accounts live under `serviceAccounts` and are added via
+// `addServiceAccountToGroup`.
+type createGroupPolicyCreateGroupPolicyPolicyPayloadResultPolicyGroup struct {
+	// Unique identifier for this group.
+	Id string `json:"id"`
+}
+
+// GetId returns createGroupPolicyCreateGroupPolicyPolicyPayloadResultPolicyGroup.Id, and is useful for accessing the field via an interface.
+func (v *createGroupPolicyCreateGroupPolicyPolicyPayloadResultPolicyGroup) GetId() string {
+	return v.Id
+}
+
+// createGroupPolicyResponse is returned by createGroupPolicy on success.
+type createGroupPolicyResponse struct {
+	// Attach an ABAC policy to a group.
+	//
+	// Group policies control what users and service accounts who are members of
+	// the group can do. Pair with `policyActions` to enumerate the catalog of
+	// available actions, and the access-control guide for common patterns.
+	CreateGroupPolicy createGroupPolicyCreateGroupPolicyPolicyPayload `json:"createGroupPolicy"`
+}
+
+// GetCreateGroupPolicy returns createGroupPolicyResponse.CreateGroupPolicy, and is useful for accessing the field via an interface.
+func (v *createGroupPolicyResponse) GetCreateGroupPolicy() createGroupPolicyCreateGroupPolicyPolicyPayload {
+	return v.CreateGroupPolicy
+}
+
 // createGroupResponse is returned by createGroup on success.
 type createGroupResponse struct {
 	// Create a new group in your organization.
@@ -2238,7 +2534,7 @@ type createInstanceAlarmResponse struct {
 	// Monitoring, Alertmanager) back to this alarm — it must be unique within
 	// the instance.
 	//
-	// Requires `environment:edit` on the alarm's environment.
+	// Requires `environment:update` on the alarm's environment.
 	CreateInstanceAlarm createInstanceAlarmCreateInstanceAlarmAlarmPayload `json:"createInstanceAlarm"`
 }
 
@@ -3016,13 +3312,124 @@ type deleteInstanceAlarmResponse struct {
 	// Removes the alarm and any recorded state transitions. The underlying cloud
 	// provider alarm is unaffected.
 	//
-	// Requires `environment:edit` on the alarm's environment.
+	// Requires `environment:update` on the alarm's environment.
 	DeleteInstanceAlarm deleteInstanceAlarmDeleteInstanceAlarmAlarmPayload `json:"deleteInstanceAlarm"`
 }
 
 // GetDeleteInstanceAlarm returns deleteInstanceAlarmResponse.DeleteInstanceAlarm, and is useful for accessing the field via an interface.
 func (v *deleteInstanceAlarmResponse) GetDeleteInstanceAlarm() deleteInstanceAlarmDeleteInstanceAlarmAlarmPayload {
 	return v.DeleteInstanceAlarm
+}
+
+// deletePolicyDeletePolicyPolicyPayload includes the requested fields of the GraphQL type PolicyPayload.
+type deletePolicyDeletePolicyPolicyPayload struct {
+	// The object created/updated/deleted by the mutation. May be null if mutation failed.
+	Result deletePolicyDeletePolicyPolicyPayloadResultPolicy `json:"result"`
+	// Indicates if the mutation completed successfully or not.
+	Successful bool `json:"successful"`
+	// A list of failed validations. May be blank or null if mutation succeeded.
+	Messages []deletePolicyDeletePolicyPolicyPayloadMessagesValidationMessage `json:"messages"`
+}
+
+// GetResult returns deletePolicyDeletePolicyPolicyPayload.Result, and is useful for accessing the field via an interface.
+func (v *deletePolicyDeletePolicyPolicyPayload) GetResult() deletePolicyDeletePolicyPolicyPayloadResultPolicy {
+	return v.Result
+}
+
+// GetSuccessful returns deletePolicyDeletePolicyPolicyPayload.Successful, and is useful for accessing the field via an interface.
+func (v *deletePolicyDeletePolicyPolicyPayload) GetSuccessful() bool { return v.Successful }
+
+// GetMessages returns deletePolicyDeletePolicyPolicyPayload.Messages, and is useful for accessing the field via an interface.
+func (v *deletePolicyDeletePolicyPolicyPayload) GetMessages() []deletePolicyDeletePolicyPolicyPayloadMessagesValidationMessage {
+	return v.Messages
+}
+
+// deletePolicyDeletePolicyPolicyPayloadMessagesValidationMessage includes the requested fields of the GraphQL type ValidationMessage.
+// The GraphQL type's documentation follows.
+//
+// Validation messages are returned when mutation input does not meet the requirements.
+// While client-side validation is highly recommended to provide the best User Experience,
+// All inputs will always be validated server-side.
+//
+// Some examples of validations are:
+//
+// * Username must be at least 10 characters
+// * Email field does not contain an email address
+// * Birth Date is required
+//
+// While GraphQL has support for required values, mutation data fields are always
+// set to optional in our API. This allows 'required field' messages
+// to be returned in the same manner as other validations. The only exceptions
+// are id fields, which may be required to perform updates or deletes.
+type deletePolicyDeletePolicyPolicyPayloadMessagesValidationMessage struct {
+	// A unique error code for the type of validation used.
+	Code string `json:"code"`
+	// The input field that the error applies to. The field can be used to
+	// identify which field the error message should be displayed next to in the
+	// presentation layer.
+	//
+	// If there are multiple errors to display for a field, multiple validation
+	// messages will be in the result.
+	//
+	// This field may be null in cases where an error cannot be applied to a specific field.
+	Field string `json:"field"`
+	// A friendly error message, appropriate for display to the end user.
+	//
+	// The message is interpolated to include the appropriate variables.
+	//
+	// Example: `Username must be at least 10 characters`
+	//
+	// This message may change without notice, so we do not recommend you match against the text.
+	// Instead, use the *code* field for matching.
+	Message string `json:"message"`
+}
+
+// GetCode returns deletePolicyDeletePolicyPolicyPayloadMessagesValidationMessage.Code, and is useful for accessing the field via an interface.
+func (v *deletePolicyDeletePolicyPolicyPayloadMessagesValidationMessage) GetCode() string {
+	return v.Code
+}
+
+// GetField returns deletePolicyDeletePolicyPolicyPayloadMessagesValidationMessage.Field, and is useful for accessing the field via an interface.
+func (v *deletePolicyDeletePolicyPolicyPayloadMessagesValidationMessage) GetField() string {
+	return v.Field
+}
+
+// GetMessage returns deletePolicyDeletePolicyPolicyPayloadMessagesValidationMessage.Message, and is useful for accessing the field via an interface.
+func (v *deletePolicyDeletePolicyPolicyPayloadMessagesValidationMessage) GetMessage() string {
+	return v.Message
+}
+
+// deletePolicyDeletePolicyPolicyPayloadResultPolicy includes the requested fields of the GraphQL type Policy.
+// The GraphQL type's documentation follows.
+//
+// A single ABAC group policy: an effect (`ALLOW`/`DENY`), one or more actions,
+// optional attribute conditions, and the group whose members the policy
+// applies to.
+//
+// Conditions are evaluated AND within a policy and OR across policies on the
+// same group. A policy with no conditions is a wildcard — it matches any
+// resource of each action's entity. Deny policies win over allow policies. A
+// policy can list actions across different entities (for example
+// `project:view` together with `instance:deploy`); conditions whose attributes
+// do not apply to a given entity simply never match for it. See
+// `docs/guides/abac.md` for the full evaluation model.
+type deletePolicyDeletePolicyPolicyPayloadResultPolicy struct {
+	// Unique identifier for this policy.
+	Id string `json:"id"`
+}
+
+// GetId returns deletePolicyDeletePolicyPolicyPayloadResultPolicy.Id, and is useful for accessing the field via an interface.
+func (v *deletePolicyDeletePolicyPolicyPayloadResultPolicy) GetId() string { return v.Id }
+
+// deletePolicyResponse is returned by deletePolicy on success.
+type deletePolicyResponse struct {
+	// Delete a policy by its id.
+	DeletePolicy deletePolicyDeletePolicyPolicyPayload `json:"deletePolicy"`
+}
+
+// GetDeletePolicy returns deletePolicyResponse.DeletePolicy, and is useful for accessing the field via an interface.
+func (v *deletePolicyResponse) GetDeletePolicy() deletePolicyDeletePolicyPolicyPayload {
+	return v.DeletePolicy
 }
 
 // deleteProjectDeleteProjectProjectPayload includes the requested fields of the GraphQL type ProjectPayload.
@@ -4409,6 +4816,161 @@ type listComponentsResponse struct {
 // GetProject returns listComponentsResponse.Project, and is useful for accessing the field via an interface.
 func (v *listComponentsResponse) GetProject() listComponentsProject { return v.Project }
 
+// listGroupPoliciesGroup includes the requested fields of the GraphQL type Group.
+// The GraphQL type's documentation follows.
+//
+// A collection of users and service accounts that share the same access level within your organization.
+//
+// Groups are the primary mechanism for managing access control in Massdriver. Rather than
+// assigning permissions to individual users, you add them to groups that define what they
+// can see and do.
+//
+// ```mermaid
+// graph TD
+// O["Organization"] --> G1["Group: Admins"]
+// O --> G2["Group: Developers"]
+// O --> G3["Group: Custom"]
+// G1 --> U1["User: alice@co.com"]
+// G2 --> U2["User: bob@co.com"]
+// G2 --> SA1["Service Account: ci-bot"]
+// G3 -->|"project_admin"| P1["Project: backend"]
+// G3 -->|"project_viewer"| P2["Project: frontend"]
+// ```
+//
+// **Built-in groups** — Every organization starts with an `Admins` group (`organization_admin` role)
+// and a `Viewers` group (`organization_viewer` role). These cannot be deleted.
+//
+// **Custom groups** — Create custom groups with the `CUSTOM` role to grant project-level access.
+// Each custom group can be assigned `project_admin` or `project_viewer` on specific projects.
+//
+// **Members** — Both human users and service accounts can be group members. Users live under
+// `members` and are added via `addAccountToGroup` (auto-adds existing org members or sends an
+// invitation otherwise). Service accounts live under `serviceAccounts` and are added via
+// `addServiceAccountToGroup`.
+type listGroupPoliciesGroup struct {
+	// Paginated list of ABAC policies attached to this group as the principal.
+	//
+	// Group policies define what every member of the group can do across the organization.
+	Policies listGroupPoliciesGroupPoliciesPoliciesPage `json:"policies"`
+}
+
+// GetPolicies returns listGroupPoliciesGroup.Policies, and is useful for accessing the field via an interface.
+func (v *listGroupPoliciesGroup) GetPolicies() listGroupPoliciesGroupPoliciesPoliciesPage {
+	return v.Policies
+}
+
+// listGroupPoliciesGroupPoliciesPoliciesPage includes the requested fields of the GraphQL type PoliciesPage.
+type listGroupPoliciesGroupPoliciesPoliciesPage struct {
+	// A list of type policy.
+	Items []listGroupPoliciesGroupPoliciesPoliciesPageItemsPolicy `json:"items"`
+}
+
+// GetItems returns listGroupPoliciesGroupPoliciesPoliciesPage.Items, and is useful for accessing the field via an interface.
+func (v *listGroupPoliciesGroupPoliciesPoliciesPage) GetItems() []listGroupPoliciesGroupPoliciesPoliciesPageItemsPolicy {
+	return v.Items
+}
+
+// listGroupPoliciesGroupPoliciesPoliciesPageItemsPolicy includes the requested fields of the GraphQL type Policy.
+// The GraphQL type's documentation follows.
+//
+// A single ABAC group policy: an effect (`ALLOW`/`DENY`), one or more actions,
+// optional attribute conditions, and the group whose members the policy
+// applies to.
+//
+// Conditions are evaluated AND within a policy and OR across policies on the
+// same group. A policy with no conditions is a wildcard — it matches any
+// resource of each action's entity. Deny policies win over allow policies. A
+// policy can list actions across different entities (for example
+// `project:view` together with `instance:deploy`); conditions whose attributes
+// do not apply to a given entity simply never match for it. See
+// `docs/guides/abac.md` for the full evaluation model.
+type listGroupPoliciesGroupPoliciesPoliciesPageItemsPolicy struct {
+	// Unique identifier for this policy.
+	Id string `json:"id"`
+	// Whether this policy grants (`ALLOW`) or blocks (`DENY`) the actions.
+	Effect PolicyEffect `json:"effect"`
+	// The actions this policy authorizes, each in `{entity}:{verb}` form (for example `["repo:pull", "instance:deploy"]`). Always non-empty.
+	Actions []string `json:"actions"`
+	// Either `"*"` (the policy is a wildcard — every resource of the entity matches) or a JSON-encoded object of attribute conditions. Keys are attribute names; values are a string or list of strings.
+	Conditions json.RawMessage `json:"conditions"`
+	// The group this policy applies to.
+	Group listGroupPoliciesGroupPoliciesPoliciesPageItemsPolicyGroup `json:"group"`
+}
+
+// GetId returns listGroupPoliciesGroupPoliciesPoliciesPageItemsPolicy.Id, and is useful for accessing the field via an interface.
+func (v *listGroupPoliciesGroupPoliciesPoliciesPageItemsPolicy) GetId() string { return v.Id }
+
+// GetEffect returns listGroupPoliciesGroupPoliciesPoliciesPageItemsPolicy.Effect, and is useful for accessing the field via an interface.
+func (v *listGroupPoliciesGroupPoliciesPoliciesPageItemsPolicy) GetEffect() PolicyEffect {
+	return v.Effect
+}
+
+// GetActions returns listGroupPoliciesGroupPoliciesPoliciesPageItemsPolicy.Actions, and is useful for accessing the field via an interface.
+func (v *listGroupPoliciesGroupPoliciesPoliciesPageItemsPolicy) GetActions() []string {
+	return v.Actions
+}
+
+// GetConditions returns listGroupPoliciesGroupPoliciesPoliciesPageItemsPolicy.Conditions, and is useful for accessing the field via an interface.
+func (v *listGroupPoliciesGroupPoliciesPoliciesPageItemsPolicy) GetConditions() json.RawMessage {
+	return v.Conditions
+}
+
+// GetGroup returns listGroupPoliciesGroupPoliciesPoliciesPageItemsPolicy.Group, and is useful for accessing the field via an interface.
+func (v *listGroupPoliciesGroupPoliciesPoliciesPageItemsPolicy) GetGroup() listGroupPoliciesGroupPoliciesPoliciesPageItemsPolicyGroup {
+	return v.Group
+}
+
+// listGroupPoliciesGroupPoliciesPoliciesPageItemsPolicyGroup includes the requested fields of the GraphQL type Group.
+// The GraphQL type's documentation follows.
+//
+// A collection of users and service accounts that share the same access level within your organization.
+//
+// Groups are the primary mechanism for managing access control in Massdriver. Rather than
+// assigning permissions to individual users, you add them to groups that define what they
+// can see and do.
+//
+// ```mermaid
+// graph TD
+// O["Organization"] --> G1["Group: Admins"]
+// O --> G2["Group: Developers"]
+// O --> G3["Group: Custom"]
+// G1 --> U1["User: alice@co.com"]
+// G2 --> U2["User: bob@co.com"]
+// G2 --> SA1["Service Account: ci-bot"]
+// G3 -->|"project_admin"| P1["Project: backend"]
+// G3 -->|"project_viewer"| P2["Project: frontend"]
+// ```
+//
+// **Built-in groups** — Every organization starts with an `Admins` group (`organization_admin` role)
+// and a `Viewers` group (`organization_viewer` role). These cannot be deleted.
+//
+// **Custom groups** — Create custom groups with the `CUSTOM` role to grant project-level access.
+// Each custom group can be assigned `project_admin` or `project_viewer` on specific projects.
+//
+// **Members** — Both human users and service accounts can be group members. Users live under
+// `members` and are added via `addAccountToGroup` (auto-adds existing org members or sends an
+// invitation otherwise). Service accounts live under `serviceAccounts` and are added via
+// `addServiceAccountToGroup`.
+type listGroupPoliciesGroupPoliciesPoliciesPageItemsPolicyGroup struct {
+	// Unique identifier for this group.
+	Id string `json:"id"`
+}
+
+// GetId returns listGroupPoliciesGroupPoliciesPoliciesPageItemsPolicyGroup.Id, and is useful for accessing the field via an interface.
+func (v *listGroupPoliciesGroupPoliciesPoliciesPageItemsPolicyGroup) GetId() string { return v.Id }
+
+// listGroupPoliciesResponse is returned by listGroupPolicies on success.
+type listGroupPoliciesResponse struct {
+	// Retrieve a single group by its identifier.
+	//
+	// Returns `null` with a `NOT_FOUND` error if the group does not exist or you do not have
+	// permission to view it.
+	Group listGroupPoliciesGroup `json:"group"`
+}
+
+// GetGroup returns listGroupPoliciesResponse.Group, and is useful for accessing the field via an interface.
+func (v *listGroupPoliciesResponse) GetGroup() listGroupPoliciesGroup { return v.Group }
+
 // listLinksProject includes the requested fields of the GraphQL type Project.
 // The GraphQL type's documentation follows.
 //
@@ -5453,7 +6015,7 @@ type updateInstanceAlarmResponse struct {
 	//
 	// Omit a field from the input to leave it unchanged.
 	//
-	// Requires `environment:edit` on the alarm's environment.
+	// Requires `environment:update` on the alarm's environment.
 	UpdateInstanceAlarm updateInstanceAlarmUpdateInstanceAlarmAlarmPayload `json:"updateInstanceAlarm"`
 }
 
@@ -5671,6 +6233,186 @@ func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetricDime
 func (v *updateInstanceAlarmUpdateInstanceAlarmAlarmPayloadResultAlarmMetricDimensionsAlarmMetricDimension) GetValue() string {
 	return v.Value
 }
+
+// updatePolicyResponse is returned by updatePolicy on success.
+type updatePolicyResponse struct {
+	// Edit a group policy's `effect`, `actions`, or `conditions` in place.
+	//
+	// The group is fixed at create time and cannot be changed — to retarget a
+	// policy, delete it and create a new one. Omit a field from the input to
+	// leave it unchanged. Set `conditions` to `"*"` explicitly to clear
+	// conditions and turn the policy into a wildcard. Setting `actions`
+	// replaces the entire list (no merge).
+	UpdatePolicy updatePolicyUpdatePolicyPolicyPayload `json:"updatePolicy"`
+}
+
+// GetUpdatePolicy returns updatePolicyResponse.UpdatePolicy, and is useful for accessing the field via an interface.
+func (v *updatePolicyResponse) GetUpdatePolicy() updatePolicyUpdatePolicyPolicyPayload {
+	return v.UpdatePolicy
+}
+
+// updatePolicyUpdatePolicyPolicyPayload includes the requested fields of the GraphQL type PolicyPayload.
+type updatePolicyUpdatePolicyPolicyPayload struct {
+	// The object created/updated/deleted by the mutation. May be null if mutation failed.
+	Result updatePolicyUpdatePolicyPolicyPayloadResultPolicy `json:"result"`
+	// Indicates if the mutation completed successfully or not.
+	Successful bool `json:"successful"`
+	// A list of failed validations. May be blank or null if mutation succeeded.
+	Messages []updatePolicyUpdatePolicyPolicyPayloadMessagesValidationMessage `json:"messages"`
+}
+
+// GetResult returns updatePolicyUpdatePolicyPolicyPayload.Result, and is useful for accessing the field via an interface.
+func (v *updatePolicyUpdatePolicyPolicyPayload) GetResult() updatePolicyUpdatePolicyPolicyPayloadResultPolicy {
+	return v.Result
+}
+
+// GetSuccessful returns updatePolicyUpdatePolicyPolicyPayload.Successful, and is useful for accessing the field via an interface.
+func (v *updatePolicyUpdatePolicyPolicyPayload) GetSuccessful() bool { return v.Successful }
+
+// GetMessages returns updatePolicyUpdatePolicyPolicyPayload.Messages, and is useful for accessing the field via an interface.
+func (v *updatePolicyUpdatePolicyPolicyPayload) GetMessages() []updatePolicyUpdatePolicyPolicyPayloadMessagesValidationMessage {
+	return v.Messages
+}
+
+// updatePolicyUpdatePolicyPolicyPayloadMessagesValidationMessage includes the requested fields of the GraphQL type ValidationMessage.
+// The GraphQL type's documentation follows.
+//
+// Validation messages are returned when mutation input does not meet the requirements.
+// While client-side validation is highly recommended to provide the best User Experience,
+// All inputs will always be validated server-side.
+//
+// Some examples of validations are:
+//
+// * Username must be at least 10 characters
+// * Email field does not contain an email address
+// * Birth Date is required
+//
+// While GraphQL has support for required values, mutation data fields are always
+// set to optional in our API. This allows 'required field' messages
+// to be returned in the same manner as other validations. The only exceptions
+// are id fields, which may be required to perform updates or deletes.
+type updatePolicyUpdatePolicyPolicyPayloadMessagesValidationMessage struct {
+	// A unique error code for the type of validation used.
+	Code string `json:"code"`
+	// The input field that the error applies to. The field can be used to
+	// identify which field the error message should be displayed next to in the
+	// presentation layer.
+	//
+	// If there are multiple errors to display for a field, multiple validation
+	// messages will be in the result.
+	//
+	// This field may be null in cases where an error cannot be applied to a specific field.
+	Field string `json:"field"`
+	// A friendly error message, appropriate for display to the end user.
+	//
+	// The message is interpolated to include the appropriate variables.
+	//
+	// Example: `Username must be at least 10 characters`
+	//
+	// This message may change without notice, so we do not recommend you match against the text.
+	// Instead, use the *code* field for matching.
+	Message string `json:"message"`
+}
+
+// GetCode returns updatePolicyUpdatePolicyPolicyPayloadMessagesValidationMessage.Code, and is useful for accessing the field via an interface.
+func (v *updatePolicyUpdatePolicyPolicyPayloadMessagesValidationMessage) GetCode() string {
+	return v.Code
+}
+
+// GetField returns updatePolicyUpdatePolicyPolicyPayloadMessagesValidationMessage.Field, and is useful for accessing the field via an interface.
+func (v *updatePolicyUpdatePolicyPolicyPayloadMessagesValidationMessage) GetField() string {
+	return v.Field
+}
+
+// GetMessage returns updatePolicyUpdatePolicyPolicyPayloadMessagesValidationMessage.Message, and is useful for accessing the field via an interface.
+func (v *updatePolicyUpdatePolicyPolicyPayloadMessagesValidationMessage) GetMessage() string {
+	return v.Message
+}
+
+// updatePolicyUpdatePolicyPolicyPayloadResultPolicy includes the requested fields of the GraphQL type Policy.
+// The GraphQL type's documentation follows.
+//
+// A single ABAC group policy: an effect (`ALLOW`/`DENY`), one or more actions,
+// optional attribute conditions, and the group whose members the policy
+// applies to.
+//
+// Conditions are evaluated AND within a policy and OR across policies on the
+// same group. A policy with no conditions is a wildcard — it matches any
+// resource of each action's entity. Deny policies win over allow policies. A
+// policy can list actions across different entities (for example
+// `project:view` together with `instance:deploy`); conditions whose attributes
+// do not apply to a given entity simply never match for it. See
+// `docs/guides/abac.md` for the full evaluation model.
+type updatePolicyUpdatePolicyPolicyPayloadResultPolicy struct {
+	// Unique identifier for this policy.
+	Id string `json:"id"`
+	// Whether this policy grants (`ALLOW`) or blocks (`DENY`) the actions.
+	Effect PolicyEffect `json:"effect"`
+	// The actions this policy authorizes, each in `{entity}:{verb}` form (for example `["repo:pull", "instance:deploy"]`). Always non-empty.
+	Actions []string `json:"actions"`
+	// Either `"*"` (the policy is a wildcard — every resource of the entity matches) or a JSON-encoded object of attribute conditions. Keys are attribute names; values are a string or list of strings.
+	Conditions json.RawMessage `json:"conditions"`
+	// The group this policy applies to.
+	Group updatePolicyUpdatePolicyPolicyPayloadResultPolicyGroup `json:"group"`
+}
+
+// GetId returns updatePolicyUpdatePolicyPolicyPayloadResultPolicy.Id, and is useful for accessing the field via an interface.
+func (v *updatePolicyUpdatePolicyPolicyPayloadResultPolicy) GetId() string { return v.Id }
+
+// GetEffect returns updatePolicyUpdatePolicyPolicyPayloadResultPolicy.Effect, and is useful for accessing the field via an interface.
+func (v *updatePolicyUpdatePolicyPolicyPayloadResultPolicy) GetEffect() PolicyEffect { return v.Effect }
+
+// GetActions returns updatePolicyUpdatePolicyPolicyPayloadResultPolicy.Actions, and is useful for accessing the field via an interface.
+func (v *updatePolicyUpdatePolicyPolicyPayloadResultPolicy) GetActions() []string { return v.Actions }
+
+// GetConditions returns updatePolicyUpdatePolicyPolicyPayloadResultPolicy.Conditions, and is useful for accessing the field via an interface.
+func (v *updatePolicyUpdatePolicyPolicyPayloadResultPolicy) GetConditions() json.RawMessage {
+	return v.Conditions
+}
+
+// GetGroup returns updatePolicyUpdatePolicyPolicyPayloadResultPolicy.Group, and is useful for accessing the field via an interface.
+func (v *updatePolicyUpdatePolicyPolicyPayloadResultPolicy) GetGroup() updatePolicyUpdatePolicyPolicyPayloadResultPolicyGroup {
+	return v.Group
+}
+
+// updatePolicyUpdatePolicyPolicyPayloadResultPolicyGroup includes the requested fields of the GraphQL type Group.
+// The GraphQL type's documentation follows.
+//
+// A collection of users and service accounts that share the same access level within your organization.
+//
+// Groups are the primary mechanism for managing access control in Massdriver. Rather than
+// assigning permissions to individual users, you add them to groups that define what they
+// can see and do.
+//
+// ```mermaid
+// graph TD
+// O["Organization"] --> G1["Group: Admins"]
+// O --> G2["Group: Developers"]
+// O --> G3["Group: Custom"]
+// G1 --> U1["User: alice@co.com"]
+// G2 --> U2["User: bob@co.com"]
+// G2 --> SA1["Service Account: ci-bot"]
+// G3 -->|"project_admin"| P1["Project: backend"]
+// G3 -->|"project_viewer"| P2["Project: frontend"]
+// ```
+//
+// **Built-in groups** — Every organization starts with an `Admins` group (`organization_admin` role)
+// and a `Viewers` group (`organization_viewer` role). These cannot be deleted.
+//
+// **Custom groups** — Create custom groups with the `CUSTOM` role to grant project-level access.
+// Each custom group can be assigned `project_admin` or `project_viewer` on specific projects.
+//
+// **Members** — Both human users and service accounts can be group members. Users live under
+// `members` and are added via `addAccountToGroup` (auto-adds existing org members or sends an
+// invitation otherwise). Service accounts live under `serviceAccounts` and are added via
+// `addServiceAccountToGroup`.
+type updatePolicyUpdatePolicyPolicyPayloadResultPolicyGroup struct {
+	// Unique identifier for this group.
+	Id string `json:"id"`
+}
+
+// GetId returns updatePolicyUpdatePolicyPolicyPayloadResultPolicyGroup.Id, and is useful for accessing the field via an interface.
+func (v *updatePolicyUpdatePolicyPolicyPayloadResultPolicyGroup) GetId() string { return v.Id }
 
 // updateProjectResponse is returned by updateProject on success.
 type updateProjectResponse struct {
@@ -6196,6 +6938,58 @@ func createGroup(
 	return data_, err_
 }
 
+// The mutation executed by createGroupPolicy.
+const createGroupPolicy_Operation = `
+mutation createGroupPolicy ($organizationId: ID!, $groupId: UUID!, $input: CreateGroupPolicyInput!) {
+	createGroupPolicy(organizationId: $organizationId, groupId: $groupId, input: $input) {
+		result {
+			id
+			effect
+			actions
+			conditions
+			group {
+				id
+			}
+		}
+		successful
+		messages {
+			code
+			field
+			message
+		}
+	}
+}
+`
+
+func createGroupPolicy(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	organizationId string,
+	groupId string,
+	input CreateGroupPolicyInput,
+) (data_ *createGroupPolicyResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "createGroupPolicy",
+		Query:  createGroupPolicy_Operation,
+		Variables: &__createGroupPolicyInput{
+			OrganizationId: organizationId,
+			GroupId:        groupId,
+			Input:          input,
+		},
+	}
+
+	data_ = &createGroupPolicyResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The mutation executed by createInstanceAlarm.
 const createInstanceAlarm_Operation = `
 mutation createInstanceAlarm ($organizationId: ID!, $instanceId: ID!, $input: CreateInstanceAlarmInput!) {
@@ -6404,7 +7198,7 @@ func deleteEnvironment(
 
 // The mutation executed by deleteGroup.
 const deleteGroup_Operation = `
-mutation deleteGroup ($organizationId: ID!, $id: ID!) {
+mutation deleteGroup ($organizationId: ID!, $id: UUID!) {
 	deleteGroup(organizationId: $organizationId, id: $id) {
 		result {
 			id
@@ -6449,7 +7243,7 @@ func deleteGroup(
 
 // The mutation executed by deleteInstanceAlarm.
 const deleteInstanceAlarm_Operation = `
-mutation deleteInstanceAlarm ($organizationId: ID!, $id: ID!) {
+mutation deleteInstanceAlarm ($organizationId: ID!, $id: UUID!) {
 	deleteInstanceAlarm(organizationId: $organizationId, id: $id) {
 		result {
 			id
@@ -6481,6 +7275,50 @@ func deleteInstanceAlarm(
 	}
 
 	data_ = &deleteInstanceAlarmResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by deletePolicy.
+const deletePolicy_Operation = `
+mutation deletePolicy ($organizationId: ID!, $id: UUID!) {
+	deletePolicy(organizationId: $organizationId, id: $id) {
+		result {
+			id
+		}
+		successful
+		messages {
+			code
+			field
+			message
+		}
+	}
+}
+`
+
+func deletePolicy(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	organizationId string,
+	id string,
+) (data_ *deletePolicyResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "deletePolicy",
+		Query:  deletePolicy_Operation,
+		Variables: &__deletePolicyInput{
+			OrganizationId: organizationId,
+			Id:             id,
+		},
+	}
+
+	data_ = &deletePolicyResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
@@ -6629,7 +7467,7 @@ func getEnvironment(
 
 // The query executed by getGroup.
 const getGroup_Operation = `
-query getGroup ($organizationId: ID!, $id: ID!) {
+query getGroup ($organizationId: ID!, $id: UUID!) {
 	group(organizationId: $organizationId, id: $id) {
 		id
 		name
@@ -6668,7 +7506,7 @@ func getGroup(
 
 // The query executed by getInstanceAlarm.
 const getInstanceAlarm_Operation = `
-query getInstanceAlarm ($organizationId: ID!, $id: ID!) {
+query getInstanceAlarm ($organizationId: ID!, $id: UUID!) {
 	instanceAlarm(organizationId: $organizationId, id: $id) {
 		id
 		displayName
@@ -6906,6 +7744,52 @@ func listComponents(
 	return data_, err_
 }
 
+// The query executed by listGroupPolicies.
+const listGroupPolicies_Operation = `
+query listGroupPolicies ($organizationId: ID!, $groupId: UUID!) {
+	group(organizationId: $organizationId, id: $groupId) {
+		policies {
+			items {
+				id
+				effect
+				actions
+				conditions
+				group {
+					id
+				}
+			}
+		}
+	}
+}
+`
+
+func listGroupPolicies(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	organizationId string,
+	groupId string,
+) (data_ *listGroupPoliciesResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "listGroupPolicies",
+		Query:  listGroupPolicies_Operation,
+		Variables: &__listGroupPoliciesInput{
+			OrganizationId: organizationId,
+			GroupId:        groupId,
+		},
+	}
+
+	data_ = &listGroupPoliciesResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The query executed by listLinks.
 const listLinks_Operation = `
 query listLinks ($organizationId: ID!, $projectId: ID!, $filter: LinksFilter) {
@@ -7007,7 +7891,7 @@ func removeComponent(
 
 // The mutation executed by unlinkComponents.
 const unlinkComponents_Operation = `
-mutation unlinkComponents ($organizationId: ID!, $id: ID!) {
+mutation unlinkComponents ($organizationId: ID!, $id: UUID!) {
 	unlinkComponents(organizationId: $organizationId, id: $id) {
 		result {
 			id
@@ -7155,7 +8039,7 @@ func updateEnvironment(
 
 // The mutation executed by updateGroup.
 const updateGroup_Operation = `
-mutation updateGroup ($organizationId: ID!, $id: ID!, $input: UpdateGroupInput!) {
+mutation updateGroup ($organizationId: ID!, $id: UUID!, $input: UpdateGroupInput!) {
 	updateGroup(organizationId: $organizationId, id: $id, input: $input) {
 		result {
 			id
@@ -7204,7 +8088,7 @@ func updateGroup(
 
 // The mutation executed by updateInstanceAlarm.
 const updateInstanceAlarm_Operation = `
-mutation updateInstanceAlarm ($organizationId: ID!, $id: ID!, $input: UpdateInstanceAlarmInput!) {
+mutation updateInstanceAlarm ($organizationId: ID!, $id: UUID!, $input: UpdateInstanceAlarmInput!) {
 	updateInstanceAlarm(organizationId: $organizationId, id: $id, input: $input) {
 		result {
 			id
@@ -7252,6 +8136,58 @@ func updateInstanceAlarm(
 	}
 
 	data_ = &updateInstanceAlarmResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by updatePolicy.
+const updatePolicy_Operation = `
+mutation updatePolicy ($organizationId: ID!, $id: UUID!, $input: UpdatePolicyInput!) {
+	updatePolicy(organizationId: $organizationId, id: $id, input: $input) {
+		result {
+			id
+			effect
+			actions
+			conditions
+			group {
+				id
+			}
+		}
+		successful
+		messages {
+			code
+			field
+			message
+		}
+	}
+}
+`
+
+func updatePolicy(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	organizationId string,
+	id string,
+	input UpdatePolicyInput,
+) (data_ *updatePolicyResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "updatePolicy",
+		Query:  updatePolicy_Operation,
+		Variables: &__updatePolicyInput{
+			OrganizationId: organizationId,
+			Id:             id,
+			Input:          input,
+		},
+	}
+
+	data_ = &updatePolicyResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
