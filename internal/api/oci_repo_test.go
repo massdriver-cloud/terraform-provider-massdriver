@@ -59,8 +59,9 @@ func TestCreateOciRepo(t *testing.T) {
 	mdClient := client.Client{GQLv2: gqlClient}
 
 	r, err := api.CreateOciRepo(t.Context(), &mdClient, api.CreateOciRepoInput{
-		Id:         "aws-aurora-postgres",
-		Attributes: map[string]any{},
+		Id:           "aws-aurora-postgres",
+		ArtifactType: api.OciArtifactTypeBundle,
+		Attributes:   map[string]any{},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -87,8 +88,9 @@ func TestCreateOciRepoFailure(t *testing.T) {
 	mdClient := client.Client{GQLv2: gqlClient}
 
 	_, err := api.CreateOciRepo(t.Context(), &mdClient, api.CreateOciRepoInput{
-		Id:         "aws-aurora-postgres",
-		Attributes: map[string]any{"md-id": "nope"},
+		Id:           "aws-aurora-postgres",
+		ArtifactType: api.OciArtifactTypeBundle,
+		Attributes:   map[string]any{"md-id": "nope"},
 	})
 	if err == nil {
 		t.Fatal("expected error, got nil")

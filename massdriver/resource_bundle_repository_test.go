@@ -58,6 +58,11 @@ func TestResourceBundleRepositoryCreate(t *testing.T) {
 	if input["id"] != "aws-aurora-postgres" {
 		t.Errorf("got input.id %v, want aws-aurora-postgres", input["id"])
 	}
+	// massdriver_bundle_repository hardcodes BUNDLE — pinning the wire shape
+	// so a future regression that drops the field is caught here.
+	if input["artifactType"] != "BUNDLE" {
+		t.Errorf("got input.artifactType %v, want BUNDLE", input["artifactType"])
+	}
 	if input["attributes"] != `{"team":"platform"}` {
 		t.Errorf("got input.attributes %v, want JSON-encoded team=platform", input["attributes"])
 	}

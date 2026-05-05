@@ -333,11 +333,16 @@ func (v *CreateInstanceAlarmInput) GetThreshold() *float64 { return v.Threshold 
 
 // Create a new OCI repository in your organization's catalog. Repositories must exist before any version can be published to them.
 type CreateOciRepoInput struct {
+	// OCI artifact type stored in this repository. Today only `BUNDLE` is accepted; additional types will be added as Massdriver expands the catalog.
+	ArtifactType OciArtifactType `json:"artifactType"`
 	// Key-value attributes for this repository. Used by ABAC policies for fine-grained access control. Reserved `md-*` keys are rejected. Must conform to the organization's custom attributes for the repo scope.
 	Attributes map[string]any `json:"-"`
 	// Unique repository name within your organization, e.g. `aws-aurora-postgres`. Lowercase letters, numbers, dashes, underscores only. Max 53 characters. Cannot be changed after creation.
 	Id string `json:"id"`
 }
+
+// GetArtifactType returns CreateOciRepoInput.ArtifactType, and is useful for accessing the field via an interface.
+func (v *CreateOciRepoInput) GetArtifactType() OciArtifactType { return v.ArtifactType }
 
 // GetAttributes returns CreateOciRepoInput.Attributes, and is useful for accessing the field via an interface.
 func (v *CreateOciRepoInput) GetAttributes() map[string]any { return v.Attributes }
@@ -379,6 +384,8 @@ func (v *CreateOciRepoInput) UnmarshalJSON(b []byte) error {
 }
 
 type __premarshalCreateOciRepoInput struct {
+	ArtifactType OciArtifactType `json:"artifactType"`
+
 	Attributes json.RawMessage `json:"attributes,omitempty"`
 
 	Id string `json:"id"`
@@ -395,6 +402,7 @@ func (v *CreateOciRepoInput) MarshalJSON() ([]byte, error) {
 func (v *CreateOciRepoInput) __premarshalJSON() (*__premarshalCreateOciRepoInput, error) {
 	var retval __premarshalCreateOciRepoInput
 
+	retval.ArtifactType = v.ArtifactType
 	{
 
 		dst := &retval.Attributes
@@ -684,6 +692,21 @@ func (v *LinksFilter) GetFromComponentId() *IdFilter { return v.FromComponentId 
 
 // GetToComponentId returns LinksFilter.ToComponentId, and is useful for accessing the field via an interface.
 func (v *LinksFilter) GetToComponentId() *IdFilter { return v.ToComponentId }
+
+// The kind of artifact stored in an OCI repository.
+//
+// Each value maps to a concrete [OCI artifact type](https://github.com/opencontainers/image-spec/blob/main/manifest.md#guidelines-for-artifact-usage)
+// media string written to the manifest. Today only `BUNDLE` is supported; additional types will be added as the catalog expands.
+type OciArtifactType string
+
+const (
+	// Massdriver bundle (`application/vnd.massdriver.bundle.v1+json`).
+	OciArtifactTypeBundle OciArtifactType = "BUNDLE"
+)
+
+var AllOciArtifactType = []OciArtifactType{
+	OciArtifactTypeBundle,
+}
 
 // Filter by OCI repository name (the bundle's package identifier).
 //
@@ -2409,9 +2432,11 @@ func (v *createGroupPolicyCreateGroupPolicyPolicyPayloadMessagesValidationMessag
 // same group. A policy with no conditions is a wildcard — it matches any
 // resource of each action's entity. Deny policies win over allow policies. A
 // policy can list actions across different entities (for example
-// `project:view` together with `instance:deploy`); conditions whose attributes
-// do not apply to a given entity simply never match for it. See
-// `docs/guides/abac.md` for the full evaluation model.
+// `project:view` together with `instance:deploy`); for each action, condition
+// keys whose registered attribute scope is unreachable for that action's
+// entity are skipped, and a policy whose conditions all skip for a given
+// action is a wildcard match for that action. See `docs/guides/abac.md` for
+// the full evaluation model.
 type createGroupPolicyCreateGroupPolicyPolicyPayloadResultPolicy struct {
 	// Unique identifier for this policy.
 	Id string `json:"id"`
@@ -3966,9 +3991,11 @@ func (v *deletePolicyDeletePolicyPolicyPayloadMessagesValidationMessage) GetMess
 // same group. A policy with no conditions is a wildcard — it matches any
 // resource of each action's entity. Deny policies win over allow policies. A
 // policy can list actions across different entities (for example
-// `project:view` together with `instance:deploy`); conditions whose attributes
-// do not apply to a given entity simply never match for it. See
-// `docs/guides/abac.md` for the full evaluation model.
+// `project:view` together with `instance:deploy`); for each action, condition
+// keys whose registered attribute scope is unreachable for that action's
+// entity are skipped, and a policy whose conditions all skip for a given
+// action is a wildcard match for that action. See `docs/guides/abac.md` for
+// the full evaluation model.
 type deletePolicyDeletePolicyPolicyPayloadResultPolicy struct {
 	// Unique identifier for this policy.
 	Id string `json:"id"`
@@ -5599,9 +5626,11 @@ func (v *listGroupPoliciesGroupPoliciesPoliciesPage) GetItems() []listGroupPolic
 // same group. A policy with no conditions is a wildcard — it matches any
 // resource of each action's entity. Deny policies win over allow policies. A
 // policy can list actions across different entities (for example
-// `project:view` together with `instance:deploy`); conditions whose attributes
-// do not apply to a given entity simply never match for it. See
-// `docs/guides/abac.md` for the full evaluation model.
+// `project:view` together with `instance:deploy`); for each action, condition
+// keys whose registered attribute scope is unreachable for that action's
+// entity are skipped, and a policy whose conditions all skip for a given
+// action is a wildcard match for that action. See `docs/guides/abac.md` for
+// the full evaluation model.
 type listGroupPoliciesGroupPoliciesPoliciesPageItemsPolicy struct {
 	// Unique identifier for this policy.
 	Id string `json:"id"`
@@ -7285,9 +7314,11 @@ func (v *updatePolicyUpdatePolicyPolicyPayloadMessagesValidationMessage) GetMess
 // same group. A policy with no conditions is a wildcard — it matches any
 // resource of each action's entity. Deny policies win over allow policies. A
 // policy can list actions across different entities (for example
-// `project:view` together with `instance:deploy`); conditions whose attributes
-// do not apply to a given entity simply never match for it. See
-// `docs/guides/abac.md` for the full evaluation model.
+// `project:view` together with `instance:deploy`); for each action, condition
+// keys whose registered attribute scope is unreachable for that action's
+// entity are skipped, and a policy whose conditions all skip for a given
+// action is a wildcard match for that action. See `docs/guides/abac.md` for
+// the full evaluation model.
 type updatePolicyUpdatePolicyPolicyPayloadResultPolicy struct {
 	// Unique identifier for this policy.
 	Id string `json:"id"`

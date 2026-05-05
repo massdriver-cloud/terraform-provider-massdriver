@@ -4,10 +4,11 @@ import (
 	"context"
 	"regexp"
 
+	"terraform-provider-massdriver/internal/api"
+
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
-	"terraform-provider-massdriver/internal/api"
 )
 
 // bundleRepositoryNamePattern enforces the server's repo-name rules: lowercase
@@ -58,8 +59,9 @@ func resourceBundleRepositoryCreate(ctx context.Context, d *schema.ResourceData,
 	client := meta.(*ProviderClient).Client
 
 	repo, err := api.CreateOciRepo(ctx, client, api.CreateOciRepoInput{
-		Id:         d.Get("name").(string),
-		Attributes: attributesFromConfig(d.Get("attributes")),
+		Id:           d.Get("name").(string),
+		ArtifactType: api.OciArtifactTypeBundle,
+		Attributes:   attributesFromConfig(d.Get("attributes")),
 	})
 	if err != nil {
 		return diag.FromErr(err)
