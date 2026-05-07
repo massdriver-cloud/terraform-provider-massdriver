@@ -2,18 +2,16 @@ package massdriver
 
 import (
 	"context"
-	"encoding/base64"
-	"fmt"
-	"os"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/services/packagealarms"
+	"terraform-provider-massdriver/internal/api"
 )
 
 func resourcePackageAlarm() *schema.Resource {
-	return &schema.Resource{
+	r := &schema.Resource{
 		Description:        "This resource registers a package alarm in the Massdriver console for presentation to the user",
 		DeprecationMessage: "massdriver_package_alarm is deprecated. Create and update operations are no longer supported — use massdriver_instance_alarm instead. Existing massdriver_package_alarm resources can still be refreshed and destroyed.",
 
@@ -36,8 +34,7 @@ func resourcePackageAlarm() *schema.Resource {
 			"metric": {
 				Type:     schema.TypeList,
 				MaxItems: 1,
-				Optional: true, // This should be removed when we've added it to all our existing alarms
-				//Required: false,     This should be set to true when we've added it to all our existing alarms
+				Optional: true,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"name": {
@@ -67,7 +64,7 @@ func resourcePackageAlarm() *schema.Resource {
 				},
 			},
 			"package_id": {
-				Description: "The package ID associated with this alarm. This should generally be left unspecified, since the package ID will be read from the MASSDRIVER_PACKAGE_NAME environment variable.",
+				Description: "The package ID associated with this alarm. Retained for backward compatibility with existing state; not refreshed from the server.",
 				Type:        schema.TypeString,
 				ForceNew:    true,
 				Optional:    true,
@@ -97,6 +94,60 @@ func resourcePackageAlarm() *schema.Resource {
 			},
 		},
 	}
+	// Decorate every attribute with a DiffSuppressFunc so terraform never
+	// plans an Update — see suppressAllDiffs for why.
+	suppressAllDiffs(r.Schema)
+	return r
+}
+
+// suppressAllDiffs decorates every attribute in the given schema map with a
+// DiffSuppressFunc that returns true, recursing into nested `Resource`
+// elements. Wired into massdriver_package_alarm so terraform never plans an
+// Update — the underlying Create/Update API endpoints have been removed and
+// an Update call would just hard-error via resourcePackageAlarmWritesDisabled.
+//
+// The point is to keep existing terraform configurations applying cleanly
+// while users transition to massdriver_instance_alarm at their own pace.
+// Without this, any drift between HCL and state — either from a server-side
+// change picked up by Read, or just stale config — would cause `terraform
+// apply` to fail.
+//
+// `CustomizeDiff + d.Clear(key)` would be the more obvious approach but
+// `Clear` only works on Computed attributes, and most package_alarm fields
+// are Required/Optional. Per-attribute DiffSuppressFunc has no such
+// restriction.
+//
+// Destroy is unaffected (terraform's destroy phase doesn't go through the
+// resource's diff machinery), so users can still `terraform destroy` to
+// remove these resources from state.
+func suppressAllDiffs(schemaMap map[string]*schema.Schema) {
+	for _, s := range schemaMap {
+		suppressFieldDiff(s)
+	}
+}
+
+// suppressFieldDiff is the per-attribute walker that suppressAllDiffs
+// dispatches to. For nested `Resource` element schemas (e.g., the `metric`
+// block) it recurses into the children so attributes like
+// `metric.0.namespace` also get suppressed.
+//
+// Computed-only fields are skipped: the SDK rejects DiffSuppressFunc on them
+// at InternalValidate time ("no config to compare"), and they can't drive an
+// Update anyway since the user has no way to set them in HCL.
+func suppressFieldDiff(s *schema.Schema) {
+	if s == nil {
+		return
+	}
+	if !(s.Computed && !s.Optional && !s.Required) {
+		s.DiffSuppressFunc = func(_, _, _ string, _ *schema.ResourceData) bool {
+			return true
+		}
+	}
+	if elem, ok := s.Elem.(*schema.Resource); ok {
+		for _, sub := range elem.Schema {
+			suppressFieldDiff(sub)
+		}
+	}
 }
 
 // resourcePackageAlarmWritesDisabled is the wired-in CreateContext /
@@ -109,51 +160,30 @@ func resourcePackageAlarmWritesDisabled(_ context.Context, _ *schema.ResourceDat
 	return diag.Errorf("massdriver_package_alarm no longer supports create or update operations. Use massdriver_instance_alarm instead. Existing massdriver_package_alarm resources in state can still be refreshed and destroyed.")
 }
 
-func resourcePackageAlarmCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	service := meta.(*ProviderClient).PackageAlarmsService()
-
-	var diags diag.Diagnostics
-
-	alarm := parseAlarmBlock(d)
-
-	packageID, idErr := getPackageName(d)
-	if idErr != nil {
-		return diag.FromErr(idErr)
-	}
-
-	resp, createErr := service.CreatePackageAlarm(ctx, packageID, alarm)
-	if createErr != nil {
-		return diag.FromErr(createErr)
-	}
-
-	d.SetId(resp.ID)
-	d.Set("last_updated", time.Now().Format(time.RFC850))
-
-	return diags
-}
-
-func resourcePackageAlarmRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	service := meta.(*ProviderClient).PackageAlarmsService()
-
-	var diags diag.Diagnostics
-
-	// If the ID is a timestamp, it was from the older system where we didn't have IDs. The package_id field should force a new creation. Don't lookup, just bail.
-	if _, err := time.Parse(time.RFC3339, d.Id()); err == nil {
+// resourcePackageAlarmRead reads via the instance_alarm GraphQL endpoint.
+// The package_alarm REST endpoint has been removed from the server — the
+// underlying alarm data (and its IDs) carry over into the instance_alarm
+// schema unchanged, so we can read it via GraphQL by the same ID.
+func resourcePackageAlarmRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
+	// Pre-modern (timestamp-format) IDs date back before the server assigned
+	// real UUIDs. Those won't parse as UUID and the GraphQL endpoint will
+	// reject them — leave state untouched so users can `terraform state rm`
+	// or destroy without a refresh failure.
+	if isLegacyTimestampID(d.Id()) {
 		return nil
 	}
 
-	packageID, idErr := getPackageName(d)
-	if idErr != nil {
-		return diag.FromErr(idErr)
-	}
-
-	alarm, getErr := service.GetPackageAlarm(ctx, packageID, d.Id())
-	if getErr != nil {
-		if getErr.Error() == "not found" {
+	client := meta.(*ProviderClient).Client
+	alarm, err := api.GetInstanceAlarm(ctx, client, d.Id())
+	if err != nil {
+		// Mirror the legacy behavior: surface a "not found" as state-clear so
+		// terraform plans a recreate (which then hard-errors via WritesDisabled
+		// and forces the user to migrate to massdriver_instance_alarm).
+		if strings.Contains(err.Error(), "not found") {
 			d.SetId("")
-			return diags
+			return nil
 		}
-		return diag.FromErr(getErr)
+		return diag.FromErr(err)
 	}
 
 	d.Set("cloud_resource_id", alarm.CloudResourceID)
@@ -162,135 +192,70 @@ func resourcePackageAlarmRead(ctx context.Context, d *schema.ResourceData, meta 
 	if alarm.Threshold != 0 {
 		d.Set("threshold", alarm.Threshold)
 	}
-	if alarm.PeriodMinutes != 0 {
-		d.Set("period_minutes", alarm.PeriodMinutes)
+	// instance_alarm exposes period in seconds; package_alarm tracked it in
+	// minutes. Convert with integer division — non-multiple-of-60 periods
+	// (rare in practice) round down, but the user can't update the field via
+	// terraform anyway so any drift is informational only.
+	if alarm.Period != 0 {
+		d.Set("period_minutes", alarm.Period/60)
 	}
 	if alarm.ComparisonOperator != "" {
 		d.Set("comparison_operator", alarm.ComparisonOperator)
 	}
 
 	if alarm.Metric != nil {
-		metric := map[string]interface{}{
+		dimensions := make(map[string]any, len(alarm.Metric.Dimensions))
+		for _, dim := range alarm.Metric.Dimensions {
+			dimensions[dim.Name] = dim.Value
+		}
+		metric := map[string]any{
 			"name":       alarm.Metric.Name,
 			"namespace":  alarm.Metric.Namespace,
 			"statistic":  alarm.Metric.Statistic,
-			"dimensions": map[string]interface{}{},
+			"dimensions": dimensions,
 		}
-
-		if alarm.Metric.Dimensions != nil {
-			for _, dimension := range alarm.Metric.Dimensions {
-				metric["dimensions"].(map[string]interface{})[dimension.Name] = dimension.Value
-			}
-		}
-
-		if err := d.Set("metric", []interface{}{metric}); err != nil {
+		if err := d.Set("metric", []any{metric}); err != nil {
 			return diag.FromErr(err)
 		}
 	}
 
 	d.Set("last_updated", time.Now().Format(time.RFC850))
-
-	return diags
+	return nil
 }
 
-func resourcePackageAlarmUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	service := meta.(*ProviderClient).PackageAlarmsService()
-
-	var diags diag.Diagnostics
-
-	alarm := parseAlarmBlock(d)
-
-	packageID, idErr := getPackageName(d)
-	if idErr != nil {
-		return diag.FromErr(idErr)
+// resourcePackageAlarmDelete deletes via the instance_alarm GraphQL endpoint.
+// Legacy timestamp-format IDs are simply dropped from state — the REST
+// endpoint that knew how to delete them is gone, and the underlying server-
+// side records (if any) will be cleaned up by a server migration.
+func resourcePackageAlarmDelete(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
+	id := d.Id()
+	if id == "" {
+		return nil
+	}
+	if isLegacyTimestampID(id) {
+		d.SetId("")
+		return nil
 	}
 
-	_, updateErr := service.UpdatePackageAlarm(ctx, packageID, d.Id(), alarm)
-	if updateErr != nil {
-		return diag.FromErr(updateErr)
-	}
-
-	d.Set("last_updated", time.Now().Format(time.RFC850))
-
-	return diags
-}
-
-func resourcePackageAlarmDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	service := meta.(*ProviderClient).PackageAlarmsService()
-
-	var diags diag.Diagnostics
-
-	alarmID := d.Id()
-	if alarmID == "" {
-		return diags
-	}
-
-	// If the ID is a timestamp, it was from the older system where we didn't have IDs. We need to delete using the cloud resource ID base64 encoded (with no padding)
-	if _, err := time.Parse(time.RFC3339, alarmID); err == nil {
-		alarmID = base64.RawURLEncoding.EncodeToString([]byte(d.Get("cloud_resource_id").(string)))
-	}
-
-	packageID, idErr := getPackageName(d)
-	if idErr != nil {
-		return diag.FromErr(idErr)
-	}
-
-	deleteErr := service.DeletePackageAlarm(ctx, packageID, alarmID)
-	if deleteErr != nil {
-		return diag.FromErr(deleteErr)
+	client := meta.(*ProviderClient).Client
+	if _, err := api.DeleteInstanceAlarm(ctx, client, id); err != nil {
+		// "not found" means it's already gone server-side; clear state and
+		// move on rather than blocking a destroy on a phantom resource.
+		if strings.Contains(err.Error(), "not found") {
+			d.SetId("")
+			return nil
+		}
+		return diag.FromErr(err)
 	}
 
 	d.SetId("")
-
-	return diags
+	return nil
 }
 
-func getPackageName(d *schema.ResourceData) (string, error) {
-	packageID, ok := d.Get("package_id").(string)
-	if !ok || packageID == "" {
-		packageID = os.Getenv("MASSDRIVER_PACKAGE_NAME")
-		if packageID == "" {
-			return "", fmt.Errorf("`package_id` must be set in config or MASSDRIVER_PACKAGE_NAME must be set in the environment")
-		}
-	}
-	return packageID, nil
-}
-
-func parseAlarmBlock(d *schema.ResourceData) *packagealarms.Alarm {
-	alarm := new(packagealarms.Alarm)
-
-	alarm.CloudResourceID = d.Get("cloud_resource_id").(string)
-	alarm.DisplayName = d.Get("display_name").(string)
-	alarm.Threshold = d.Get("threshold").(float64)
-	alarm.PeriodMinutes = d.Get("period_minutes").(int)
-	alarm.ComparisonOperator = d.Get("comparison_operator").(string)
-	alarm.Metric = parseMetricBock(d.Get("metric").([]interface{}))
-
-	return alarm
-}
-
-func parseMetricBock(block []interface{}) *packagealarms.Metric {
-	if len(block) == 0 {
-		return nil
-	}
-	metric := new(packagealarms.Metric)
-
-	blockMap := block[0].(map[string]interface{})
-
-	metric.Name = blockMap["name"].(string)
-	metric.Statistic = blockMap["statistic"].(string)
-
-	if namespace, ok := blockMap["namespace"]; ok {
-		metric.Namespace = namespace.(string)
-	}
-	if dimensions, ok := blockMap["dimensions"]; ok {
-		for key, value := range dimensions.(map[string]interface{}) {
-			metric.Dimensions = append(metric.Dimensions, packagealarms.Dimension{
-				Name:  key,
-				Value: value.(string),
-			})
-		}
-	}
-
-	return metric
+// isLegacyTimestampID returns true for IDs from the pre-UUID era of the REST
+// API where the resource ID was the RFC3339 timestamp at create time. The
+// GraphQL endpoint rejects these as UUID parse errors; we sidestep the call.
+func isLegacyTimestampID(id string) bool {
+	_, err := time.Parse(time.RFC3339, id)
+	return err == nil
 }

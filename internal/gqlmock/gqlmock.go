@@ -68,6 +68,11 @@ func (r *Recorder) MakeRequest(_ context.Context, req *graphql.Request, resp *gr
 		if err := json.Unmarshal(envelope, resp); err != nil {
 			return err
 		}
+		// Mirror the real genqlient client: a non-empty `errors` array surfaces
+		// as a Go-level error from MakeRequest, not just as resp.Errors.
+		if len(resp.Errors) > 0 {
+			return resp.Errors
+		}
 	}
 	return nil
 }
