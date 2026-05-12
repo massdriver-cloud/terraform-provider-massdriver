@@ -2,22 +2,25 @@ package massdriver
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"strings"
 	"time"
 
+	"terraform-provider-massdriver/internal/api"
+
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"terraform-provider-massdriver/internal/api"
 )
 
 func resourcePackageAlarm() *schema.Resource {
-	r := &schema.Resource{
-		Description:        "This resource registers a package alarm in the Massdriver console for presentation to the user",
-		DeprecationMessage: "massdriver_package_alarm is deprecated. Create and update operations are no longer supported — use massdriver_instance_alarm instead. Existing massdriver_package_alarm resources can still be refreshed and destroyed.",
+	return &schema.Resource{
+		Description:        "This resource registers a package alarm in the Massdriver console for presentation to the user.",
+		DeprecationMessage: "massdriver_package_alarm is deprecated and will be removed in v2.0 of the massdriver provider. Use `massdriver_instance_alarm` instead. Do not manage the same alarm via both `massdriver_package_alarm` and `massdriver_instance_alarm` — terraform will not detect the conflict and the two resources will fight over state.",
 
-		CreateContext: resourcePackageAlarmWritesDisabled,
+		CreateContext: resourcePackageAlarmCreate,
 		ReadContext:   resourcePackageAlarmRead,
-		UpdateContext: resourcePackageAlarmWritesDisabled,
+		UpdateContext: resourcePackageAlarmUpdate,
 		DeleteContext: resourcePackageAlarmDelete,
 
 		Schema: map[string]*schema.Schema{
@@ -64,7 +67,7 @@ func resourcePackageAlarm() *schema.Resource {
 				},
 			},
 			"package_id": {
-				Description: "The package ID associated with this alarm. Retained for backward compatibility with existing state; not refreshed from the server.",
+				Description: "The package ID associated with this alarm.",
 				Type:        schema.TypeString,
 				ForceNew:    true,
 				Optional:    true,
@@ -94,76 +97,82 @@ func resourcePackageAlarm() *schema.Resource {
 			},
 		},
 	}
-	// Decorate every attribute with a DiffSuppressFunc so terraform never
-	// plans an Update — see suppressAllDiffs for why.
-	suppressAllDiffs(r.Schema)
-	return r
 }
 
-// suppressAllDiffs decorates every attribute in the given schema map with a
-// DiffSuppressFunc that returns true, recursing into nested `Resource`
-// elements. Wired into massdriver_package_alarm so terraform never plans an
-// Update — the underlying Create/Update API endpoints have been removed and
-// an Update call would just hard-error via resourcePackageAlarmWritesDisabled.
+// resourcePackageAlarmCreate first looks up an existing alarm on the instance
+// matching cloud_resource_id (self-heal). If found, we adopt it into state
+// rather than creating a duplicate — this recovers from pre-1.3 deploys where
+// the old REST-based Read 404'd against the now-dead endpoint and silently
+// cleared the alarm's UUID from state, leaving the server-side record
+// orphaned. If no existing alarm matches, we create a new one via GraphQL.
 //
-// The point is to keep existing terraform configurations applying cleanly
-// while users transition to massdriver_instance_alarm at their own pace.
-// Without this, any drift between HCL and state — either from a server-side
-// change picked up by Read, or just stale config — would cause `terraform
-// apply` to fail.
-//
-// `CustomizeDiff + d.Clear(key)` would be the more obvious approach but
-// `Clear` only works on Computed attributes, and most package_alarm fields
-// are Required/Optional. Per-attribute DiffSuppressFunc has no such
-// restriction.
-//
-// Destroy is unaffected (terraform's destroy phase doesn't go through the
-// resource's diff machinery), so users can still `terraform destroy` to
-// remove these resources from state.
-func suppressAllDiffs(schemaMap map[string]*schema.Schema) {
-	for _, s := range schemaMap {
-		suppressFieldDiff(s)
+// Lookup errors are surfaced verbatim so a transient API/auth/network issue
+// is not misreported as a missing alarm.
+func resourcePackageAlarmCreate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
+	instanceID, err := getPackageShortName(d)
+	if err != nil {
+		return diag.FromErr(err)
 	}
+	cloudResourceID := d.Get("cloud_resource_id").(string)
+
+	client := meta.(*ProviderClient).Client
+	existing, err := api.FindInstanceAlarmByCloudResourceID(ctx, client, instanceID, cloudResourceID)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	if existing != nil {
+		d.SetId(existing.ID)
+		return resourcePackageAlarmRead(ctx, d, meta)
+	}
+
+	alarm, err := api.CreateInstanceAlarm(ctx, client, instanceID, buildCreateInstanceAlarmInput(d))
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	d.SetId(alarm.ID)
+	d.Set("last_updated", time.Now().Format(time.RFC850))
+	return resourcePackageAlarmRead(ctx, d, meta)
 }
 
-// suppressFieldDiff is the per-attribute walker that suppressAllDiffs
-// dispatches to. For nested `Resource` element schemas (e.g., the `metric`
-// block) it recurses into the children so attributes like
-// `metric.0.namespace` also get suppressed.
+func resourcePackageAlarmUpdate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
+	client := meta.(*ProviderClient).Client
+	if _, err := api.UpdateInstanceAlarm(ctx, client, d.Id(), buildUpdateInstanceAlarmInput(d)); err != nil {
+		return diag.FromErr(err)
+	}
+	d.Set("last_updated", time.Now().Format(time.RFC850))
+	return resourcePackageAlarmRead(ctx, d, meta)
+}
+
+// getPackageShortName resolves the instance identifier used by the GraphQL
+// API. The package_alarm HCL field is `package_id` and bundle deployments
+// inject MASSDRIVER_PACKAGE_NAME — both carry the package's deployment-suffixed
+// name (e.g., `bundtst-plygrnd-awsaurorapos-rbpt`). The instance lookup needs
+// the short form (`bundtst-plygrnd-awsaurorapos`), so we strip the last
+// hyphen-segment.
 //
-// Computed-only fields are skipped: the SDK rejects DiffSuppressFunc on them
-// at InternalValidate time ("no config to compare"), and they can't drive an
-// Update anyway since the user has no way to set them in HCL.
-func suppressFieldDiff(s *schema.Schema) {
-	if s == nil {
-		return
+// `package_id` from HCL wins over the env var; the env var is only a fallback
+// for older configs that didn't surface the field explicitly.
+func getPackageShortName(d *schema.ResourceData) (string, error) {
+	var fullName string
+	if pkg, ok := d.Get("package_id").(string); ok && pkg != "" {
+		fullName = pkg
+	} else if pkg := os.Getenv("MASSDRIVER_PACKAGE_NAME"); pkg != "" {
+		fullName = pkg
 	}
-	if !(s.Computed && !s.Optional && !s.Required) {
-		s.DiffSuppressFunc = func(_, _, _ string, _ *schema.ResourceData) bool {
-			return true
-		}
+	if fullName == "" {
+		return "", fmt.Errorf("`package_id` must be set in config or MASSDRIVER_PACKAGE_NAME must be set in the environment")
 	}
-	if elem, ok := s.Elem.(*schema.Resource); ok {
-		for _, sub := range elem.Schema {
-			suppressFieldDiff(sub)
-		}
+	parts := strings.Split(fullName, "-")
+	if len(parts) < 2 {
+		return "", fmt.Errorf("`package_id` %q must contain at least one hyphen", fullName)
 	}
+	return strings.Join(parts[:len(parts)-1], "-"), nil
 }
 
-// resourcePackageAlarmWritesDisabled is the wired-in CreateContext /
-// UpdateContext for the deprecated massdriver_package_alarm resource. It
-// returns a hard error so users can't introduce new package alarms or mutate
-// existing ones — they must migrate to massdriver_instance_alarm. Read and
-// Delete are intentionally still functional so existing state remains usable
-// while users transition off.
-func resourcePackageAlarmWritesDisabled(_ context.Context, _ *schema.ResourceData, _ any) diag.Diagnostics {
-	return diag.Errorf("massdriver_package_alarm no longer supports create or update operations. Use massdriver_instance_alarm instead. Existing massdriver_package_alarm resources in state can still be refreshed and destroyed.")
-}
-
-// resourcePackageAlarmRead reads via the instance_alarm GraphQL endpoint.
-// The package_alarm REST endpoint has been removed from the server — the
-// underlying alarm data (and its IDs) carry over into the instance_alarm
-// schema unchanged, so we can read it via GraphQL by the same ID.
+// resourcePackageAlarmRead hydrates state from the GraphQL instance_alarm
+// endpoint. The package_alarm REST endpoint has been removed from the server;
+// the underlying alarm data (and IDs) carry over into the instance_alarm
+// schema unchanged, so we read by the same ID.
 func resourcePackageAlarmRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
 	// Pre-modern (timestamp-format) IDs date back before the server assigned
 	// real UUIDs. Those won't parse as UUID and the GraphQL endpoint will
@@ -176,9 +185,7 @@ func resourcePackageAlarmRead(ctx context.Context, d *schema.ResourceData, meta 
 	client := meta.(*ProviderClient).Client
 	alarm, err := api.GetInstanceAlarm(ctx, client, d.Id())
 	if err != nil {
-		// Mirror the legacy behavior: surface a "not found" as state-clear so
-		// terraform plans a recreate (which then hard-errors via WritesDisabled
-		// and forces the user to migrate to massdriver_instance_alarm).
+		// Out-of-band deletion: clear state so terraform plans a recreate.
 		if strings.Contains(err.Error(), "not found") {
 			d.SetId("")
 			return nil
@@ -188,26 +195,27 @@ func resourcePackageAlarmRead(ctx context.Context, d *schema.ResourceData, meta 
 
 	d.Set("cloud_resource_id", alarm.CloudResourceID)
 	d.Set("display_name", alarm.DisplayName)
+	d.Set("threshold", alarm.Threshold)
+	// instance_alarm exposes period in seconds; package_alarm tracks minutes.
+	// Integer division rounds non-multiple-of-60 periods down, which surfaces
+	// as drift on the next plan — acceptable since the user can switch to
+	// `massdriver_instance_alarm` (which uses seconds) to fix it.
+	d.Set("period_minutes", alarm.Period/60)
+	d.Set("comparison_operator", alarm.ComparisonOperator)
 
-	if alarm.Threshold != 0 {
-		d.Set("threshold", alarm.Threshold)
-	}
-	// instance_alarm exposes period in seconds; package_alarm tracked it in
-	// minutes. Convert with integer division — non-multiple-of-60 periods
-	// (rare in practice) round down, but the user can't update the field via
-	// terraform anyway so any drift is informational only.
-	if alarm.Period != 0 {
-		d.Set("period_minutes", alarm.Period/60)
-	}
-	if alarm.ComparisonOperator != "" {
-		d.Set("comparison_operator", alarm.ComparisonOperator)
-	}
-
-	if alarm.Metric != nil {
+	if alarm.Metric == nil {
+		// Explicitly clear so a server-side metric removal surfaces as drift
+		// instead of state retaining a stale block forever.
+		if err := d.Set("metric", []any{}); err != nil {
+			return diag.FromErr(err)
+		}
+	} else {
 		dimensions := make(map[string]any, len(alarm.Metric.Dimensions))
 		for _, dim := range alarm.Metric.Dimensions {
 			dimensions[dim.Name] = dim.Value
 		}
+		// Region is intentionally not surfaced — the v1 schema doesn't expose
+		// it, so reading it would create unmappable drift.
 		metric := map[string]any{
 			"name":       alarm.Metric.Name,
 			"namespace":  alarm.Metric.Namespace,
@@ -219,7 +227,6 @@ func resourcePackageAlarmRead(ctx context.Context, d *schema.ResourceData, meta 
 		}
 	}
 
-	d.Set("last_updated", time.Now().Format(time.RFC850))
 	return nil
 }
 
@@ -259,3 +266,46 @@ func isLegacyTimestampID(id string) bool {
 	_, err := time.Parse(time.RFC3339, id)
 	return err == nil
 }
+
+func buildCreateInstanceAlarmInput(d *schema.ResourceData) api.CreateInstanceAlarmInput {
+	input := api.CreateInstanceAlarmInput{
+		CloudResourceId: d.Get("cloud_resource_id").(string),
+		DisplayName:     d.Get("display_name").(string),
+	}
+	if v, ok := d.GetOk("comparison_operator"); ok {
+		input.ComparisonOperator = v.(string)
+	}
+	if v, ok := d.GetOk("threshold"); ok {
+		f := v.(float64)
+		input.Threshold = &f
+	}
+	if v, ok := d.GetOk("period_minutes"); ok {
+		p := v.(int) * 60
+		input.Period = &p
+	}
+	input.Metric = parseAlarmMetric(d.Get("metric").([]any))
+	return input
+}
+
+func buildUpdateInstanceAlarmInput(d *schema.ResourceData) api.UpdateInstanceAlarmInput {
+	input := api.UpdateInstanceAlarmInput{
+		CloudResourceId:    d.Get("cloud_resource_id").(string),
+		DisplayName:        d.Get("display_name").(string),
+		ComparisonOperator: d.Get("comparison_operator").(string),
+	}
+	if v, ok := d.GetOk("threshold"); ok {
+		f := v.(float64)
+		input.Threshold = &f
+	}
+	if v, ok := d.GetOk("period_minutes"); ok {
+		p := v.(int) * 60
+		input.Period = &p
+	}
+	input.Metric = parseAlarmMetric(d.Get("metric").([]any))
+	return input
+}
+
+// parseAlarmMetric and stringFrom are defined in resource_instance_alarm.go
+// and shared with package_alarm. The shared parser also populates `Region`,
+// which the v1 package_alarm schema doesn't expose — empty Region is fine
+// because the GraphQL input directive drops empty values from the wire.

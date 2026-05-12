@@ -1,6 +1,8 @@
 # Terraform Provider Massdriver
 
-This provider allows us to manage massdriver artifacts and package alarms generated from bundles right alongside the other resources in the bundle. It gives us delineated lifecycle events (create, update, destroy).
+This provider lets bundle authors manage Massdriver resources and instance alarms (and the deprecated `massdriver_artifact` / `massdriver_package_alarm`) alongside the other resources in the bundle's IaC. It gives delineated lifecycle events (create, update, destroy) for each.
+
+See [CHANGELOG.md](./CHANGELOG.md) for the v1.3.0 migration notes if you're moving off `massdriver_artifact` / `massdriver_package_alarm`.
 
 ## Development Environment
 

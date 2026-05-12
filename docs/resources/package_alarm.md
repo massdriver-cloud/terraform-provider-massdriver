@@ -3,18 +3,22 @@
 page_title: "massdriver_package_alarm Resource - massdriver"
 subcategory: ""
 description: |-
-  This resource registers a package alarm in the Massdriver console for presentation to the user
+  This resource registers a package alarm in the Massdriver console for presentation to the user.
 ---
 
 # massdriver_package_alarm (Resource)
 
-This resource registers a package alarm in the Massdriver console for presentation to the user
+This resource registers a package alarm in the Massdriver console for presentation to the user.
 
 ## Example Usage
 
 ```terraform
+# NOTE: massdriver_package_alarm is deprecated. Use massdriver_instance_alarm instead.
+# This resource will be removed in v2.0 of the provider.
+# See the v1.3.0 CHANGELOG entry for a side-by-side migration example.
+
 resource "massdriver_package_alarm" "high_cpu" {
-  display_name = "High CPU Alarm"
+  display_name      = "High CPU Alarm"
   cloud_resource_id = aws_cloudwatch_metric_alarm.alarm.arn
 }
 ```
@@ -31,7 +35,7 @@ resource "massdriver_package_alarm" "high_cpu" {
 
 - `comparison_operator` (String) The operation to use when comparing the specified statistic and threshold
 - `metric` (Block List, Max: 1) (see [below for nested schema](#nestedblock--metric))
-- `package_id` (String) The package ID associated with this alarm. This should generally be left unspecified, since the package ID will be read from the MASSDRIVER_PACKAGE_NAME environment variable.
+- `package_id` (String) The package ID associated with this alarm.
 - `period_minutes` (Number) The number of periods over which data is compared to the specified threshold
 - `threshold` (Number) The threshold for triggerin the alarm
 

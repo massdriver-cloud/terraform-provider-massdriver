@@ -38,9 +38,7 @@ type resourceBundleSpec struct {
 
 func resourceResource() *schema.Resource {
 	return &schema.Resource{
-		Description: `Declares a connectable resource produced by a Massdriver bundle. Use this **only** inside the IaC of a Massdriver bundle to satisfy a resource declared in the bundle's ` + "`massdriver.yaml`" + `; outside a deployment it will fail.
-
-If you need to create a resource that is not managed by a Massdriver bundle, use ` + "`massdriver_imported_resource`" + ` instead.`,
+		Description: `Creates a provisioned resource produced by a Massdriver bundle. Use this **only** inside the IaC of a Massdriver bundle to satisfy a resource declared in the bundle's ` + "`massdriver.yaml`" + `; outside a deployment it will fail. Replaces the deprecated ` + "`massdriver_artifact`" + ` resource.`,
 
 		CreateContext: resourceResourceCreate,
 		ReadContext:   resourceResourceRead,
@@ -173,7 +171,7 @@ func resourceResourceDelete(ctx context.Context, d *schema.ResourceData, meta an
 // clearer message than the opaque 401 we'd get from the server.
 func requireDeploymentAuth(mdClient *client.Client) error {
 	if mdClient == nil || mdClient.Config.Credentials == nil || mdClient.Config.Credentials.Method != config.AuthDeployment {
-		return fmt.Errorf("massdriver_resource can only be used inside a Massdriver bundle deployment. Use massdriver_imported_resource for cloud assets managed outside of Massdriver.")
+		return fmt.Errorf("massdriver_resource can only be used inside a Massdriver bundle deployment (MASSDRIVER_DEPLOYMENT_TOKEN must be set)")
 	}
 	return nil
 }

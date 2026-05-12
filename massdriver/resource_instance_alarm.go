@@ -2,10 +2,13 @@ package massdriver
 
 import (
 	"context"
+	"os"
+	"strings"
+
+	"terraform-provider-massdriver/internal/api"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"terraform-provider-massdriver/internal/api"
 )
 
 func resourceInstanceAlarm() *schema.Resource {
@@ -23,10 +26,11 @@ func resourceInstanceAlarm() *schema.Resource {
 
 		Schema: map[string]*schema.Schema{
 			"instance_id": {
-				Description: "ID of the instance this alarm is attached to. Immutable after creation.",
+				Description: "ID of the instance this alarm is attached to. Defaults to the environment variable `MASSDRIVER_INSTANCE_ID` if set, which is the case in a Massdriver deployment. Must be set explicitly when running outside a Massdriver deployment. Immutable after creation.",
 				Type:        schema.TypeString,
-				Required:    true,
+				Optional:    true,
 				ForceNew:    true,
+				DefaultFunc: instanceIDFromEnv,
 			},
 			"display_name": {
 				Description: "Human-readable name shown in the Massdriver UI and notifications.",
@@ -39,49 +43,49 @@ func resourceInstanceAlarm() *schema.Resource {
 				Required:    true,
 			},
 			"comparison_operator": {
-				Description: "How the metric is compared against `threshold` (e.g., `GREATER_THAN`, `LESS_THAN`). May be empty for providers that don't expose this concept (Alertmanager, GCP).",
+				Description: "How the metric is compared against `threshold` (e.g., `GREATER_THAN`, `LESS_THAN`). This is displayed in the Massdriver UI for informational purposes only.",
 				Type:        schema.TypeString,
 				Optional:    true,
 			},
 			"threshold": {
-				Description: "Value crossed to trigger the alarm.",
+				Description: "Value crossed to trigger the alarm. This is displayed in the Massdriver UI for informational purposes only.",
 				Type:        schema.TypeFloat,
 				Optional:    true,
 			},
 			"period": {
-				Description: "Evaluation window in seconds over which the metric is aggregated.",
+				Description: "Evaluation window in seconds over which the metric is aggregated. This is displayed in the Massdriver UI for informational purposes only.",
 				Type:        schema.TypeInt,
 				Optional:    true,
 			},
 			"metric": {
-				Description: "Cloud metric the alarm evaluates. Optional — providers like Alertmanager don't supply structured metric data.",
+				Description: "Cloud metric the alarm evaluates. This is displayed in the Massdriver UI for informational purposes only.",
 				Type:        schema.TypeList,
 				Optional:    true,
 				MaxItems:    1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"namespace": {
-							Description: "Cloud service namespace (e.g., `AWS/RDS`).",
+							Description: "Cloud service namespace (e.g., `AWS/RDS`). This is displayed in the Massdriver UI for informational purposes only.",
 							Type:        schema.TypeString,
 							Optional:    true,
 						},
 						"name": {
-							Description: "Metric name within the namespace (e.g., `CPUUtilization`).",
+							Description: "Metric name within the namespace (e.g., `CPUUtilization`). This is displayed in the Massdriver UI for informational purposes only.",
 							Type:        schema.TypeString,
 							Optional:    true,
 						},
 						"statistic": {
-							Description: "Aggregation function (e.g., `Average`). Empty for providers without it.",
+							Description: "Aggregation function (e.g., `Average`). Empty for providers without it. This is displayed in the Massdriver UI for informational purposes only.",
 							Type:        schema.TypeString,
 							Optional:    true,
 						},
 						"region": {
-							Description: "Cloud region the metric is scoped to, when applicable.",
+							Description: "Cloud region the metric is scoped to, when applicable. This is displayed in the Massdriver UI for informational purposes only.",
 							Type:        schema.TypeString,
 							Optional:    true,
 						},
 						"dimensions": {
-							Description: "Key-value dimensions identifying the monitored resource. Empty when the provider doesn't expose structured dimensions.",
+							Description: "Key-value dimensions identifying the monitored resource. Empty when the provider doesn't expose structured dimensions. This is displayed in the Massdriver UI for informational purposes only.",
 							Type:        schema.TypeMap,
 							Optional:    true,
 							Elem: &schema.Schema{
@@ -97,6 +101,11 @@ func resourceInstanceAlarm() *schema.Resource {
 
 func resourceInstanceAlarmCreate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
 	client := meta.(*ProviderClient).Client
+
+	instanceID := d.Get("instance_id").(string)
+	if instanceID == "" {
+		return diag.Errorf("instance_id must be set in config, or MASSDRIVER_INSTANCE_ID / MASSDRIVER_PACKAGE_NAME must be set in the environment")
+	}
 
 	input := api.CreateInstanceAlarmInput{
 		CloudResourceId: d.Get("cloud_resource_id").(string),
@@ -115,13 +124,36 @@ func resourceInstanceAlarmCreate(ctx context.Context, d *schema.ResourceData, me
 	}
 	input.Metric = parseAlarmMetric(d.Get("metric").([]any))
 
-	alarm, err := api.CreateInstanceAlarm(ctx, client, d.Get("instance_id").(string), input)
+	alarm, err := api.CreateInstanceAlarm(ctx, client, instanceID, input)
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
 	d.SetId(alarm.ID)
 	return resourceInstanceAlarmRead(ctx, d, meta)
+}
+
+// instanceIDFromEnv is the DefaultFunc for `instance_id`. MASSDRIVER_INSTANCE_ID
+// wins if set (use case: caller already knows the canonical instance ID).
+// Otherwise it falls back to MASSDRIVER_PACKAGE_NAME — the env var bundle
+// deployments inject — and strips the trailing deployment suffix (e.g.
+// `bundtst-plygrnd-awsaurorapos-rbpt` → `bundtst-plygrnd-awsaurorapos`).
+// Returns nil when neither is set so the user can resolve it explicitly via
+// HCL when running outside a deployment; Create surfaces a clear error if it
+// stays empty.
+func instanceIDFromEnv() (any, error) {
+	if id := os.Getenv("MASSDRIVER_INSTANCE_ID"); id != "" {
+		return id, nil
+	}
+	name := os.Getenv("MASSDRIVER_PACKAGE_NAME")
+	if name == "" {
+		return nil, nil
+	}
+	parts := strings.Split(name, "-")
+	if len(parts) < 2 {
+		return name, nil
+	}
+	return strings.Join(parts[:len(parts)-1], "-"), nil
 }
 
 func resourceInstanceAlarmRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {

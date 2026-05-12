@@ -1,6 +1,7 @@
 package massdriver
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -163,6 +164,63 @@ func TestResourceInstanceAlarmCreateOmitsUnsetOptionalFields(t *testing.T) {
 		if _, present := input[omitted]; present {
 			t.Errorf("input.%s should be omitted when not set, got %v", omitted, input[omitted])
 		}
+	}
+}
+
+// The DefaultFunc resolves instance_id from env: MASSDRIVER_INSTANCE_ID wins
+// outright; MASSDRIVER_PACKAGE_NAME is the fallback and gets the trailing
+// deployment suffix stripped (`bundtst-...-rbpt` → `bundtst-...`). HCL config
+// trumps both via standard SDK precedence.
+func TestInstanceIDFromEnv(t *testing.T) {
+	cases := []struct {
+		name        string
+		instanceEnv string
+		packageEnv  string
+		want        any
+	}{
+		{name: "both_unset", want: nil},
+		{name: "instance_id_explicit", instanceEnv: "explicit-id", want: "explicit-id"},
+		{name: "package_name_stripped", packageEnv: "bundtst-plygrnd-awsaurorapos-rbpt", want: "bundtst-plygrnd-awsaurorapos"},
+		{name: "instance_id_wins_over_package_name", instanceEnv: "explicit-id", packageEnv: "should-be-ignored-x", want: "explicit-id"},
+		{name: "package_name_without_hyphen_unchanged", packageEnv: "singletoken", want: "singletoken"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("MASSDRIVER_INSTANCE_ID", tc.instanceEnv)
+			t.Setenv("MASSDRIVER_PACKAGE_NAME", tc.packageEnv)
+			got, err := instanceIDFromEnv()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// With neither HCL config nor env vars set, Create must surface a clear error
+// rather than fanning out an API call with an empty instance ID.
+func TestResourceInstanceAlarmCreateRequiresInstanceID(t *testing.T) {
+	t.Setenv("MASSDRIVER_INSTANCE_ID", "")
+	t.Setenv("MASSDRIVER_PACKAGE_NAME", "")
+	pc, rec := newMockProvider(map[string]map[string]any{})
+
+	rd := schema.TestResourceDataRaw(t, resourceInstanceAlarm().Schema, map[string]any{
+		"display_name":      "x",
+		"cloud_resource_id": "arn:::x",
+		// no instance_id
+	})
+
+	diags := resourceInstanceAlarmCreate(t.Context(), rd, pc)
+	if !diags.HasError() {
+		t.Fatal("expected error about missing instance_id, got none")
+	}
+	if !strings.Contains(diags[0].Summary, "instance_id") {
+		t.Errorf("error %q should mention instance_id", diags[0].Summary)
+	}
+	if len(rec.Requests) != 0 {
+		t.Errorf("no API call should fire when instance_id is unresolved; got %d", len(rec.Requests))
 	}
 }
 
@@ -342,8 +400,10 @@ func TestResourceInstanceAlarmSchema(t *testing.T) {
 	if err := r.InternalValidate(nil, true); err != nil {
 		t.Fatalf("schema invalid: %v", err)
 	}
-	if iid := r.Schema["instance_id"]; iid == nil || !iid.Required || !iid.ForceNew {
-		t.Error("instance_id should be Required+ForceNew")
+	// instance_id is Optional (resolved by DefaultFunc from env in deployments)
+	// but ForceNew — moving an alarm between instances is destroy+recreate.
+	if iid := r.Schema["instance_id"]; iid == nil || iid.Required || !iid.Optional || !iid.ForceNew || iid.DefaultFunc == nil {
+		t.Error("instance_id should be Optional+ForceNew with a DefaultFunc")
 	}
 	for _, field := range []string{"display_name", "cloud_resource_id"} {
 		if !r.Schema[field].Required {

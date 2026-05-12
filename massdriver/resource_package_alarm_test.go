@@ -1,55 +1,407 @@
 package massdriver
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"terraform-provider-massdriver/internal/gqlmock"
+
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
 
-// Both Create and Update on massdriver_package_alarm must hard-error and
-// point users at massdriver_instance_alarm. Mirrors the artifact-side test.
-func TestResourcePackageAlarmWritesDisabled(t *testing.T) {
-	r := resourcePackageAlarm()
-	cases := map[string]func(context.Context, *schema.ResourceData, any) diag.Diagnostics{
-		"Create": r.CreateContext,
-		"Update": r.UpdateContext,
+// The self-heal Create path: when state has been corrupted by pre-1.3
+// deploys (which 404'd against the dead REST endpoint and cleared the
+// alarm's UUID from state), Create should look the alarm up by
+// instance + cloud_resource_id and adopt it back into state. No
+// createInstanceAlarm call should fire — we use the existing record.
+func TestResourcePackageAlarmCreateAdoptsOrphanedAlarm(t *testing.T) {
+	pc, rec := newMockProvider(map[string]map[string]any{
+		"listInstanceAlarms": {
+			"data": map[string]any{
+				"instanceAlarms": map[string]any{
+					"cursor": map[string]any{"next": ""},
+					"items": []map[string]any{
+						{
+							"id":              "wrong-alarm",
+							"cloudResourceId": "arn:::different",
+						},
+						{
+							"id":              "recovered-uuid",
+							"displayName":     "RDS High CPU",
+							"cloudResourceId": "arn:::target",
+						},
+					},
+				},
+			},
+		},
+		// Read fires after Create succeeds — needs to return the recovered alarm.
+		"getInstanceAlarm": {
+			"data": map[string]any{
+				"instanceAlarm": map[string]any{
+					"id":              "recovered-uuid",
+					"displayName":     "RDS High CPU",
+					"cloudResourceId": "arn:::target",
+				},
+			},
+		},
+	})
+
+	rd := schema.TestResourceDataRaw(t, resourcePackageAlarm().Schema, map[string]any{
+		"cloud_resource_id": "arn:::target",
+		"display_name":      "RDS High CPU",
+		"package_id":        "ecomm-prod-db",
+	})
+
+	if diags := resourcePackageAlarmCreate(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
-	for name, fn := range cases {
-		t.Run(name, func(t *testing.T) {
-			rd := schema.TestResourceDataRaw(t, r.Schema, map[string]any{
-				"cloud_resource_id": "arn:::x",
-				"display_name":      "x",
-			})
-			diags := fn(t.Context(), rd, nil)
-			if !diags.HasError() {
-				t.Fatalf("expected %s to error, got none", name)
-			}
-			summary := diags[0].Summary
-			if !strings.Contains(summary, "no longer supports") {
-				t.Errorf("error %q should explain the operation is disabled", summary)
-			}
-			if !strings.Contains(summary, "massdriver_instance_alarm") {
-				t.Errorf("error %q should point users at massdriver_instance_alarm", summary)
-			}
-		})
+	if rd.Id() != "recovered-uuid" {
+		t.Errorf("expected ID adopted from server lookup; got %q want recovered-uuid", rd.Id())
+	}
+	if rec.FindRequest("createInstanceAlarm") != nil {
+		t.Error("Create must not fire when the self-heal lookup adopts an existing alarm")
 	}
 }
 
-// Read and Delete must remain wired so users with existing state can refresh
-// and migrate off cleanly.
-func TestResourcePackageAlarmReadAndDeleteStillWired(t *testing.T) {
+// User genuinely adding a new alarm — server has nothing to recover. Create
+// must fall through and call createInstanceAlarm via the GraphQL endpoint.
+func TestResourcePackageAlarmCreateFallsThroughToNewAlarm(t *testing.T) {
+	pc, rec := newMockProvider(map[string]map[string]any{
+		"listInstanceAlarms": {
+			"data": map[string]any{
+				"instanceAlarms": map[string]any{
+					"cursor": map[string]any{"next": ""},
+					"items":  []map[string]any{},
+				},
+			},
+		},
+		"createInstanceAlarm": {
+			"data": map[string]any{
+				"createInstanceAlarm": map[string]any{
+					"successful": true,
+					"result": map[string]any{
+						"id":              "fresh-uuid",
+						"displayName":     "New Alarm",
+						"cloudResourceId": "arn:::brand-new",
+					},
+				},
+			},
+		},
+		"getInstanceAlarm": {
+			"data": map[string]any{
+				"instanceAlarm": map[string]any{
+					"id":              "fresh-uuid",
+					"displayName":     "New Alarm",
+					"cloudResourceId": "arn:::brand-new",
+				},
+			},
+		},
+	})
+
+	rd := schema.TestResourceDataRaw(t, resourcePackageAlarm().Schema, map[string]any{
+		"cloud_resource_id": "arn:::brand-new",
+		"display_name":      "New Alarm",
+		"package_id":        "ecomm-prod-db",
+	})
+
+	if diags := resourcePackageAlarmCreate(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	if rd.Id() != "fresh-uuid" {
+		t.Errorf("expected ID from createInstanceAlarm; got %q want fresh-uuid", rd.Id())
+	}
+	if rec.FindRequest("createInstanceAlarm") == nil {
+		t.Error("createInstanceAlarm must fire when the self-heal lookup finds nothing")
+	}
+	if rd.Get("last_updated").(string) == "" {
+		t.Error("last_updated should be populated after a successful create")
+	}
+}
+
+// A transport-level failure on the self-heal lookup must NOT be hidden — it
+// surfaces verbatim so the user can debug the underlying problem instead of
+// being told to migrate.
+func TestResourcePackageAlarmCreatePropagatesAPIError(t *testing.T) {
+	pc, _ := newMockProvider(map[string]map[string]any{
+		"listInstanceAlarms": {
+			"errors": []map[string]any{
+				{"message": "internal server error"},
+			},
+		},
+	})
+
+	rd := schema.TestResourceDataRaw(t, resourcePackageAlarm().Schema, map[string]any{
+		"cloud_resource_id": "arn:::target",
+		"display_name":      "RDS High CPU",
+		"package_id":        "ecomm-prod-db",
+	})
+
+	diags := resourcePackageAlarmCreate(t.Context(), rd, pc)
+	if !diags.HasError() {
+		t.Fatal("expected error from the API failure, got none")
+	}
+	if !strings.Contains(diags[0].Summary, "internal server error") {
+		t.Errorf("expected upstream error to be surfaced; got %q", diags[0].Summary)
+	}
+}
+
+// Without a package_id and without MASSDRIVER_PACKAGE_NAME, the lookup has
+// nothing to filter on. Surface a clear error rather than fanning out a
+// query that lists every alarm in the org.
+func TestResourcePackageAlarmCreateRequiresPackageID(t *testing.T) {
+	t.Setenv("MASSDRIVER_PACKAGE_NAME", "")
+	pc, rec := newMockProvider(map[string]map[string]any{})
+
+	rd := schema.TestResourceDataRaw(t, resourcePackageAlarm().Schema, map[string]any{
+		"cloud_resource_id": "arn:::target",
+		"display_name":      "x",
+		// no package_id
+	})
+
+	diags := resourcePackageAlarmCreate(t.Context(), rd, pc)
+	if !diags.HasError() {
+		t.Fatal("expected error about missing package_id")
+	}
+	if !strings.Contains(diags[0].Summary, "package_id") && !strings.Contains(diags[0].Summary, "MASSDRIVER_PACKAGE_NAME") {
+		t.Errorf("error %q should mention the missing package identifier", diags[0].Summary)
+	}
+	if len(rec.Requests) != 0 {
+		t.Errorf("no API call should fire when package_id is unresolved; got %d", len(rec.Requests))
+	}
+}
+
+// HCL `package_id` (or MASSDRIVER_PACKAGE_NAME) carries the deployment-suffixed
+// package name like `bundtst-plygrnd-awsaurorapos-rbpt`; the instance lookup
+// needs the short form (`bundtst-plygrnd-awsaurorapos`). Confirm the strip.
+func TestResourcePackageAlarmCreateStripsDeploymentSuffix(t *testing.T) {
+	pc, rec := newMockProvider(map[string]map[string]any{
+		"listInstanceAlarms": {
+			"data": map[string]any{
+				"instanceAlarms": map[string]any{
+					"cursor": map[string]any{"next": ""},
+					"items":  []map[string]any{},
+				},
+			},
+		},
+		"createInstanceAlarm": {
+			"data": map[string]any{
+				"createInstanceAlarm": map[string]any{
+					"successful": true,
+					"result": map[string]any{
+						"id":              "fresh-uuid",
+						"displayName":     "x",
+						"cloudResourceId": "arn:::x",
+					},
+				},
+			},
+		},
+		"getInstanceAlarm": {
+			"data": map[string]any{
+				"instanceAlarm": map[string]any{
+					"id":              "fresh-uuid",
+					"displayName":     "x",
+					"cloudResourceId": "arn:::x",
+				},
+			},
+		},
+	})
+
+	rd := schema.TestResourceDataRaw(t, resourcePackageAlarm().Schema, map[string]any{
+		"cloud_resource_id": "arn:::x",
+		"display_name":      "x",
+		"package_id":        "bundtst-plygrnd-awsaurorapos-rbpt",
+	})
+
+	if diags := resourcePackageAlarmCreate(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	vars := gqlmock.Variables(rec.FindRequest("listInstanceAlarms"))
+	filter, _ := vars["filter"].(map[string]any)
+	instanceID, _ := filter["instanceId"].(map[string]any)
+	if got := instanceID["eq"]; got != "bundtst-plygrnd-awsaurorapos" {
+		t.Errorf("self-heal filtered on instanceId %v, want bundtst-plygrnd-awsaurorapos (stripped)", got)
+	}
+	createVars := gqlmock.Variables(rec.FindRequest("createInstanceAlarm"))
+	if got := createVars["instanceId"]; got != "bundtst-plygrnd-awsaurorapos" {
+		t.Errorf("createInstanceAlarm instanceId %v, want stripped short name", got)
+	}
+}
+
+// Verifies the field translation between the package_alarm HCL schema and
+// CreateInstanceAlarmInput: period_minutes × 60 → period (seconds), metric
+// dimensions map → list, etc.
+func TestResourcePackageAlarmCreateMapsFieldsToInput(t *testing.T) {
+	pc, rec := newMockProvider(map[string]map[string]any{
+		"listInstanceAlarms": {
+			"data": map[string]any{
+				"instanceAlarms": map[string]any{
+					"cursor": map[string]any{"next": ""},
+					"items":  []map[string]any{},
+				},
+			},
+		},
+		"createInstanceAlarm": {
+			"data": map[string]any{
+				"createInstanceAlarm": map[string]any{
+					"successful": true,
+					"result": map[string]any{
+						"id":              "fresh-uuid",
+						"displayName":     "RDS High CPU",
+						"cloudResourceId": "arn:::target",
+					},
+				},
+			},
+		},
+		"getInstanceAlarm": {
+			"data": map[string]any{
+				"instanceAlarm": map[string]any{
+					"id":              "fresh-uuid",
+					"displayName":     "RDS High CPU",
+					"cloudResourceId": "arn:::target",
+				},
+			},
+		},
+	})
+
+	rd := schema.TestResourceDataRaw(t, resourcePackageAlarm().Schema, map[string]any{
+		"cloud_resource_id":   "arn:::target",
+		"display_name":        "RDS High CPU",
+		"package_id":          "ecomm-prod-db",
+		"threshold":           80.0,
+		"period_minutes":      5,
+		"comparison_operator": "GreaterThanThreshold",
+		"metric": []any{map[string]any{
+			"name":      "CPUUtilization",
+			"namespace": "AWS/RDS",
+			"statistic": "Average",
+			"dimensions": map[string]any{
+				"DBInstanceIdentifier": "prod-db",
+			},
+		}},
+	})
+
+	if diags := resourcePackageAlarmCreate(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+
+	vars := gqlmock.Variables(rec.FindRequest("createInstanceAlarm"))
+	input, _ := vars["input"].(map[string]any)
+
+	if input["cloudResourceId"] != "arn:::target" {
+		t.Errorf("got cloudResourceId %v", input["cloudResourceId"])
+	}
+	if input["displayName"] != "RDS High CPU" {
+		t.Errorf("got displayName %v", input["displayName"])
+	}
+	if input["threshold"] != 80.0 {
+		t.Errorf("got threshold %v", input["threshold"])
+	}
+	if got := input["period"]; got != 300.0 { // JSON-decoded ints come back as float64
+		t.Errorf("got period %v, want 300 (5 minutes × 60)", got)
+	}
+	if input["comparisonOperator"] != "GreaterThanThreshold" {
+		t.Errorf("got comparisonOperator %v", input["comparisonOperator"])
+	}
+
+	metric, _ := input["metric"].(map[string]any)
+	if metric["name"] != "CPUUtilization" || metric["namespace"] != "AWS/RDS" {
+		t.Errorf("got metric %+v", metric)
+	}
+	dims, _ := metric["dimensions"].([]any)
+	if len(dims) != 1 {
+		t.Fatalf("got %d dimensions, want 1", len(dims))
+	}
+	d0, _ := dims[0].(map[string]any)
+	if d0["name"] != "DBInstanceIdentifier" || d0["value"] != "prod-db" {
+		t.Errorf("got dimension %+v", d0)
+	}
+}
+
+func TestResourcePackageAlarmUpdate(t *testing.T) {
+	pc, rec := newMockProvider(map[string]map[string]any{
+		"updateInstanceAlarm": {
+			"data": map[string]any{
+				"updateInstanceAlarm": map[string]any{
+					"successful": true,
+					"result": map[string]any{
+						"id":              "alarm-uuid",
+						"displayName":     "Updated Name",
+						"cloudResourceId": "arn:::target",
+						"threshold":       95.0,
+						"period":          600,
+					},
+				},
+			},
+		},
+		"getInstanceAlarm": {
+			"data": map[string]any{
+				"instanceAlarm": map[string]any{
+					"id":              "alarm-uuid",
+					"displayName":     "Updated Name",
+					"cloudResourceId": "arn:::target",
+					"threshold":       95.0,
+					"period":          600,
+				},
+			},
+		},
+	})
+
+	rd := schema.TestResourceDataRaw(t, resourcePackageAlarm().Schema, map[string]any{
+		"cloud_resource_id":   "arn:::target",
+		"display_name":        "Updated Name",
+		"threshold":           95.0,
+		"period_minutes":      10,
+		"comparison_operator": "GreaterThanThreshold",
+	})
+	rd.SetId("alarm-uuid")
+
+	if diags := resourcePackageAlarmUpdate(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+
+	vars := gqlmock.Variables(rec.FindRequest("updateInstanceAlarm"))
+	if vars["id"] != "alarm-uuid" {
+		t.Errorf("got id %v, want alarm-uuid", vars["id"])
+	}
+	input, _ := vars["input"].(map[string]any)
+	if input["displayName"] != "Updated Name" {
+		t.Errorf("got displayName %v", input["displayName"])
+	}
+	if input["threshold"] != 95.0 {
+		t.Errorf("got threshold %v", input["threshold"])
+	}
+	if got := input["period"]; got != 600.0 {
+		t.Errorf("got period %v, want 600 (10 minutes × 60)", got)
+	}
+	if rd.Get("last_updated").(string) == "" {
+		t.Error("last_updated should be populated after a successful update")
+	}
+}
+
+// All four CRUD contexts must remain wired so terraform can refresh, plan,
+// apply, and destroy.
+func TestResourcePackageAlarmAllContextsWired(t *testing.T) {
 	r := resourcePackageAlarm()
+	if r.CreateContext == nil {
+		t.Error("CreateContext should be wired")
+	}
 	if r.ReadContext == nil {
-		t.Error("ReadContext should remain wired so refresh keeps working")
+		t.Error("ReadContext should be wired")
+	}
+	if r.UpdateContext == nil {
+		t.Error("UpdateContext should be wired")
 	}
 	if r.DeleteContext == nil {
-		t.Error("DeleteContext should remain wired so users can clean up")
+		t.Error("DeleteContext should be wired")
+	}
+	if r.DeprecationMessage == "" {
+		t.Error("DeprecationMessage should be set on the deprecated resource")
+	}
+	if !strings.Contains(r.DeprecationMessage, "massdriver_instance_alarm") {
+		t.Errorf("DeprecationMessage should point at massdriver_instance_alarm; got %q", r.DeprecationMessage)
 	}
 }
 
@@ -120,8 +472,8 @@ func TestResourcePackageAlarmReadViaGraphQL(t *testing.T) {
 }
 
 // "not found" from the GraphQL endpoint must clear state — terraform then
-// plans a recreate which hard-errors via WritesDisabled, prompting the user
-// to migrate to massdriver_instance_alarm.
+// plans a recreate via the Create path (which runs the self-heal lookup, then
+// either adopts or creates via createInstanceAlarm).
 func TestResourcePackageAlarmReadClearsOnNotFound(t *testing.T) {
 	pc, _ := newMockProvider(map[string]map[string]any{
 		"getInstanceAlarm": {
@@ -190,70 +542,144 @@ func TestResourcePackageAlarmDeleteViaGraphQL(t *testing.T) {
 	}
 }
 
-// Legacy timestamp IDs can't be deleted server-side (the REST endpoint that
-// understood them is gone). Delete should silently clear state so destroy
-// works on ancient state files.
-// suppressAllDiffs is the load-bearing piece that keeps terraform apply from
-// failing on existing deployments after the package alarm Create/Update
-// endpoints went away. Even with substantial drift between HCL and state,
-// terraform must plan zero changes — otherwise it would call Update, which
-// hard-errors via WritesDisabled and forces users to migrate before they can
-// apply *any* unrelated change in their configuration.
-func TestResourcePackageAlarmSuppressesAllDriftFromUpdates(t *testing.T) {
-	r := resourcePackageAlarm()
-
-	// Existing state — what a user accumulated under the live REST endpoint.
-	state := &terraform.InstanceState{
-		ID: "alarm-uuid",
-		Attributes: map[string]string{
-			"id":                       "alarm-uuid",
-			"cloud_resource_id":        "arn:aws:cloudwatch:us-east-1:111:alarm/old-arn",
-			"display_name":             "Old Name",
-			"threshold":                "50",
-			"period_minutes":           "5",
-			"comparison_operator":      "GreaterThanThreshold",
-			"package_id":               "ecomm-prod-db",
-			"metric.#":                 "1",
-			"metric.0.name":            "OldMetric",
-			"metric.0.namespace":       "AWS/RDS",
-			"metric.0.statistic":       "Average",
-			"metric.0.dimensions.%":    "1",
-			"metric.0.dimensions.foo":  "bar",
+// When state matches what the API returns, Read must produce zero drift on
+// user-facing fields — otherwise every plan would manufacture a fake Update
+// even when the user changed nothing.
+func TestResourcePackageAlarmReadHydratesStateCleanly(t *testing.T) {
+	pc, _ := newMockProvider(map[string]map[string]any{
+		"getInstanceAlarm": {
+			"data": map[string]any{
+				"instanceAlarm": map[string]any{
+					"id":                 "alarm-uuid",
+					"displayName":        "RDS High CPU",
+					"cloudResourceId":    "arn:aws:cloudwatch:us-east-1:111:alarm/rds-cpu",
+					"comparisonOperator": "GreaterThanThreshold",
+					"threshold":          80.0,
+					"period":             300, // 5 minutes
+					"metric": map[string]any{
+						"namespace": "AWS/RDS",
+						"name":      "CPUUtilization",
+						"statistic": "Average",
+						"dimensions": []map[string]any{
+							{"name": "DBInstanceIdentifier", "value": "prod-db"},
+						},
+					},
+				},
+			},
 		},
-	}
+	})
 
-	// Brand-new HCL — every single field has changed from state.
-	cfg := terraform.NewResourceConfigRaw(map[string]any{
-		"cloud_resource_id":   "arn:aws:cloudwatch:us-east-1:111:alarm/new-arn",
-		"display_name":        "New Name",
-		"threshold":           99.0,
-		"period_minutes":      10,
-		"comparison_operator": "LessThanThreshold",
-		"package_id":          "ecomm-prod-db",
+	rd := schema.TestResourceDataRaw(t, resourcePackageAlarm().Schema, map[string]any{
+		"cloud_resource_id":   "arn:aws:cloudwatch:us-east-1:111:alarm/rds-cpu",
+		"display_name":        "RDS High CPU",
+		"threshold":           80.0,
+		"period_minutes":      5,
+		"comparison_operator": "GreaterThanThreshold",
 		"metric": []any{map[string]any{
-			"name":      "NewMetric",
-			"namespace": "AWS/EC2",
-			"statistic": "Sum",
+			"name":      "CPUUtilization",
+			"namespace": "AWS/RDS",
+			"statistic": "Average",
 			"dimensions": map[string]any{
-				"baz": "qux",
+				"DBInstanceIdentifier": "prod-db",
 			},
 		}},
 	})
+	rd.SetId("alarm-uuid")
 
-	diff, err := r.Diff(t.Context(), state, cfg, nil)
-	if err != nil {
-		t.Fatalf("unexpected diff error: %v", err)
+	if diags := resourcePackageAlarmRead(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
-	// `nil` diff or an empty one both mean "no changes planned" — either is
-	// acceptable, terraform won't call Update in either case.
-	if diff != nil && !diff.Empty() {
-		t.Errorf("expected zero-change diff regardless of drift, got %d attribute changes:", len(diff.Attributes))
-		for k, attr := range diff.Attributes {
-			t.Errorf("  %s: %+v", k, attr)
+
+	for field, want := range map[string]any{
+		"cloud_resource_id":   "arn:aws:cloudwatch:us-east-1:111:alarm/rds-cpu",
+		"display_name":        "RDS High CPU",
+		"threshold":           80.0,
+		"period_minutes":      5,
+		"comparison_operator": "GreaterThanThreshold",
+	} {
+		if got := rd.Get(field); got != want {
+			t.Errorf("Read hydrated %s=%v, want %v (would surface as fake drift)", field, got, want)
 		}
+	}
+
+	metric := rd.Get("metric").([]any)
+	if len(metric) != 1 {
+		t.Fatalf("got %d metric blocks, want 1", len(metric))
+	}
+	m := metric[0].(map[string]any)
+	if m["name"] != "CPUUtilization" || m["namespace"] != "AWS/RDS" || m["statistic"] != "Average" {
+		t.Errorf("metric block hydrated as %+v, doesn't match HCL", m)
+	}
+	dims := m["dimensions"].(map[string]any)
+	if dims["DBInstanceIdentifier"] != "prod-db" {
+		t.Errorf("dimensions hydrated as %v, want DBInstanceIdentifier=prod-db", dims)
 	}
 }
 
+// Read must NOT touch `last_updated` — refreshing it with `time.Now()` would
+// make every plan show a diff for a field the user didn't change.
+func TestResourcePackageAlarmReadDoesNotChurnLastUpdated(t *testing.T) {
+	pc, _ := newMockProvider(map[string]map[string]any{
+		"getInstanceAlarm": {
+			"data": map[string]any{
+				"instanceAlarm": map[string]any{
+					"id":              "alarm-uuid",
+					"displayName":     "x",
+					"cloudResourceId": "arn:::x",
+				},
+			},
+		},
+	})
+
+	const stable = "Mon, 02 Jan 2006 15:04:05 MST"
+	rd := schema.TestResourceDataRaw(t, resourcePackageAlarm().Schema, map[string]any{})
+	rd.SetId("alarm-uuid")
+	if err := rd.Set("last_updated", stable); err != nil {
+		t.Fatal(err)
+	}
+
+	if diags := resourcePackageAlarmRead(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	if got := rd.Get("last_updated").(string); got != stable {
+		t.Errorf("Read overwrote last_updated to %q, want %q (must not churn)", got, stable)
+	}
+}
+
+// When the API returns no metric, Read must explicitly clear the block —
+// otherwise stale state hides server-side metric removal forever.
+func TestResourcePackageAlarmReadClearsMetricWhenAbsent(t *testing.T) {
+	pc, _ := newMockProvider(map[string]map[string]any{
+		"getInstanceAlarm": {
+			"data": map[string]any{
+				"instanceAlarm": map[string]any{
+					"id":              "alarm-uuid",
+					"displayName":     "Alertmanager Page",
+					"cloudResourceId": "alertmanager:my-alert",
+				},
+			},
+		},
+	})
+
+	rd := schema.TestResourceDataRaw(t, resourcePackageAlarm().Schema, map[string]any{
+		"cloud_resource_id": "alertmanager:my-alert",
+		"display_name":      "Alertmanager Page",
+		"metric": []any{map[string]any{
+			"name":      "stale",
+			"namespace": "stale",
+		}},
+	})
+	rd.SetId("alarm-uuid")
+
+	if diags := resourcePackageAlarmRead(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	if metric := rd.Get("metric").([]any); len(metric) != 0 {
+		t.Errorf("metric should be cleared when API returns no metric; got %+v", metric)
+	}
+}
+
+// Legacy timestamp IDs can't be deleted server-side. Delete clears state.
 func TestResourcePackageAlarmDeleteShortCircuitsLegacyTimestampID(t *testing.T) {
 	pc, rec := newMockProvider(map[string]map[string]any{})
 
@@ -274,13 +700,6 @@ func TestResourcePackageAlarmDeleteShortCircuitsLegacyTimestampID(t *testing.T) 
 }
 
 func TestAccMassdriverPackageAlarmBasic(t *testing.T) {
-	// massdriver_package_alarm no longer accepts create/update — see
-	// resourcePackageAlarmWritesDisabled. The acceptance test needed a live
-	// Create, which now hard-errors, so skip it. Refresh/Delete-only paths
-	// are exercised through users' existing state and don't need acceptance
-	// coverage here.
-	t.Skip("massdriver_package_alarm is frozen for new writes; use massdriver_instance_alarm")
-
 	resource.Test(t, resource.TestCase{
 		PreCheck:  func() { testAccPreCheck(t) },
 		Providers: testAccProviders,
