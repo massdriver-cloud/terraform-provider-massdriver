@@ -67,7 +67,7 @@ func resourcePackageAlarm() *schema.Resource {
 				},
 			},
 			"package_id": {
-				Description: "The package ID associated with this alarm.",
+				Description: "The package ID associated with this alarm. This should generally be left unspecified, since the package ID will be read from the MASSDRIVER_PACKAGE_NAME environment variable.",
 				Type:        schema.TypeString,
 				ForceNew:    true,
 				Optional:    true,

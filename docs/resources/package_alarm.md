@@ -35,7 +35,7 @@ resource "massdriver_package_alarm" "high_cpu" {
 
 - `comparison_operator` (String) The operation to use when comparing the specified statistic and threshold
 - `metric` (Block List, Max: 1) (see [below for nested schema](#nestedblock--metric))
-- `package_id` (String) The package ID associated with this alarm.
+- `package_id` (String) The package ID associated with this alarm. This should generally be left unspecified, since the package ID will be read from the MASSDRIVER_PACKAGE_NAME environment variable.
 - `period_minutes` (Number) The number of periods over which data is compared to the specified threshold
 - `threshold` (Number) The threshold for triggerin the alarm
 
