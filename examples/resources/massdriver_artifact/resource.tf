@@ -1,3 +1,7 @@
+# NOTE: massdriver_artifact is deprecated. Use massdriver_resource instead.
+# This resource will be removed in v2.0 of the provider.
+# See the v1.3.0 CHANGELOG entry for a side-by-side migration example.
+
 resource "massdriver_artifact" "vpc" {
 
   # The field under the `artifacts` block in massdriver.yaml
@@ -14,7 +18,7 @@ resource "massdriver_artifact" "vpc" {
       }
       specs = {
         aws = {
-          region   = "us-west-2"
+          region = "us-west-2"
         }
       }
     }

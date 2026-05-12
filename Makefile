@@ -3,7 +3,7 @@ HOSTNAME=registry.terraform.io
 NAMESPACE=massdriver-cloud
 NAME=massdriver
 BINARY=terraform-provider-${NAME}
-VERSION=1.0.0
+VERSION=1.3.0
 OS_ARCHS= darwin_amd64 linux_amd64
 
 default: install
@@ -41,5 +41,6 @@ test:
 .PHONY: docs
 docs: ## Generate documentation
 	@echo "Generating documentation..."
-	@go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@latest
+	@# Pinned to v0.20.1 — v0.21.0+ requires Go >= 1.25.
+	@go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@v0.20.1
 	@tfplugindocs generate --provider-name=massdriver --examples-dir=./examples

@@ -1,0 +1,32 @@
+# For full documentation see:
+# https://github.com/Khan/genqlient/blob/main/docs/genqlient.yaml
+
+schema: schema.graphql
+operations:
+  - genqlient.graphql
+generated: zz_generated.go
+package: api
+bindings:
+  JSON:
+    type: map[string]any
+    marshaler: terraform-provider-massdriver/internal/api/scalars.MarshalJSON
+    unmarshaler: terraform-provider-massdriver/internal/api/scalars.UnmarshalJSON
+  Map:
+    type: map[string]any
+    marshaler: terraform-provider-massdriver/internal/api/scalars.MarshalJSON
+    unmarshaler: terraform-provider-massdriver/internal/api/scalars.UnmarshalJSON
+  VersionConstraint:
+    type: string
+  OciRepoName:
+    type: string
+  # UUID is just a string at the wire level — the server-side type is stricter
+  # than `ID` (which it migrated certain fields away from), but on the Go side
+  # we treat both identically.
+  UUID:
+    type: string
+  # Conditions is a polymorphic JSON value on the wire — either the JSON
+  # string `"*"` (wildcard) or a JSON object like `{"team":["eng"]}`. Bind to
+  # json.RawMessage so we can pass-through both shapes without losing fidelity;
+  # the API wrappers convert to/from a flat Go string.
+  Conditions:
+    type: encoding/json.RawMessage

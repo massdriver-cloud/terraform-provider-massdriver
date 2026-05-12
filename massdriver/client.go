@@ -3,7 +3,7 @@ package massdriver
 import (
 	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/client"
 	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/services/artifacts"
-	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/services/packagealarms"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/services/resources"
 )
 
 type ProviderClient struct {
@@ -24,6 +24,6 @@ func (p *ProviderClient) ArtifactService() *artifacts.Service {
 	return artifacts.NewService(p.Client)
 }
 
-func (p *ProviderClient) PackageAlarmsService() *packagealarms.Service {
-	return packagealarms.NewService(p.Client)
+func (p *ProviderClient) ResourceService() *resources.Service {
+	return resources.NewService(p.Client)
 }

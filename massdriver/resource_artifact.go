@@ -34,7 +34,8 @@ type ArtifactSpecification struct {
 
 func resourceArtifact() *schema.Resource {
 	return &schema.Resource{
-		Description: "A Massdriver artifact for exporting a connectable type",
+		Description:        "A Massdriver artifact for exporting a connectable type",
+		DeprecationMessage: "massdriver_artifact is deprecated and will be removed in v2.0 of the massdriver provider. Use `massdriver_resource` instead. Do not manage the same record via both `massdriver_artifact` and `massdriver_resource` — terraform will not detect the conflict and the two resources will fight over state.",
 
 		CreateContext: resourceArtifactCreate,
 		ReadContext:   schema.NoopContext,

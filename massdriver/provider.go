@@ -8,12 +8,20 @@ import (
 )
 
 // Provider -
+//
+// v1.3 is a bridge release. The deprecated resources (`massdriver_artifact`,
+// `massdriver_package_alarm`) remain fully functional so existing users keep
+// working, while the replacement resources (`massdriver_resource`,
+// `massdriver_instance_alarm`) ship alongside them as migration targets. v2.0
+// removes the deprecated resources entirely.
 func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{},
 		ResourcesMap: map[string]*schema.Resource{
-			"massdriver_artifact":      resourceArtifact(),
-			"massdriver_package_alarm": resourcePackageAlarm(),
+			"massdriver_artifact":       resourceArtifact(),
+			"massdriver_package_alarm":  resourcePackageAlarm(),
+			"massdriver_resource":       resourceResource(),
+			"massdriver_instance_alarm": resourceInstanceAlarm(),
 		},
 		DataSourcesMap:       map[string]*schema.Resource{},
 		ConfigureContextFunc: providerConfigure,

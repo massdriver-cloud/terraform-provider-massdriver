@@ -2,11 +2,37 @@ package massdriver
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
+
+// All four CRUD contexts must remain wired — artifact stays functional in
+// v1.3 because the REST endpoint redirects to `/resources`. The deprecation
+// is communicated via DeprecationMessage, not via a hard-error on writes.
+func TestResourceArtifactAllContextsWired(t *testing.T) {
+	r := resourceArtifact()
+	if r.CreateContext == nil {
+		t.Error("CreateContext should be wired")
+	}
+	if r.ReadContext == nil {
+		t.Error("ReadContext should be wired")
+	}
+	if r.UpdateContext == nil {
+		t.Error("UpdateContext should be wired")
+	}
+	if r.DeleteContext == nil {
+		t.Error("DeleteContext should be wired")
+	}
+	if r.DeprecationMessage == "" {
+		t.Error("DeprecationMessage should be set on the deprecated resource")
+	}
+	if !strings.Contains(r.DeprecationMessage, "massdriver_resource") {
+		t.Errorf("DeprecationMessage should point at massdriver_resource; got %q", r.DeprecationMessage)
+	}
+}
 
 func TestAccMassdriverArtifactBasic(t *testing.T) {
 	resource.Test(t, resource.TestCase{

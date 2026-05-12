@@ -2,19 +2,21 @@ package massdriver
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"os"
+	"strings"
 	"time"
+
+	"terraform-provider-massdriver/internal/api"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/services/packagealarms"
 )
 
 func resourcePackageAlarm() *schema.Resource {
 	return &schema.Resource{
-		Description: "This resource registers a package alarm in the Massdriver console for presentation to the user",
+		Description:        "This resource registers a package alarm in the Massdriver console for presentation to the user.",
+		DeprecationMessage: "massdriver_package_alarm is deprecated and will be removed in v2.0 of the massdriver provider. Use `massdriver_instance_alarm` instead. Do not manage the same alarm via both `massdriver_package_alarm` and `massdriver_instance_alarm` — terraform will not detect the conflict and the two resources will fight over state.",
 
 		CreateContext: resourcePackageAlarmCreate,
 		ReadContext:   resourcePackageAlarmRead,
@@ -35,8 +37,7 @@ func resourcePackageAlarm() *schema.Resource {
 			"metric": {
 				Type:     schema.TypeList,
 				MaxItems: 1,
-				Optional: true, // This should be removed when we've added it to all our existing alarms
-				//Required: false,     This should be set to true when we've added it to all our existing alarms
+				Optional: true,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"name": {
@@ -98,188 +99,213 @@ func resourcePackageAlarm() *schema.Resource {
 	}
 }
 
-func resourcePackageAlarmCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	service := meta.(*ProviderClient).PackageAlarmsService()
+// resourcePackageAlarmCreate first looks up an existing alarm on the instance
+// matching cloud_resource_id (self-heal). If found, we adopt it into state
+// rather than creating a duplicate — this recovers from pre-1.3 deploys where
+// the old REST-based Read 404'd against the now-dead endpoint and silently
+// cleared the alarm's UUID from state, leaving the server-side record
+// orphaned. If no existing alarm matches, we create a new one via GraphQL.
+//
+// Lookup errors are surfaced verbatim so a transient API/auth/network issue
+// is not misreported as a missing alarm.
+func resourcePackageAlarmCreate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
+	instanceID, err := getPackageShortName(d)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	cloudResourceID := d.Get("cloud_resource_id").(string)
 
-	var diags diag.Diagnostics
-
-	alarm := parseAlarmBlock(d)
-
-	packageID, idErr := getPackageName(d)
-	if idErr != nil {
-		return diag.FromErr(idErr)
+	client := meta.(*ProviderClient).Client
+	existing, err := api.FindInstanceAlarmByCloudResourceID(ctx, client, instanceID, cloudResourceID)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	if existing != nil {
+		d.SetId(existing.ID)
+		return resourcePackageAlarmRead(ctx, d, meta)
 	}
 
-	resp, createErr := service.CreatePackageAlarm(ctx, packageID, alarm)
-	if createErr != nil {
-		return diag.FromErr(createErr)
+	alarm, err := api.CreateInstanceAlarm(ctx, client, instanceID, buildCreateInstanceAlarmInput(d))
+	if err != nil {
+		return diag.FromErr(err)
 	}
-
-	d.SetId(resp.ID)
+	d.SetId(alarm.ID)
 	d.Set("last_updated", time.Now().Format(time.RFC850))
-
-	return diags
+	return resourcePackageAlarmRead(ctx, d, meta)
 }
 
-func resourcePackageAlarmRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	service := meta.(*ProviderClient).PackageAlarmsService()
+func resourcePackageAlarmUpdate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
+	client := meta.(*ProviderClient).Client
+	if _, err := api.UpdateInstanceAlarm(ctx, client, d.Id(), buildUpdateInstanceAlarmInput(d)); err != nil {
+		return diag.FromErr(err)
+	}
+	d.Set("last_updated", time.Now().Format(time.RFC850))
+	return resourcePackageAlarmRead(ctx, d, meta)
+}
 
-	var diags diag.Diagnostics
+// getPackageShortName resolves the instance identifier used by the GraphQL
+// API. The package_alarm HCL field is `package_id` and bundle deployments
+// inject MASSDRIVER_PACKAGE_NAME — both carry the package's deployment-suffixed
+// name (e.g., `bundtst-plygrnd-awsaurorapos-rbpt`). The instance lookup needs
+// the short form (`bundtst-plygrnd-awsaurorapos`), so we strip the last
+// hyphen-segment.
+//
+// `package_id` from HCL wins over the env var; the env var is only a fallback
+// for older configs that didn't surface the field explicitly.
+func getPackageShortName(d *schema.ResourceData) (string, error) {
+	var fullName string
+	if pkg, ok := d.Get("package_id").(string); ok && pkg != "" {
+		fullName = pkg
+	} else if pkg := os.Getenv("MASSDRIVER_PACKAGE_NAME"); pkg != "" {
+		fullName = pkg
+	}
+	if fullName == "" {
+		return "", fmt.Errorf("`package_id` must be set in config or MASSDRIVER_PACKAGE_NAME must be set in the environment")
+	}
+	parts := strings.Split(fullName, "-")
+	if len(parts) < 2 {
+		return "", fmt.Errorf("`package_id` %q must contain at least one hyphen", fullName)
+	}
+	return strings.Join(parts[:len(parts)-1], "-"), nil
+}
 
-	// If the ID is a timestamp, it was from the older system where we didn't have IDs. The package_id field should force a new creation. Don't lookup, just bail.
-	if _, err := time.Parse(time.RFC3339, d.Id()); err == nil {
+// resourcePackageAlarmRead hydrates state from the GraphQL instance_alarm
+// endpoint. The package_alarm REST endpoint has been removed from the server;
+// the underlying alarm data (and IDs) carry over into the instance_alarm
+// schema unchanged, so we read by the same ID.
+func resourcePackageAlarmRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
+	// Pre-modern (timestamp-format) IDs date back before the server assigned
+	// real UUIDs. Those won't parse as UUID and the GraphQL endpoint will
+	// reject them — leave state untouched so users can `terraform state rm`
+	// or destroy without a refresh failure.
+	if isLegacyTimestampID(d.Id()) {
 		return nil
 	}
 
-	packageID, idErr := getPackageName(d)
-	if idErr != nil {
-		return diag.FromErr(idErr)
-	}
-
-	alarm, getErr := service.GetPackageAlarm(ctx, packageID, d.Id())
-	if getErr != nil {
-		if getErr.Error() == "not found" {
+	client := meta.(*ProviderClient).Client
+	alarm, err := api.GetInstanceAlarm(ctx, client, d.Id())
+	if err != nil {
+		// Out-of-band deletion: clear state so terraform plans a recreate.
+		if strings.Contains(err.Error(), "not found") {
 			d.SetId("")
-			return diags
+			return nil
 		}
-		return diag.FromErr(getErr)
+		return diag.FromErr(err)
 	}
 
 	d.Set("cloud_resource_id", alarm.CloudResourceID)
 	d.Set("display_name", alarm.DisplayName)
+	d.Set("threshold", alarm.Threshold)
+	// instance_alarm exposes period in seconds; package_alarm tracks minutes.
+	// Integer division rounds non-multiple-of-60 periods down, which surfaces
+	// as drift on the next plan — acceptable since the user can switch to
+	// `massdriver_instance_alarm` (which uses seconds) to fix it.
+	d.Set("period_minutes", alarm.Period/60)
+	d.Set("comparison_operator", alarm.ComparisonOperator)
 
-	if alarm.Threshold != 0 {
-		d.Set("threshold", alarm.Threshold)
-	}
-	if alarm.PeriodMinutes != 0 {
-		d.Set("period_minutes", alarm.PeriodMinutes)
-	}
-	if alarm.ComparisonOperator != "" {
-		d.Set("comparison_operator", alarm.ComparisonOperator)
-	}
-
-	if alarm.Metric != nil {
-		metric := map[string]interface{}{
+	if alarm.Metric == nil {
+		// Explicitly clear so a server-side metric removal surfaces as drift
+		// instead of state retaining a stale block forever.
+		if err := d.Set("metric", []any{}); err != nil {
+			return diag.FromErr(err)
+		}
+	} else {
+		dimensions := make(map[string]any, len(alarm.Metric.Dimensions))
+		for _, dim := range alarm.Metric.Dimensions {
+			dimensions[dim.Name] = dim.Value
+		}
+		// Region is intentionally not surfaced — the v1 schema doesn't expose
+		// it, so reading it would create unmappable drift.
+		metric := map[string]any{
 			"name":       alarm.Metric.Name,
 			"namespace":  alarm.Metric.Namespace,
 			"statistic":  alarm.Metric.Statistic,
-			"dimensions": map[string]interface{}{},
+			"dimensions": dimensions,
 		}
-
-		if alarm.Metric.Dimensions != nil {
-			for _, dimension := range alarm.Metric.Dimensions {
-				metric["dimensions"].(map[string]interface{})[dimension.Name] = dimension.Value
-			}
-		}
-
-		if err := d.Set("metric", []interface{}{metric}); err != nil {
+		if err := d.Set("metric", []any{metric}); err != nil {
 			return diag.FromErr(err)
 		}
 	}
 
-	d.Set("last_updated", time.Now().Format(time.RFC850))
-
-	return diags
+	return nil
 }
 
-func resourcePackageAlarmUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	service := meta.(*ProviderClient).PackageAlarmsService()
-
-	var diags diag.Diagnostics
-
-	alarm := parseAlarmBlock(d)
-
-	packageID, idErr := getPackageName(d)
-	if idErr != nil {
-		return diag.FromErr(idErr)
+// resourcePackageAlarmDelete deletes via the instance_alarm GraphQL endpoint.
+// Legacy timestamp-format IDs are simply dropped from state — the REST
+// endpoint that knew how to delete them is gone, and the underlying server-
+// side records (if any) will be cleaned up by a server migration.
+func resourcePackageAlarmDelete(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
+	id := d.Id()
+	if id == "" {
+		return nil
+	}
+	if isLegacyTimestampID(id) {
+		d.SetId("")
+		return nil
 	}
 
-	_, updateErr := service.UpdatePackageAlarm(ctx, packageID, d.Id(), alarm)
-	if updateErr != nil {
-		return diag.FromErr(updateErr)
-	}
-
-	d.Set("last_updated", time.Now().Format(time.RFC850))
-
-	return diags
-}
-
-func resourcePackageAlarmDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	service := meta.(*ProviderClient).PackageAlarmsService()
-
-	var diags diag.Diagnostics
-
-	alarmID := d.Id()
-	if alarmID == "" {
-		return diags
-	}
-
-	// If the ID is a timestamp, it was from the older system where we didn't have IDs. We need to delete using the cloud resource ID base64 encoded (with no padding)
-	if _, err := time.Parse(time.RFC3339, alarmID); err == nil {
-		alarmID = base64.RawURLEncoding.EncodeToString([]byte(d.Get("cloud_resource_id").(string)))
-	}
-
-	packageID, idErr := getPackageName(d)
-	if idErr != nil {
-		return diag.FromErr(idErr)
-	}
-
-	deleteErr := service.DeletePackageAlarm(ctx, packageID, alarmID)
-	if deleteErr != nil {
-		return diag.FromErr(deleteErr)
+	client := meta.(*ProviderClient).Client
+	if _, err := api.DeleteInstanceAlarm(ctx, client, id); err != nil {
+		// "not found" means it's already gone server-side; clear state and
+		// move on rather than blocking a destroy on a phantom resource.
+		if strings.Contains(err.Error(), "not found") {
+			d.SetId("")
+			return nil
+		}
+		return diag.FromErr(err)
 	}
 
 	d.SetId("")
-
-	return diags
+	return nil
 }
 
-func getPackageName(d *schema.ResourceData) (string, error) {
-	packageID, ok := d.Get("package_id").(string)
-	if !ok || packageID == "" {
-		packageID = os.Getenv("MASSDRIVER_PACKAGE_NAME")
-		if packageID == "" {
-			return "", fmt.Errorf("`package_id` must be set in config or MASSDRIVER_PACKAGE_NAME must be set in the environment")
-		}
-	}
-	return packageID, nil
+// isLegacyTimestampID returns true for IDs from the pre-UUID era of the REST
+// API where the resource ID was the RFC3339 timestamp at create time. The
+// GraphQL endpoint rejects these as UUID parse errors; we sidestep the call.
+func isLegacyTimestampID(id string) bool {
+	_, err := time.Parse(time.RFC3339, id)
+	return err == nil
 }
 
-func parseAlarmBlock(d *schema.ResourceData) *packagealarms.Alarm {
-	alarm := new(packagealarms.Alarm)
-
-	alarm.CloudResourceID = d.Get("cloud_resource_id").(string)
-	alarm.DisplayName = d.Get("display_name").(string)
-	alarm.Threshold = d.Get("threshold").(float64)
-	alarm.PeriodMinutes = d.Get("period_minutes").(int)
-	alarm.ComparisonOperator = d.Get("comparison_operator").(string)
-	alarm.Metric = parseMetricBock(d.Get("metric").([]interface{}))
-
-	return alarm
+func buildCreateInstanceAlarmInput(d *schema.ResourceData) api.CreateInstanceAlarmInput {
+	input := api.CreateInstanceAlarmInput{
+		CloudResourceId: d.Get("cloud_resource_id").(string),
+		DisplayName:     d.Get("display_name").(string),
+	}
+	if v, ok := d.GetOk("comparison_operator"); ok {
+		input.ComparisonOperator = v.(string)
+	}
+	if v, ok := d.GetOk("threshold"); ok {
+		f := v.(float64)
+		input.Threshold = &f
+	}
+	if v, ok := d.GetOk("period_minutes"); ok {
+		p := v.(int) * 60
+		input.Period = &p
+	}
+	input.Metric = parseAlarmMetric(d.Get("metric").([]any))
+	return input
 }
 
-func parseMetricBock(block []interface{}) *packagealarms.Metric {
-	if len(block) == 0 {
-		return nil
+func buildUpdateInstanceAlarmInput(d *schema.ResourceData) api.UpdateInstanceAlarmInput {
+	input := api.UpdateInstanceAlarmInput{
+		CloudResourceId:    d.Get("cloud_resource_id").(string),
+		DisplayName:        d.Get("display_name").(string),
+		ComparisonOperator: d.Get("comparison_operator").(string),
 	}
-	metric := new(packagealarms.Metric)
-
-	blockMap := block[0].(map[string]interface{})
-
-	metric.Name = blockMap["name"].(string)
-	metric.Statistic = blockMap["statistic"].(string)
-
-	if namespace, ok := blockMap["namespace"]; ok {
-		metric.Namespace = namespace.(string)
+	if v, ok := d.GetOk("threshold"); ok {
+		f := v.(float64)
+		input.Threshold = &f
 	}
-	if dimensions, ok := blockMap["dimensions"]; ok {
-		for key, value := range dimensions.(map[string]interface{}) {
-			metric.Dimensions = append(metric.Dimensions, packagealarms.Dimension{
-				Name:  key,
-				Value: value.(string),
-			})
-		}
+	if v, ok := d.GetOk("period_minutes"); ok {
+		p := v.(int) * 60
+		input.Period = &p
 	}
-
-	return metric
+	input.Metric = parseAlarmMetric(d.Get("metric").([]any))
+	return input
 }
+
+// parseAlarmMetric and stringFrom are defined in resource_instance_alarm.go
+// and shared with package_alarm. The shared parser also populates `Region`,
+// which the v1 package_alarm schema doesn't expose — empty Region is fine
+// because the GraphQL input directive drops empty values from the wire.
