@@ -3,63 +3,52 @@
 page_title: "massdriver_instance_alarm Resource - massdriver"
 subcategory: ""
 description: |-
-  Registers a cloud metric alarm with a Massdriver instance. State updates arrive via webhooks from CloudWatch / Azure Monitor / GCP Cloud Monitoring / Alertmanager. Replaces the v0 massdriver_package_alarm.
+  Registers a cloud metric alarm with a Massdriver instance. State updates arrive via webhooks from CloudWatch / Azure Monitor / GCP Cloud Monitoring / Alertmanager. Replaces the v1 massdriver_package_alarm.
 ---
 
 # massdriver_instance_alarm (Resource)
 
-Registers a cloud metric alarm with a Massdriver instance. State updates arrive via webhooks from CloudWatch / Azure Monitor / GCP Cloud Monitoring / Alertmanager. Replaces the v0 `massdriver_package_alarm`.
+Registers a cloud metric alarm with a Massdriver instance. State updates arrive via webhooks from CloudWatch / Azure Monitor / GCP Cloud Monitoring / Alertmanager. Replaces the v1 `massdriver_package_alarm`.
 
 ## Example Usage
 
 ```terraform
-# Replaces the deprecated `massdriver_package_alarm` resource. Migration:
-#
-#   resource "massdriver_package_alarm" "x" {    resource "massdriver_instance_alarm" "x" {
-#     cloud_resource_id = "..."                    cloud_resource_id = "..."
-#     display_name      = "..."                    display_name      = "..."
-#     period_minutes    = 5                        period            = 300     # SECONDS now, not minutes
-#     threshold         = 80                       threshold         = 80
-#     comparison_operator = "GreaterThanThreshold" comparison_operator = "GreaterThanThreshold"
-#     metric {                                     metric {
-#       name = "..."                                 name = "..."
-#       namespace = "..."                            namespace = "..."
-#       statistic = "Average"                        statistic = "Average"
-#       dimensions = { ... }                         dimensions = { ... }
-#     }                                            }
-#   }                                            }
+# Registers a cloud metric alarm with a deployed Massdriver instance.
+# State updates arrive via webhook from CloudWatch / Azure Monitor / GCP
+# Cloud Monitoring / Prometheus Alertmanager — the `cloud_resource_id`
+# correlates inbound webhooks back to this record.
 
-# Bundle deployments: instance_id defaults from MASSDRIVER_INSTANCE_ID
-# so it can be omitted entirely:
-resource "massdriver_instance_alarm" "high_cpu_in_deployment" {
-  display_name      = "High CPU Alarm"
-  cloud_resource_id = aws_cloudwatch_metric_alarm.alarm.arn
+# Inside a Massdriver bundle deployment, `instance_id` defaults from
+# MASSDRIVER_INSTANCE_ID, so you can omit it entirely:
+resource "massdriver_instance_alarm" "high_cpu_in_bundle" {
+  display_name      = "High CPU"
+  cloud_resource_id = aws_cloudwatch_metric_alarm.cpu.arn
 
-  threshold           = 80
-  period              = 300
   comparison_operator = "GreaterThanThreshold"
+  threshold           = 80
+  period              = 300 # seconds
 
   metric {
     name      = "CPUUtilization"
     namespace = "AWS/RDS"
     statistic = "Average"
     dimensions = {
-      DBInstanceIdentifier = aws_db_instance.main.id
+      DBInstanceIdentifier = aws_db_instance.primary.id
     }
   }
 }
 
-# Outside a deployment (CI, local apply, etc.): instance_id is required.
-# Set MASSDRIVER_INSTANCE_ID in the environment, or pass it explicitly:
-resource "massdriver_instance_alarm" "high_cpu_explicit_instance" {
-  instance_id       = "my-team-ecommerce-prod-db"
-  display_name      = "High CPU Alarm"
-  cloud_resource_id = aws_cloudwatch_metric_alarm.alarm.arn
+# Outside a deployment (CI, local apply): `instance_id` is required.
+resource "massdriver_instance_alarm" "explicit_instance" {
+  instance_id       = "ecomm-prod-db"
+  display_name      = "High CPU"
+  cloud_resource_id = aws_cloudwatch_metric_alarm.cpu.arn
 }
 
-# Alertmanager / other sources without structured metric data:
+# Alertmanager and similar sources without structured metric data: leave
+# the metric block off entirely.
 resource "massdriver_instance_alarm" "alertmanager_page" {
-  display_name      = "Pager"
+  display_name      = "PagerDuty Alert"
   cloud_resource_id = "alertmanager:my-alert"
 }
 ```
@@ -74,11 +63,11 @@ resource "massdriver_instance_alarm" "alertmanager_page" {
 
 ### Optional
 
-- `comparison_operator` (String) How the metric is compared against `threshold` (e.g., `GREATER_THAN`, `LESS_THAN`). This is displayed in the Massdriver UI for informational purposes only.
-- `instance_id` (String) ID of the instance this alarm is attached to. Defaults to the environment variable `MASSDRIVER_INSTANCE_ID` if set, which is the case in a Massdriver deployment. Must be set explicitly when running outside a Massdriver deployment. Immutable after creation.
-- `metric` (Block List, Max: 1) Cloud metric the alarm evaluates. This is displayed in the Massdriver UI for informational purposes only. (see [below for nested schema](#nestedblock--metric))
-- `period` (Number) Evaluation window in seconds over which the metric is aggregated. This is displayed in the Massdriver UI for informational purposes only.
-- `threshold` (Number) Value crossed to trigger the alarm. This is displayed in the Massdriver UI for informational purposes only.
+- `comparison_operator` (String) How the metric is compared against `threshold` (e.g., `GREATER_THAN`, `LESS_THAN`). May be empty for providers that don't expose this concept (Alertmanager, GCP).
+- `instance_id` (String) ID of the instance this alarm is attached to. Defaults to `MASSDRIVER_INSTANCE_ID` if set, otherwise to `MASSDRIVER_PACKAGE_NAME` with the trailing deployment suffix stripped (so bundles get the right ID for free). Must be set explicitly when running outside a Massdriver deployment. Immutable after creation.
+- `metric` (Block List, Max: 1) Cloud metric the alarm evaluates. Optional — providers like Alertmanager don't supply structured metric data. (see [below for nested schema](#nestedblock--metric))
+- `period` (Number) Evaluation window in seconds over which the metric is aggregated.
+- `threshold` (Number) Value crossed to trigger the alarm.
 
 ### Read-Only
 
@@ -89,8 +78,8 @@ resource "massdriver_instance_alarm" "alertmanager_page" {
 
 Optional:
 
-- `dimensions` (Map of String) Key-value dimensions identifying the monitored resource. Empty when the provider doesn't expose structured dimensions. This is displayed in the Massdriver UI for informational purposes only.
-- `name` (String) Metric name within the namespace (e.g., `CPUUtilization`). This is displayed in the Massdriver UI for informational purposes only.
-- `namespace` (String) Cloud service namespace (e.g., `AWS/RDS`). This is displayed in the Massdriver UI for informational purposes only.
-- `region` (String) Cloud region the metric is scoped to, when applicable. This is displayed in the Massdriver UI for informational purposes only.
-- `statistic` (String) Aggregation function (e.g., `Average`). Empty for providers without it. This is displayed in the Massdriver UI for informational purposes only.
+- `dimensions` (Map of String) Key-value dimensions identifying the monitored resource. Empty when the provider doesn't expose structured dimensions.
+- `name` (String) Metric name within the namespace (e.g., `CPUUtilization`).
+- `namespace` (String) Cloud service namespace (e.g., `AWS/RDS`).
+- `region` (String) Cloud region the metric is scoped to, when applicable.
+- `statistic` (String) Aggregation function (e.g., `Average`). Empty for providers without it.

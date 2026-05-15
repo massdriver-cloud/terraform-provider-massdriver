@@ -1,8 +1,64 @@
 # Changelog
 
-## 1.3.0
+## 2.0.0
 
-v1.3.0 is a **bridge release**. The two new resources (`massdriver_resource`,
+v2.0.0 is the **platform-management release**. The provider now manages
+the Massdriver platform's first-class entities — projects, environments,
+components, groups, policies, and resources — alongside the
+deployment-side resources that have always been here.
+
+Internally, the provider now uses the
+[Massdriver Go SDK](https://github.com/massdriver-cloud/massdriver-sdk-go)
+for every API call (GraphQL platform surface + deployment-token REST
+surface), replacing the bundled genqlient client. No user-facing impact
+beyond what's listed below.
+
+### Breaking changes
+
+- **Removed** `massdriver_artifact`. Use `massdriver_resource`. The v1.4
+  bridge release introduced `massdriver_resource` specifically as the
+  migration path — if you skipped v1.4, see the v1.4.X entry below for the
+  side-by-side mapping.
+- **Removed** `massdriver_package_alarm`. Use `massdriver_instance_alarm`.
+  Same v1.4 migration path applies.
+
+### Added
+
+New top-level platform resources, all backed by GraphQL via the SDK:
+
+- **`massdriver_project`** — top-level project (architecture blueprint
+  container).
+- **`massdriver_environment`** — deployment context within a project
+  (prod, staging, etc.).
+- **`massdriver_component`** — bundle slot in a project's blueprint,
+  sourced from an OCI repository.
+- **`massdriver_group`** — custom access-control group (built-in groups
+  are platform-managed and not exposed here).
+- **`massdriver_group_policy`** — ABAC policy attached to a group. Each
+  policy grants (`ALLOW`) or blocks (`DENY`) one or more actions on
+  resources matching the conditions; `DENY` wins.
+- **`massdriver_imported_resource`** — register an existing cloud asset
+  not managed by a Massdriver bundle, so other components can connect to
+  it. Counterpart to `massdriver_resource` (which is for bundle-emitted
+  resources).
+- **`massdriver_oci_repository`** — manage repositories in the Massdriver
+  OCI catalog. `artifact_type = "BUNDLE"` today; resource-type and
+  provisioner repositories are planned and will be selectable via the
+  same field.
+
+`massdriver_resource` and `massdriver_instance_alarm` continue from v1.4,
+now backed by the SDK rather than the in-tree genqlient client.
+
+### Migration from v1.x
+
+If you're upgrading from v1.0–v1.2 directly to v2.0, you must migrate off
+`massdriver_artifact` and `massdriver_package_alarm` first. The cleanest
+path is to bounce through v1.4 (which ships both old and new resources), 
+ apply the migration, then upgrade to v2.0.
+
+## 1.4.X
+
+v1.4.X is a **bridge release**. The two new resources (`massdriver_resource`,
 `massdriver_instance_alarm`) land alongside the two existing ones
 (`massdriver_artifact`, `massdriver_package_alarm`), which are now deprecated
 but remain fully functional. v2.0 removes the deprecated resources entirely.
@@ -51,7 +107,7 @@ over state. Migrate by renaming.
 #### `massdriver_artifact` → `massdriver_resource`
 
 ```hcl
-# Before (v1.x)                                # After (v1.3+)
+# Before (v1.x)                                # After (v1.4+)
 resource "massdriver_artifact" "vpc" {         resource "massdriver_resource" "vpc" {
   field    = "vpc"                               field    = "vpc"
   name     = "My VPC"                            name     = "My VPC"
@@ -79,7 +135,7 @@ moved {
 #### `massdriver_package_alarm` → `massdriver_instance_alarm`
 
 ```hcl
-# Before (v1.x)                                       # After (v1.3+)
+# Before (v1.x)                                       # After (v1.4+)
 resource "massdriver_package_alarm" "high_cpu" {      resource "massdriver_instance_alarm" "high_cpu" {
   package_id        = "..."                             # instance_id defaults from env in bundles;
   cloud_resource_id = "..."                             # set explicitly outside deployments.
@@ -119,7 +175,7 @@ moved {
 ### Fixed
 
 - `massdriver_package_alarm` Read no longer hits the (now-removed) REST
-  endpoint. Refresh against existing state works again under v1.3.
+  endpoint. Refresh against existing state works again under v1.4.
 
 - Pre-1.3 deploys that 404'd against the removed REST endpoint and silently
   cleared an alarm's UUID from state are now self-healed by the new

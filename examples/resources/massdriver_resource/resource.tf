@@ -1,22 +1,19 @@
-# Replaces the deprecated `massdriver_artifact` resource. Migration from
-# artifact is mostly mechanical:
+# Declares a connectable resource produced by a Massdriver bundle. Use
+# this only inside the IaC of a Massdriver bundle to satisfy a resource
+# slot declared in the bundle's massdriver.yaml; outside a deployment the
+# provider fast-fails on the missing MASSDRIVER_DEPLOYMENT_ID / _TOKEN
+# env vars.
 #
-#   resource "massdriver_artifact" "vpc" {       resource "massdriver_resource" "vpc" {
-#     field    = "vpc"                             field    = "vpc"
-#     name     = "..."                             name     = "..."
-#     artifact = jsonencode({...})                 resource = jsonencode({...})
-#   }                                            }
-#
-# - rename the resource type from `massdriver_artifact` to `massdriver_resource`
-# - rename the `artifact` argument to `resource`
-# - remove `provider_resource_id` field
+# For resources that are NOT produced by a Massdriver bundle, use
+# massdriver_imported_resource instead.
 
 resource "massdriver_resource" "vpc" {
-  # The field under the `resources` (formerly `artifacts`) block in massdriver.yaml
+  # The `field` name from the bundle's massdriver.yaml `resources.properties`.
   field = "vpc"
-  # A friendly name, overridable by user
-  name = "VPC ${var.md_name_prefix} (${aws_vpc.main.id})"
+  name  = "VPC ${var.md_name_prefix} (${aws_vpc.main.id})"
 
+  # JSON-encoded resource data, validated locally against
+  # schema-artifacts.json before being sent.
   resource = jsonencode(
     {
       data = {
