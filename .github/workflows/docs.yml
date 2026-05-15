@@ -1,0 +1,54 @@
+name: Docs
+
+# Regenerates docs/ via tfplugindocs and fails if the result differs from
+# what's committed. This is the classic terraform-provider footgun guard:
+# catches schema/example changes that ship without doc updates.
+#
+# NOTE: This workflow runs `make docs`, which uses tfplugindocs to
+# introspect the *installed* provider binary via terraform's plugin
+# resolution. The Makefile's `install` target writes the binary into
+# ~/.terraform.d/plugins/ at the expected version/OS/arch path so
+# `terraform init` resolves it without going to the registry.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: docs-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  drift:
+    name: docs drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          # tfplugindocs spawns terraform under the hood; disable the wrapper
+          # so its output streams through cleanly.
+          terraform_wrapper: false
+
+      - name: Install the provider locally so tfplugindocs can introspect it
+        run: make install
+
+      - name: Regenerate docs/
+        run: make docs
+
+      - name: Verify docs/ is up to date
+        run: |
+          if [ -n "$(git status --porcelain docs/)" ]; then
+            echo "::error::docs/ is out of date. Run 'make docs' locally and commit the changes."
+            echo
+            echo "Diff:"
+            git diff docs/
+            exit 1
+          fi
