@@ -1,39 +1,63 @@
 package massdriver
 
 import (
+	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
-	"terraform-provider-massdriver/internal/gqlmock"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/gql"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/platform/projects"
 )
 
+// fakeProjects records every call for assertion and returns whatever canned
+// response the test wires in. Satisfies projectsAPI.
+type fakeProjects struct {
+	getResp, createResp, updateResp, deleteResp *projects.Project
+	getErr, createErr, updateErr, deleteErr     error
+
+	getID       string
+	createInput projects.CreateInput
+	updateID    string
+	updateInput projects.UpdateInput
+	deleteID    string
+
+	getCalls, createCalls, updateCalls, deleteCalls int
+}
+
+func (f *fakeProjects) Get(_ context.Context, id string) (*projects.Project, error) {
+	f.getID = id
+	f.getCalls++
+	return f.getResp, f.getErr
+}
+func (f *fakeProjects) Create(_ context.Context, input projects.CreateInput) (*projects.Project, error) {
+	f.createInput = input
+	f.createCalls++
+	return f.createResp, f.createErr
+}
+func (f *fakeProjects) Update(_ context.Context, id string, input projects.UpdateInput) (*projects.Project, error) {
+	f.updateID = id
+	f.updateInput = input
+	f.updateCalls++
+	return f.updateResp, f.updateErr
+}
+func (f *fakeProjects) Delete(_ context.Context, id string) (*projects.Project, error) {
+	f.deleteID = id
+	f.deleteCalls++
+	return f.deleteResp, f.deleteErr
+}
+
 func TestResourceProjectCreate(t *testing.T) {
-	pc, rec := newMockProvider(map[string]map[string]any{
-		"createProject": {
-			"data": map[string]any{
-				"createProject": map[string]any{
-					"result": map[string]any{
-						"id":          "ecomm",
-						"name":        "Ecomm Project",
-						"description": "the e-commerce app",
-						"attributes":  map[string]any{"team": "platform"},
-					},
-					"successful": true,
-				},
-			},
-		},
-		"getProject": {
-			"data": map[string]any{
-				"project": map[string]any{
-					"id":          "ecomm",
-					"name":        "Ecomm Project",
-					"description": "the e-commerce app",
-					"attributes":  map[string]any{"team": "platform"},
-				},
-			},
-		},
-	})
+	resp := &projects.Project{
+		ID:          "ecomm",
+		Name:        "Ecomm Project",
+		Description: "the e-commerce app",
+		Attributes:  map[string]any{"team": "platform"},
+	}
+	fake := &fakeProjects{createResp: resp, getResp: resp}
+	pc := &ProviderClient{Projects: fake}
 
 	rd := schema.TestResourceDataRaw(t, resourceProject().Schema, map[string]any{
 		"identifier":  "ecomm",
@@ -42,77 +66,55 @@ func TestResourceProjectCreate(t *testing.T) {
 		"attributes":  map[string]any{"team": "platform"},
 	})
 
-	diags := resourceProjectCreate(t.Context(), rd, pc)
-	if diags.HasError() {
+	if diags := resourceProjectCreate(t.Context(), rd, pc); diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
 
 	if rd.Id() != "ecomm" {
-		t.Errorf("got id %q, want %q", rd.Id(), "ecomm")
+		t.Errorf("got id %q, want ecomm", rd.Id())
 	}
 	if got := rd.Get("identifier").(string); got != "ecomm" {
 		t.Errorf("got identifier %q, want ecomm", got)
 	}
 	if got := rd.Get("name").(string); got != "Ecomm Project" {
-		t.Errorf("got name %q, want %q", got, "Ecomm Project")
+		t.Errorf("got name %q, want Ecomm Project", got)
 	}
 	if got := rd.Get("description").(string); got != "the e-commerce app" {
 		t.Errorf("got description %q, want %q", got, "the e-commerce app")
 	}
 
-	createReq := rec.FindRequest("createProject")
-	if createReq == nil {
-		t.Fatal("createProject was not called")
+	if fake.createCalls != 1 {
+		t.Fatalf("Create called %d times, want 1", fake.createCalls)
 	}
-	vars := gqlmock.Variables(createReq)
-	if vars["organizationId"] != testOrgID {
-		t.Errorf("got organizationId %v, want %s", vars["organizationId"], testOrgID)
+	in := fake.createInput
+	if in.ID != "ecomm" {
+		t.Errorf("got input.ID %q, want ecomm", in.ID)
 	}
-	input, _ := vars["input"].(map[string]any)
-	// The user-supplied "identifier" attribute is sent as the API's "id" field.
-	if input["id"] != "ecomm" {
-		t.Errorf("got input.id %v, want ecomm", input["id"])
+	if in.Name != "Ecomm Project" {
+		t.Errorf("got input.Name %q, want Ecomm Project", in.Name)
 	}
-	if input["name"] != "Ecomm Project" {
-		t.Errorf("got input.name %v, want Ecomm Project", input["name"])
+	if in.Description != "the e-commerce app" {
+		t.Errorf("got input.Description %q", in.Description)
 	}
-	if input["description"] != "the e-commerce app" {
-		t.Errorf("got input.description %v, want the e-commerce app", input["description"])
-	}
-	// attributes is the JSON-scalar (double-encoded) — wire payload is a JSON-encoded string.
-	if input["attributes"] != `{"team":"platform"}` {
-		t.Errorf("got input.attributes %v, want JSON-encoded team=platform", input["attributes"])
+	if in.Attributes["team"] != "platform" {
+		t.Errorf("got input.Attributes %v, want team=platform", in.Attributes)
 	}
 
-	if rec.FindRequest("getProject") == nil {
+	if fake.getCalls != 1 {
 		t.Error("Read was not called after Create")
 	}
-
-	// Read populates attributes back into state.
 	if attrs := rd.Get("attributes").(map[string]any); attrs["team"] != "platform" {
-		t.Errorf("got attributes %v after Read, wanted team=platform", attrs)
+		t.Errorf("got attributes %v after Read, want team=platform", attrs)
 	}
 }
 
-// Empty attributes must be omitted from the wire — the server rejects
-// `attributes: null` (which is what the JSON-scalar marshaler used to send for
-// nil maps before the omit-on-empty fix).
-func TestResourceProjectCreateOmitsEmptyAttributes(t *testing.T) {
-	pc, rec := newMockProvider(map[string]map[string]any{
-		"createProject": {
-			"data": map[string]any{
-				"createProject": map[string]any{
-					"result":     map[string]any{"id": "ecomm", "name": "Ecomm"},
-					"successful": true,
-				},
-			},
-		},
-		"getProject": {
-			"data": map[string]any{
-				"project": map[string]any{"id": "ecomm", "name": "Ecomm"},
-			},
-		},
-	})
+// Empty attributes map is passed through unchanged — SDK handles wire
+// encoding. The provider's job is to convert HCL state → SDK input, not to
+// fight the wire shape.
+func TestResourceProjectCreatePassesEmptyAttributes(t *testing.T) {
+	resp := &projects.Project{ID: "ecomm", Name: "Ecomm"}
+	fake := &fakeProjects{createResp: resp, getResp: resp}
+	pc := &ProviderClient{Projects: fake}
 
 	rd := schema.TestResourceDataRaw(t, resourceProject().Schema, map[string]any{
 		"identifier": "ecomm",
@@ -123,15 +125,13 @@ func TestResourceProjectCreateOmitsEmptyAttributes(t *testing.T) {
 	if diags := resourceProjectCreate(t.Context(), rd, pc); diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
-
-	input, _ := gqlmock.Variables(rec.FindRequest("createProject"))["input"].(map[string]any)
-	if _, present := input["attributes"]; present {
-		t.Errorf("attributes should be omitted from wire when empty, got %v", input["attributes"])
+	if len(fake.createInput.Attributes) != 0 {
+		t.Errorf("expected empty Attributes map, got %v", fake.createInput.Attributes)
 	}
 }
 
 // Drift on attributes MUST surface — they drive permissions, so silent drift
-// would be a security issue. Mirrors the equivalent component test.
+// would be a security issue.
 func TestResourceProjectSurfacesAttributesDrift(t *testing.T) {
 	r := resourceProject()
 
@@ -141,7 +141,7 @@ func TestResourceProjectSurfacesAttributesDrift(t *testing.T) {
 			"id":              "ecomm",
 			"identifier":      "ecomm",
 			"attributes.%":    "1",
-			"attributes.team": "infra", // drifted via console edit
+			"attributes.team": "infra",
 		},
 	}
 	cfg := terraform.NewResourceConfigRaw(map[string]any{
@@ -164,19 +164,8 @@ func TestResourceProjectSurfacesAttributesDrift(t *testing.T) {
 }
 
 func TestResourceProjectCreatePropagatesAPIFailure(t *testing.T) {
-	pc, _ := newMockProvider(map[string]map[string]any{
-		"createProject": {
-			"data": map[string]any{
-				"createProject": map[string]any{
-					"result":     nil,
-					"successful": false,
-					"messages": []map[string]any{
-						{"code": "validation", "field": "id", "message": "id already exists"},
-					},
-				},
-			},
-		},
-	})
+	fake := &fakeProjects{createErr: fmt.Errorf("create project: id already exists")}
+	pc := &ProviderClient{Projects: fake}
 
 	rd := schema.TestResourceDataRaw(t, resourceProject().Schema, map[string]any{
 		"identifier": "ecomm",
@@ -185,70 +174,64 @@ func TestResourceProjectCreatePropagatesAPIFailure(t *testing.T) {
 
 	diags := resourceProjectCreate(t.Context(), rd, pc)
 	if !diags.HasError() {
-		t.Fatal("expected error from failed mutation, got none")
+		t.Fatal("expected error, got none")
 	}
 	if rd.Id() != "" {
-		t.Errorf("resource ID should not be set on failure, got %q", rd.Id())
+		t.Errorf("ID should not be set on failure, got %q", rd.Id())
+	}
+	if !strings.Contains(diags[0].Summary, "id already exists") {
+		t.Errorf("upstream error %q should be surfaced", diags[0].Summary)
 	}
 }
 
 func TestResourceProjectRead(t *testing.T) {
-	pc, _ := newMockProvider(map[string]map[string]any{
-		"getProject": {
-			"data": map[string]any{
-				"project": map[string]any{
-					"id":          "ecomm",
-					"name":        "Ecomm Project",
-					"description": "from the server",
-				},
-			},
+	pc := &ProviderClient{Projects: &fakeProjects{
+		getResp: &projects.Project{
+			ID:          "ecomm",
+			Name:        "Ecomm Project",
+			Description: "from the server",
 		},
-	})
+	}}
 
 	rd := schema.TestResourceDataRaw(t, resourceProject().Schema, map[string]any{})
 	rd.SetId("ecomm")
 
-	diags := resourceProjectRead(t.Context(), rd, pc)
-	if diags.HasError() {
+	if diags := resourceProjectRead(t.Context(), rd, pc); diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
 
 	if rd.Get("identifier").(string) != "ecomm" {
-		// For projects identifier == platform id.
 		t.Errorf("got identifier %q, want ecomm", rd.Get("identifier"))
 	}
 	if rd.Get("name").(string) != "Ecomm Project" {
 		t.Errorf("got name %q, want Ecomm Project", rd.Get("name"))
 	}
 	if rd.Get("description").(string) != "from the server" {
-		t.Errorf("got description %q, want %q", rd.Get("description"), "from the server")
+		t.Errorf("got description %q", rd.Get("description"))
+	}
+}
+
+// A `gql.ErrNotFound` from Get clears state so terraform plans a recreate.
+func TestResourceProjectReadClearsOnNotFound(t *testing.T) {
+	pc := &ProviderClient{Projects: &fakeProjects{
+		getErr: fmt.Errorf("get project gone: %w", gql.ErrNotFound),
+	}}
+
+	rd := schema.TestResourceDataRaw(t, resourceProject().Schema, map[string]any{})
+	rd.SetId("gone")
+
+	if diags := resourceProjectRead(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("not-found should clear state silently; got %v", diags)
+	}
+	if rd.Id() != "" {
+		t.Errorf("ID should be cleared on not-found; got %q", rd.Id())
 	}
 }
 
 func TestResourceProjectUpdate(t *testing.T) {
-	pc, rec := newMockProvider(map[string]map[string]any{
-		"updateProject": {
-			"data": map[string]any{
-				"updateProject": map[string]any{
-					"result": map[string]any{
-						"id":          "ecomm",
-						"name":        "Renamed",
-						"description": "updated",
-					},
-					"successful": true,
-				},
-			},
-		},
-		"getProject": {
-			"data": map[string]any{
-				"project": map[string]any{
-					"id":          "ecomm",
-					"name":        "Renamed",
-					"description": "updated",
-				},
-			},
-		},
-	})
+	resp := &projects.Project{ID: "ecomm", Name: "Renamed", Description: "updated"}
+	fake := &fakeProjects{updateResp: resp, getResp: resp}
+	pc := &ProviderClient{Projects: fake}
 
 	rd := schema.TestResourceDataRaw(t, resourceProject().Schema, map[string]any{
 		"identifier":  "ecomm",
@@ -257,109 +240,81 @@ func TestResourceProjectUpdate(t *testing.T) {
 	})
 	rd.SetId("ecomm")
 
-	diags := resourceProjectUpdate(t.Context(), rd, pc)
-	if diags.HasError() {
+	if diags := resourceProjectUpdate(t.Context(), rd, pc); diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
 
-	updateReq := rec.FindRequest("updateProject")
-	if updateReq == nil {
-		t.Fatal("updateProject was not called")
+	if fake.updateID != "ecomm" {
+		t.Errorf("got updateID %q, want ecomm", fake.updateID)
 	}
-	vars := gqlmock.Variables(updateReq)
-	if vars["id"] != "ecomm" {
-		t.Errorf("got id arg %v, want ecomm", vars["id"])
-	}
-	input, _ := vars["input"].(map[string]any)
-	if input["name"] != "Renamed" || input["description"] != "updated" {
-		t.Errorf("got input %v, want name=Renamed description=updated", input)
+	in := fake.updateInput
+	if in.Name != "Renamed" || in.Description != "updated" {
+		t.Errorf("got input %+v, want name=Renamed description=updated", in)
 	}
 }
 
 func TestResourceProjectDelete(t *testing.T) {
-	pc, rec := newMockProvider(map[string]map[string]any{
-		"deleteProject": {
-			"data": map[string]any{
-				"deleteProject": map[string]any{
-					"result":     map[string]any{"id": "ecomm", "name": "Ecomm"},
-					"successful": true,
-				},
-			},
-		},
-	})
+	fake := &fakeProjects{deleteResp: &projects.Project{ID: "ecomm"}}
+	pc := &ProviderClient{Projects: fake}
 
 	rd := schema.TestResourceDataRaw(t, resourceProject().Schema, map[string]any{})
 	rd.SetId("ecomm")
 
-	diags := resourceProjectDelete(t.Context(), rd, pc)
-	if diags.HasError() {
+	if diags := resourceProjectDelete(t.Context(), rd, pc); diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
 	if rd.Id() != "" {
-		t.Errorf("resource ID should be cleared after delete, got %q", rd.Id())
+		t.Errorf("ID should be cleared after delete, got %q", rd.Id())
 	}
-
-	deleteReq := rec.FindRequest("deleteProject")
-	if deleteReq == nil {
-		t.Fatal("deleteProject was not called")
-	}
-	if vars := gqlmock.Variables(deleteReq); vars["id"] != "ecomm" {
-		t.Errorf("got id %v, want ecomm", vars["id"])
+	if fake.deleteID != "ecomm" {
+		t.Errorf("got deleteID %q, want ecomm", fake.deleteID)
 	}
 }
 
+// Delete returning not-found is treated as success — the record is gone, which
+// is what destroy wanted anyway.
+func TestResourceProjectDeleteTreatsNotFoundAsSuccess(t *testing.T) {
+	fake := &fakeProjects{deleteErr: fmt.Errorf("delete project: %w", gql.ErrNotFound)}
+	pc := &ProviderClient{Projects: fake}
+
+	rd := schema.TestResourceDataRaw(t, resourceProject().Schema, map[string]any{})
+	rd.SetId("already-gone")
+
+	if diags := resourceProjectDelete(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("not-found on delete should not error; got %v", diags)
+	}
+	if rd.Id() != "" {
+		t.Errorf("ID should be cleared, got %q", rd.Id())
+	}
+}
+
+// When the user omits `name`, the resource substitutes `identifier` so the API
+// (which requires `name`) doesn't reject.
 func TestResourceProjectCreateDefaultsNameToIdentifier(t *testing.T) {
-	pc, rec := newMockProvider(map[string]map[string]any{
-		"createProject": {
-			"data": map[string]any{
-				"createProject": map[string]any{
-					"result": map[string]any{
-						"id":   "ecomm",
-						"name": "ecomm",
-					},
-					"successful": true,
-				},
-			},
-		},
-		"getProject": {
-			"data": map[string]any{
-				"project": map[string]any{
-					"id":   "ecomm",
-					"name": "ecomm",
-				},
-			},
-		},
-	})
+	resp := &projects.Project{ID: "ecomm", Name: "ecomm"}
+	fake := &fakeProjects{createResp: resp, getResp: resp}
+	pc := &ProviderClient{Projects: fake}
 
 	rd := schema.TestResourceDataRaw(t, resourceProject().Schema, map[string]any{
 		"identifier": "ecomm",
 		// name and description deliberately omitted
 	})
 
-	diags := resourceProjectCreate(t.Context(), rd, pc)
-	if diags.HasError() {
+	if diags := resourceProjectCreate(t.Context(), rd, pc); diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
 
-	createReq := rec.FindRequest("createProject")
-	if createReq == nil {
-		t.Fatal("createProject was not called")
+	if fake.createInput.Name != "ecomm" {
+		t.Errorf("got input.Name %q, want ecomm (defaulted from identifier)", fake.createInput.Name)
 	}
-	input, _ := gqlmock.Variables(createReq)["input"].(map[string]any)
-	// API requires a name — when the user didn't supply one we substitute the identifier.
-	if input["name"] != "ecomm" {
-		t.Errorf("got input.name %v, want ecomm (defaulted from identifier)", input["name"])
-	}
-	if input["description"] != "" {
-		t.Errorf("got input.description %v, want empty", input["description"])
+	if fake.createInput.Description != "" {
+		t.Errorf("got input.Description %q, want empty", fake.createInput.Description)
 	}
 }
 
 // When the user omits name/description from config, terraform's diff resolver
 // must keep whatever is currently in state — that's how console edits avoid
-// being reverted on the next apply. This is the load-bearing behavior the user
-// asked for, so it's worth testing through the actual diff machinery rather
-// than by inspection.
+// being reverted on the next apply.
 func TestResourceProjectIgnoresDriftWhenConfigUnset(t *testing.T) {
 	r := resourceProject()
 
@@ -368,11 +323,10 @@ func TestResourceProjectIgnoresDriftWhenConfigUnset(t *testing.T) {
 		Attributes: map[string]string{
 			"id":          "ecomm",
 			"identifier":  "ecomm",
-			"name":        "Console Edit",        // someone changed it in the UI after Read
-			"description": "added in the console", // ditto
+			"name":        "Console Edit",
+			"description": "added in the console",
 		},
 	}
-	// Config omits name and description entirely — only required attrs are present.
 	cfg := terraform.NewResourceConfigRaw(map[string]any{
 		"identifier": "ecomm",
 	})
@@ -391,8 +345,7 @@ func TestResourceProjectIgnoresDriftWhenConfigUnset(t *testing.T) {
 	}
 }
 
-// Conversely, if the user DOES specify a value, drift must surface as a real
-// diff so terraform can plan an update.
+// Conversely, if the user DOES specify a value, drift surfaces as a real diff.
 func TestResourceProjectShowsDriftWhenConfigSet(t *testing.T) {
 	r := resourceProject()
 
@@ -440,9 +393,6 @@ func TestResourceProjectSchema(t *testing.T) {
 		t.Error("identifier should have a ValidateFunc enforcing the regex")
 	}
 
-	// name and description must be Optional+Computed so terraform's diff resolver
-	// keeps the state value when config is null — that's what makes console edits
-	// "stick" instead of getting reverted on the next apply.
 	for _, field := range []string{"name", "description"} {
 		s := r.Schema[field]
 		if s == nil {
@@ -452,7 +402,7 @@ func TestResourceProjectSchema(t *testing.T) {
 			t.Errorf("%s should not be Required", field)
 		}
 		if !s.Optional || !s.Computed {
-			t.Errorf("%s should be Optional+Computed (got Optional=%v Computed=%v) so unspecified-in-config drift is ignored", field, s.Optional, s.Computed)
+			t.Errorf("%s should be Optional+Computed (got Optional=%v Computed=%v)", field, s.Optional, s.Computed)
 		}
 	}
 
@@ -460,7 +410,6 @@ func TestResourceProjectSchema(t *testing.T) {
 		t.Error("attributes should be Required (drift always surfaces)")
 	}
 
-	// terraform's auto-managed `id` should NOT appear in the schema map.
 	if _, present := r.Schema["id"]; present {
 		t.Error("id should not be defined in schema — terraform manages it automatically")
 	}
@@ -478,14 +427,14 @@ func TestResourceProjectIdentifierValidation(t *testing.T) {
 	}{
 		{"ecomm", true},
 		{"ec0mm", true},
-		{"a", true},                      // single char OK
-		{"twentycharacterident", true},   // exactly 20 chars
-		{"twentyonecharidentifier", false}, // > 20
-		{"", false},                      // empty
-		{"Ecomm", false},                 // uppercase
-		{"ec-omm", false},                // hyphen
-		{"ec omm", false},                // space
-		{"ec_omm", false},                // underscore
+		{"a", true},
+		{"twentycharacterident", true},
+		{"twentyonecharidentifier", false},
+		{"", false},
+		{"Ecomm", false},
+		{"ec-omm", false},
+		{"ec omm", false},
+		{"ec_omm", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.value, func(t *testing.T) {

@@ -2,16 +2,27 @@ package massdriver
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
-	"strings"
-
-	"terraform-provider-massdriver/internal/api"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/gql"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/platform/policies"
 )
+
+// policiesAPI is the slice of *policies.Service this resource calls.
+type policiesAPI interface {
+	Get(ctx context.Context, policyID string) (*policies.Policy, error)
+	Create(ctx context.Context, groupID string, input policies.CreatePolicyInput) (*policies.Policy, error)
+	Update(ctx context.Context, policyID string, input policies.UpdatePolicyInput) (*policies.Policy, error)
+	Delete(ctx context.Context, policyID string) (*policies.Policy, error)
+}
+
+var _ policiesAPI = (*policies.Service)(nil)
 
 func resourceGroupPolicy() *schema.Resource {
 	return &schema.Resource{
@@ -22,8 +33,10 @@ func resourceGroupPolicy() *schema.Resource {
 		UpdateContext: resourceGroupPolicyUpdate,
 		DeleteContext: resourceGroupPolicyDelete,
 
+		// `policies.Get` returns the parent group, so the user only needs to
+		// supply the policy ID at import time; Read populates group_id.
 		Importer: &schema.ResourceImporter{
-			StateContext: resourceGroupPolicyImport,
+			StateContext: schema.ImportStatePassthroughContext,
 		},
 
 		Schema: map[string]*schema.Schema{
@@ -38,8 +51,8 @@ func resourceGroupPolicy() *schema.Resource {
 				Type:        schema.TypeString,
 				Required:    true,
 				ValidateFunc: validation.StringInSlice([]string{
-					string(api.PolicyEffectAllow),
-					string(api.PolicyEffectDeny),
+					string(policies.EffectAllow),
+					string(policies.EffectDeny),
 				}, false),
 			},
 			"actions": {
@@ -59,12 +72,17 @@ func resourceGroupPolicy() *schema.Resource {
 }
 
 func resourceGroupPolicyCreate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*ProviderClient).Client
+	pc := meta.(*ProviderClient)
 
-	policy, err := api.CreateGroupPolicy(ctx, client, d.Get("group_id").(string), api.CreateGroupPolicyInput{
+	conditions, err := decodePolicyConditions(d.Get("conditions").(string))
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	policy, err := pc.Policies.Create(ctx, d.Get("group_id").(string), policies.CreatePolicyInput{
+		Effect:     policies.Effect(d.Get("effect").(string)),
 		Actions:    actionsFromConfig(d.Get("actions")),
-		Conditions: api.EncodeConditions(d.Get("conditions").(string)),
-		Effect:     api.PolicyEffect(d.Get("effect").(string)),
+		Conditions: conditions,
 	})
 	if err != nil {
 		return diag.FromErr(err)
@@ -75,34 +93,43 @@ func resourceGroupPolicyCreate(ctx context.Context, d *schema.ResourceData, meta
 }
 
 func resourceGroupPolicyRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*ProviderClient).Client
+	pc := meta.(*ProviderClient)
 
-	policy, err := api.GetGroupPolicy(ctx, client, d.Get("group_id").(string), d.Id())
+	policy, err := pc.Policies.Get(ctx, d.Id())
 	if err != nil {
+		if errors.Is(err, gql.ErrNotFound) {
+			d.SetId("")
+			return nil
+		}
 		return diag.FromErr(err)
-	}
-	if policy == nil {
-		// Policy was deleted out of band — clear state so terraform re-creates on next apply.
-		d.SetId("")
-		return nil
 	}
 
 	d.Set("effect", policy.Effect)
 	d.Set("actions", policy.Actions)
-	d.Set("conditions", policy.Conditions)
-	d.Set("group_id", policy.GroupID)
+	d.Set("conditions", encodePolicyConditions(policy.Conditions))
+	if policy.Group != nil {
+		d.Set("group_id", policy.Group.ID)
+	}
 	return nil
 }
 
 func resourceGroupPolicyUpdate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*ProviderClient).Client
+	pc := meta.(*ProviderClient)
 
-	_, err := api.UpdatePolicy(ctx, client, d.Id(), api.UpdatePolicyInput{
-		Actions:    actionsFromConfig(d.Get("actions")),
-		Conditions: api.EncodeConditions(d.Get("conditions").(string)),
-		Effect:     api.PolicyEffect(d.Get("effect").(string)),
-	})
+	conditions, err := decodePolicyConditions(d.Get("conditions").(string))
 	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	// UpdatePolicyInput.Conditions is `*PolicyConditions` so the SDK can
+	// distinguish "leave unchanged" (nil pointer) from "set to wildcard"
+	// (non-nil pointer to nil map). The provider always sends conditions
+	// because the HCL field is Required, so we always pass &conditions.
+	if _, err := pc.Policies.Update(ctx, d.Id(), policies.UpdatePolicyInput{
+		Effect:     policies.Effect(d.Get("effect").(string)),
+		Actions:    actionsFromConfig(d.Get("actions")),
+		Conditions: &conditions,
+	}); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -110,9 +137,13 @@ func resourceGroupPolicyUpdate(ctx context.Context, d *schema.ResourceData, meta
 }
 
 func resourceGroupPolicyDelete(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*ProviderClient).Client
+	pc := meta.(*ProviderClient)
 
-	if _, err := api.DeletePolicy(ctx, client, d.Id()); err != nil {
+	if _, err := pc.Policies.Delete(ctx, d.Id()); err != nil {
+		if errors.Is(err, gql.ErrNotFound) {
+			d.SetId("")
+			return nil
+		}
 		return diag.FromErr(err)
 	}
 
@@ -121,8 +152,8 @@ func resourceGroupPolicyDelete(ctx context.Context, d *schema.ResourceData, meta
 }
 
 // actionsFromConfig extracts the user's `actions` set into a sorted []string.
-// Sorting keeps the wire payload deterministic across applies regardless of the
-// (unordered) Set traversal order, which prevents spurious diffs.
+// Sorting keeps the wire payload deterministic regardless of Set traversal
+// order, preventing spurious diffs across applies.
 func actionsFromConfig(raw any) []string {
 	set, ok := raw.(*schema.Set)
 	if !ok {
@@ -139,14 +170,30 @@ func actionsFromConfig(raw any) []string {
 	return out
 }
 
-// resourceGroupPolicyImport accepts `<group_id>/<policy_id>` because Read needs
-// both — the schema has no top-level policy(id) query.
-func resourceGroupPolicyImport(ctx context.Context, d *schema.ResourceData, meta any) ([]*schema.ResourceData, error) {
-	parts := strings.SplitN(d.Id(), "/", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return nil, fmt.Errorf("import ID must be in `<group_id>/<policy_id>` form, got %q", d.Id())
+// decodePolicyConditions parses the user's HCL `conditions` field into the
+// SDK's PolicyConditions map. The literal "*" maps to a nil map (whole-policy
+// wildcard); any other value must be a JSON object of `{key: [values...]}`
+// form.
+func decodePolicyConditions(s string) (policies.PolicyConditions, error) {
+	if s == "*" {
+		return nil, nil
 	}
-	d.Set("group_id", parts[0])
-	d.SetId(parts[1])
-	return []*schema.ResourceData{d}, nil
+	var m map[string][]string
+	if err := json.Unmarshal([]byte(s), &m); err != nil {
+		return nil, fmt.Errorf("invalid JSON in conditions: %w", err)
+	}
+	return policies.PolicyConditions(m), nil
+}
+
+// encodePolicyConditions serializes the policy's conditions back to the HCL
+// form the user provided: `"*"` for wildcard, plain JSON object otherwise.
+// As of SDK v0.2 PolicyConditions.MarshalJSON produces the bare object form;
+// the wire-form double-encoding moved into gql/scalars and is invoked by
+// genqlient transparently, so we can json.Marshal directly here.
+func encodePolicyConditions(c policies.PolicyConditions) string {
+	if c == nil {
+		return "*"
+	}
+	b, _ := json.Marshal(c)
+	return string(b)
 }

@@ -1,55 +1,88 @@
 package massdriver
 
 import (
+	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"terraform-provider-massdriver/internal/gqlmock"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/gql"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/platform/instances"
 )
 
-// alarmReadResponse is a canned getInstanceAlarm response used after Create/Update.
-func alarmReadResponse(extra map[string]any) map[string]any {
-	base := map[string]any{
-		"id":                 "alarm-1",
-		"displayName":        "RDS High CPU",
-		"cloudResourceId":    "arn:aws:cloudwatch:us-east-1:111:alarm/rds-cpu",
-		"comparisonOperator": "GREATER_THAN",
-		"threshold":          80.0,
-		"period":             300,
-		"metric": map[string]any{
-			"namespace": "AWS/RDS",
-			"name":      "CPUUtilization",
-			"statistic": "Average",
-			"region":    "us-east-1",
-			"dimensions": []map[string]any{
-				{"name": "DBInstanceIdentifier", "value": "prod-db"},
+// fakeInstanceAlarms records every call for assertion and returns whatever
+// canned response the test wires in. It satisfies instanceAlarmsAPI.
+type fakeInstanceAlarms struct {
+	// Canned responses.
+	getResp, createResp, updateResp, deleteResp *instances.Alarm
+	getErr, createErr, updateErr, deleteErr     error
+
+	// Captured arguments.
+	getID            string
+	createInstanceID string
+	createInput      instances.CreateAlarmInput
+	updateID         string
+	updateInput      instances.UpdateAlarmInput
+	deleteID         string
+
+	// Call counts (useful for "must not be called" assertions).
+	getCalls, createCalls, updateCalls, deleteCalls int
+}
+
+func (f *fakeInstanceAlarms) GetAlarm(_ context.Context, id string) (*instances.Alarm, error) {
+	f.getID = id
+	f.getCalls++
+	return f.getResp, f.getErr
+}
+
+func (f *fakeInstanceAlarms) CreateAlarm(_ context.Context, instanceID string, input instances.CreateAlarmInput) (*instances.Alarm, error) {
+	f.createInstanceID = instanceID
+	f.createInput = input
+	f.createCalls++
+	return f.createResp, f.createErr
+}
+
+func (f *fakeInstanceAlarms) UpdateAlarm(_ context.Context, id string, input instances.UpdateAlarmInput) (*instances.Alarm, error) {
+	f.updateID = id
+	f.updateInput = input
+	f.updateCalls++
+	return f.updateResp, f.updateErr
+}
+
+func (f *fakeInstanceAlarms) DeleteAlarm(_ context.Context, id string) (*instances.Alarm, error) {
+	f.deleteID = id
+	f.deleteCalls++
+	return f.deleteResp, f.deleteErr
+}
+
+// fullAlarm is the canonical canned response used by Create→Read and Update→Read tests.
+func fullAlarm() *instances.Alarm {
+	return &instances.Alarm{
+		ID:                 "alarm-1",
+		DisplayName:        "RDS High CPU",
+		CloudResourceID:    "arn:aws:cloudwatch:us-east-1:111:alarm/rds-cpu",
+		ComparisonOperator: "GREATER_THAN",
+		Threshold:          80.0,
+		Period:             300,
+		Metric: &instances.AlarmMetric{
+			Namespace: "AWS/RDS",
+			Name:      "CPUUtilization",
+			Statistic: "Average",
+			Region:    "us-east-1",
+			Dimensions: []instances.AlarmMetricDimension{
+				{Name: "DBInstanceIdentifier", Value: "prod-db"},
 			},
 		},
-	}
-	for k, v := range extra {
-		base[k] = v
-	}
-	return map[string]any{
-		"data": map[string]any{"instanceAlarm": base},
 	}
 }
 
 func TestResourceInstanceAlarmCreate(t *testing.T) {
-	pc, rec := newMockProvider(map[string]map[string]any{
-		"createInstanceAlarm": {
-			"data": map[string]any{
-				"createInstanceAlarm": map[string]any{
-					"result": map[string]any{
-						"id":              "alarm-1",
-						"displayName":     "RDS High CPU",
-						"cloudResourceId": "arn:aws:cloudwatch:us-east-1:111:alarm/rds-cpu",
-					},
-					"successful": true,
-				},
-			},
-		},
-		"getInstanceAlarm": alarmReadResponse(nil),
-	})
+	fake := &fakeInstanceAlarms{
+		createResp: fullAlarm(),
+		getResp:    fullAlarm(),
+	}
+	pc := &ProviderClient{InstanceAlarms: fake}
 
 	rd := schema.TestResourceDataRaw(t, resourceInstanceAlarm().Schema, map[string]any{
 		"instance_id":         "ecomm-prod-db",
@@ -78,75 +111,51 @@ func TestResourceInstanceAlarmCreate(t *testing.T) {
 	if rd.Id() != "alarm-1" {
 		t.Errorf("got id %q, want alarm-1", rd.Id())
 	}
+	if fake.createCalls != 1 {
+		t.Fatalf("CreateAlarm called %d times, want 1", fake.createCalls)
+	}
+	if fake.createInstanceID != "ecomm-prod-db" {
+		t.Errorf("got instanceID %q, want ecomm-prod-db", fake.createInstanceID)
+	}
 
-	createReq := rec.FindRequest("createInstanceAlarm")
-	if createReq == nil {
-		t.Fatal("createInstanceAlarm was not called")
+	in := fake.createInput
+	if in.CloudResourceID != "arn:aws:cloudwatch:us-east-1:111:alarm/rds-cpu" {
+		t.Errorf("got cloudResourceID %q", in.CloudResourceID)
 	}
-	vars := gqlmock.Variables(createReq)
-	if vars["instanceId"] != "ecomm-prod-db" {
-		t.Errorf("got instanceId %v, want ecomm-prod-db", vars["instanceId"])
+	if in.DisplayName != "RDS High CPU" {
+		t.Errorf("got displayName %q", in.DisplayName)
 	}
-	input, _ := vars["input"].(map[string]any)
-	if input["cloudResourceId"] != "arn:aws:cloudwatch:us-east-1:111:alarm/rds-cpu" {
-		t.Errorf("got cloudResourceId %v", input["cloudResourceId"])
+	if in.ComparisonOperator != "GREATER_THAN" {
+		t.Errorf("got comparisonOperator %q", in.ComparisonOperator)
 	}
-	if input["displayName"] != "RDS High CPU" {
-		t.Errorf("got displayName %v", input["displayName"])
+	if in.Threshold == nil || *in.Threshold != 80.0 {
+		t.Errorf("got threshold %v, want *80.0", in.Threshold)
 	}
-	if input["comparisonOperator"] != "GREATER_THAN" {
-		t.Errorf("got comparisonOperator %v", input["comparisonOperator"])
+	if in.Period == nil || *in.Period != 300 {
+		t.Errorf("got period %v, want *300", in.Period)
 	}
-	if input["threshold"] != 80.0 {
-		t.Errorf("got threshold %v, want 80.0", input["threshold"])
+	if in.Metric == nil {
+		t.Fatal("metric should be populated")
 	}
-	if input["period"] != float64(300) { // JSON numbers come back as float64
-		t.Errorf("got period %v, want 300", input["period"])
+	if in.Metric.Namespace != "AWS/RDS" || in.Metric.Name != "CPUUtilization" {
+		t.Errorf("got metric %+v", in.Metric)
 	}
-	metric, ok := input["metric"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected metric block, got %T (%v)", input["metric"], input["metric"])
-	}
-	if metric["namespace"] != "AWS/RDS" || metric["name"] != "CPUUtilization" {
-		t.Errorf("got metric %+v", metric)
-	}
-	dims, _ := metric["dimensions"].([]any)
-	if len(dims) != 1 {
-		t.Fatalf("got %d dimensions, want 1", len(dims))
-	}
-	dim := dims[0].(map[string]any)
-	if dim["name"] != "DBInstanceIdentifier" || dim["value"] != "prod-db" {
-		t.Errorf("got dimension %+v, want DBInstanceIdentifier=prod-db", dim)
+	if len(in.Metric.Dimensions) != 1 || in.Metric.Dimensions[0].Name != "DBInstanceIdentifier" {
+		t.Errorf("got dimensions %+v", in.Metric.Dimensions)
 	}
 }
 
 // Alertmanager and some GCP alarms have no comparison_operator/threshold/period/metric.
-// We must omit them from the API request rather than send zero values that would cause
-// the backend to reject or store nonsense values.
+// We must leave those nil/empty on the SDK input rather than send zero values
+// that the backend would interpret as "the user set 0".
 func TestResourceInstanceAlarmCreateOmitsUnsetOptionalFields(t *testing.T) {
-	pc, rec := newMockProvider(map[string]map[string]any{
-		"createInstanceAlarm": {
-			"data": map[string]any{
-				"createInstanceAlarm": map[string]any{
-					"result": map[string]any{
-						"id":              "alarm-2",
-						"displayName":     "Alertmanager Page",
-						"cloudResourceId": "alertmanager:my-alert",
-					},
-					"successful": true,
-				},
-			},
-		},
-		"getInstanceAlarm": {
-			"data": map[string]any{
-				"instanceAlarm": map[string]any{
-					"id":              "alarm-2",
-					"displayName":     "Alertmanager Page",
-					"cloudResourceId": "alertmanager:my-alert",
-				},
-			},
-		},
-	})
+	resp := &instances.Alarm{
+		ID:              "alarm-2",
+		DisplayName:     "Alertmanager Page",
+		CloudResourceID: "alertmanager:my-alert",
+	}
+	fake := &fakeInstanceAlarms{createResp: resp, getResp: resp}
+	pc := &ProviderClient{InstanceAlarms: fake}
 
 	rd := schema.TestResourceDataRaw(t, resourceInstanceAlarm().Schema, map[string]any{
 		"instance_id":       "ecomm-prod-db",
@@ -158,28 +167,26 @@ func TestResourceInstanceAlarmCreateOmitsUnsetOptionalFields(t *testing.T) {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
 
-	input, _ := gqlmock.Variables(rec.FindRequest("createInstanceAlarm"))["input"].(map[string]any)
-	for _, omitted := range []string{"comparisonOperator", "threshold", "period", "metric"} {
-		if _, present := input[omitted]; present {
-			t.Errorf("input.%s should be omitted when not set, got %v", omitted, input[omitted])
-		}
+	in := fake.createInput
+	if in.ComparisonOperator != "" {
+		t.Errorf("comparisonOperator should be empty, got %q", in.ComparisonOperator)
+	}
+	if in.Threshold != nil {
+		t.Errorf("threshold should be nil, got %v", *in.Threshold)
+	}
+	if in.Period != nil {
+		t.Errorf("period should be nil, got %v", *in.Period)
+	}
+	if in.Metric != nil {
+		t.Errorf("metric should be nil, got %+v", in.Metric)
 	}
 }
 
 func TestResourceInstanceAlarmCreatePropagatesAPIFailure(t *testing.T) {
-	pc, _ := newMockProvider(map[string]map[string]any{
-		"createInstanceAlarm": {
-			"data": map[string]any{
-				"createInstanceAlarm": map[string]any{
-					"result":     nil,
-					"successful": false,
-					"messages": []map[string]any{
-						{"code": "validation", "field": "cloudResourceId", "message": "must be unique within instance"},
-					},
-				},
-			},
-		},
-	})
+	fake := &fakeInstanceAlarms{
+		createErr: fmt.Errorf("create instance alarm: cloudResourceId must be unique within instance"),
+	}
+	pc := &ProviderClient{InstanceAlarms: fake}
 
 	rd := schema.TestResourceDataRaw(t, resourceInstanceAlarm().Schema, map[string]any{
 		"instance_id":       "ecomm-prod-db",
@@ -194,12 +201,39 @@ func TestResourceInstanceAlarmCreatePropagatesAPIFailure(t *testing.T) {
 	if rd.Id() != "" {
 		t.Errorf("ID should not be set on failure, got %q", rd.Id())
 	}
+	if !strings.Contains(diags[0].Summary, "must be unique") {
+		t.Errorf("upstream error %q should be surfaced verbatim", diags[0].Summary)
+	}
+}
+
+// Without HCL config or env vars, Create must surface a clear error rather
+// than firing an API call with an empty instance ID.
+func TestResourceInstanceAlarmCreateRequiresInstanceID(t *testing.T) {
+	t.Setenv("MASSDRIVER_INSTANCE_ID", "")
+	t.Setenv("MASSDRIVER_PACKAGE_NAME", "")
+	fake := &fakeInstanceAlarms{}
+	pc := &ProviderClient{InstanceAlarms: fake}
+
+	rd := schema.TestResourceDataRaw(t, resourceInstanceAlarm().Schema, map[string]any{
+		"display_name":      "x",
+		"cloud_resource_id": "arn:::x",
+		// no instance_id
+	})
+
+	diags := resourceInstanceAlarmCreate(t.Context(), rd, pc)
+	if !diags.HasError() {
+		t.Fatal("expected error about missing instance_id")
+	}
+	if !strings.Contains(diags[0].Summary, "instance_id") {
+		t.Errorf("error %q should mention instance_id", diags[0].Summary)
+	}
+	if fake.createCalls != 0 {
+		t.Errorf("CreateAlarm should not fire when instance_id is unresolved; called %d times", fake.createCalls)
+	}
 }
 
 func TestResourceInstanceAlarmRead(t *testing.T) {
-	pc, _ := newMockProvider(map[string]map[string]any{
-		"getInstanceAlarm": alarmReadResponse(nil),
-	})
+	pc := &ProviderClient{InstanceAlarms: &fakeInstanceAlarms{getResp: fullAlarm()}}
 
 	rd := schema.TestResourceDataRaw(t, resourceInstanceAlarm().Schema, map[string]any{})
 	rd.SetId("alarm-1")
@@ -232,24 +266,20 @@ func TestResourceInstanceAlarmRead(t *testing.T) {
 	}
 }
 
-// When the API returns no metric, the resource should clear the metric block in state
-// rather than leaving a zero-valued one that would show up as drift on next plan.
+// When the API returns no metric, Read must explicitly clear the metric block
+// — otherwise stale state masks a server-side metric removal forever.
 func TestResourceInstanceAlarmReadClearsMetricWhenAbsent(t *testing.T) {
-	pc, _ := newMockProvider(map[string]map[string]any{
-		"getInstanceAlarm": {
-			"data": map[string]any{
-				"instanceAlarm": map[string]any{
-					"id":              "alarm-no-metric",
-					"displayName":     "Alertmanager Page",
-					"cloudResourceId": "alertmanager:my-alert",
-				},
-			},
+	pc := &ProviderClient{InstanceAlarms: &fakeInstanceAlarms{
+		getResp: &instances.Alarm{
+			ID:              "alarm-no-metric",
+			DisplayName:     "Alertmanager Page",
+			CloudResourceID: "alertmanager:my-alert",
+			Metric:          nil,
 		},
-	})
+	}}
 
 	rd := schema.TestResourceDataRaw(t, resourceInstanceAlarm().Schema, map[string]any{
-		// State already has a metric (e.g., user previously had one configured),
-		// then the API stopped returning it. Read should clear, not leak the old block.
+		// State already has a metric; API now returns none. Read should clear.
 		"metric": []any{
 			map[string]any{"namespace": "stale"},
 		},
@@ -259,28 +289,34 @@ func TestResourceInstanceAlarmReadClearsMetricWhenAbsent(t *testing.T) {
 	if diags := resourceInstanceAlarmRead(t.Context(), rd, pc); diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
-
 	if metric := rd.Get("metric").([]any); len(metric) != 0 {
 		t.Errorf("metric should be empty when API returns no metric; got %+v", metric)
 	}
 }
 
+// A `gql.ErrNotFound` from Get clears state so terraform plans a recreate.
+// Any other error propagates.
+func TestResourceInstanceAlarmReadClearsOnNotFound(t *testing.T) {
+	pc := &ProviderClient{InstanceAlarms: &fakeInstanceAlarms{
+		getErr: fmt.Errorf("get instance alarm gone: %w", gql.ErrNotFound),
+	}}
+
+	rd := schema.TestResourceDataRaw(t, resourceInstanceAlarm().Schema, map[string]any{})
+	rd.SetId("gone")
+
+	if diags := resourceInstanceAlarmRead(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("not-found should clear state silently; got %v", diags)
+	}
+	if rd.Id() != "" {
+		t.Errorf("ID should be cleared on not-found; got %q", rd.Id())
+	}
+}
+
 func TestResourceInstanceAlarmUpdate(t *testing.T) {
-	pc, rec := newMockProvider(map[string]map[string]any{
-		"updateInstanceAlarm": {
-			"data": map[string]any{
-				"updateInstanceAlarm": map[string]any{
-					"result": map[string]any{
-						"id":              "alarm-1",
-						"displayName":     "Renamed",
-						"cloudResourceId": "arn:aws:cloudwatch:us-east-1:111:alarm/rds-cpu",
-					},
-					"successful": true,
-				},
-			},
-		},
-		"getInstanceAlarm": alarmReadResponse(map[string]any{"displayName": "Renamed"}),
-	})
+	updated := fullAlarm()
+	updated.DisplayName = "Renamed"
+	fake := &fakeInstanceAlarms{updateResp: updated, getResp: updated}
+	pc := &ProviderClient{InstanceAlarms: fake}
 
 	rd := schema.TestResourceDataRaw(t, resourceInstanceAlarm().Schema, map[string]any{
 		"instance_id":       "ecomm-prod-db",
@@ -294,34 +330,21 @@ func TestResourceInstanceAlarmUpdate(t *testing.T) {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
 
-	updateReq := rec.FindRequest("updateInstanceAlarm")
-	if updateReq == nil {
-		t.Fatal("updateInstanceAlarm was not called")
+	if fake.updateID != "alarm-1" {
+		t.Errorf("got updateID %q, want alarm-1", fake.updateID)
 	}
-	vars := gqlmock.Variables(updateReq)
-	if vars["id"] != "alarm-1" {
-		t.Errorf("got id %v, want alarm-1", vars["id"])
+	in := fake.updateInput
+	if in.DisplayName != "Renamed" {
+		t.Errorf("got displayName %q, want Renamed", in.DisplayName)
 	}
-	input, _ := vars["input"].(map[string]any)
-	if input["displayName"] != "Renamed" {
-		t.Errorf("got displayName %v, want Renamed", input["displayName"])
-	}
-	if input["threshold"] != 95.0 {
-		t.Errorf("got threshold %v, want 95.0", input["threshold"])
+	if in.Threshold == nil || *in.Threshold != 95.0 {
+		t.Errorf("got threshold %v, want *95.0", in.Threshold)
 	}
 }
 
 func TestResourceInstanceAlarmDelete(t *testing.T) {
-	pc, rec := newMockProvider(map[string]map[string]any{
-		"deleteInstanceAlarm": {
-			"data": map[string]any{
-				"deleteInstanceAlarm": map[string]any{
-					"result":     map[string]any{"id": "alarm-1", "displayName": "RDS High CPU"},
-					"successful": true,
-				},
-			},
-		},
-	})
+	fake := &fakeInstanceAlarms{deleteResp: &instances.Alarm{ID: "alarm-1"}}
+	pc := &ProviderClient{InstanceAlarms: fake}
 
 	rd := schema.TestResourceDataRaw(t, resourceInstanceAlarm().Schema, map[string]any{})
 	rd.SetId("alarm-1")
@@ -332,8 +355,56 @@ func TestResourceInstanceAlarmDelete(t *testing.T) {
 	if rd.Id() != "" {
 		t.Errorf("resource ID should be cleared, got %q", rd.Id())
 	}
-	if vars := gqlmock.Variables(rec.FindRequest("deleteInstanceAlarm")); vars["id"] != "alarm-1" {
-		t.Errorf("got id %v, want alarm-1", vars["id"])
+	if fake.deleteID != "alarm-1" {
+		t.Errorf("got deleteID %q, want alarm-1", fake.deleteID)
+	}
+}
+
+// Delete returning not-found is treated as success — the record is gone, which
+// is what destroy wanted anyway.
+func TestResourceInstanceAlarmDeleteTreatsNotFoundAsSuccess(t *testing.T) {
+	fake := &fakeInstanceAlarms{deleteErr: fmt.Errorf("delete instance alarm: %w", gql.ErrNotFound)}
+	pc := &ProviderClient{InstanceAlarms: fake}
+
+	rd := schema.TestResourceDataRaw(t, resourceInstanceAlarm().Schema, map[string]any{})
+	rd.SetId("already-gone")
+
+	if diags := resourceInstanceAlarmDelete(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("not-found on delete should not error; got %v", diags)
+	}
+	if rd.Id() != "" {
+		t.Errorf("ID should be cleared, got %q", rd.Id())
+	}
+}
+
+// The DefaultFunc resolves instance_id from env: MASSDRIVER_INSTANCE_ID wins;
+// MASSDRIVER_PACKAGE_NAME is the fallback and gets the trailing deployment
+// suffix stripped. HCL config trumps both via standard SDK precedence.
+func TestInstanceIDFromEnv(t *testing.T) {
+	cases := []struct {
+		name        string
+		instanceEnv string
+		packageEnv  string
+		want        any
+	}{
+		{name: "both_unset", want: nil},
+		{name: "instance_id_explicit", instanceEnv: "explicit-id", want: "explicit-id"},
+		{name: "package_name_stripped", packageEnv: "bundtst-plygrnd-awsaurorapos-rbpt", want: "bundtst-plygrnd-awsaurorapos"},
+		{name: "instance_id_wins_over_package_name", instanceEnv: "explicit-id", packageEnv: "should-be-ignored-x", want: "explicit-id"},
+		{name: "package_name_without_hyphen_unchanged", packageEnv: "singletoken", want: "singletoken"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("MASSDRIVER_INSTANCE_ID", tc.instanceEnv)
+			t.Setenv("MASSDRIVER_PACKAGE_NAME", tc.packageEnv)
+			got, err := instanceIDFromEnv()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
@@ -342,8 +413,10 @@ func TestResourceInstanceAlarmSchema(t *testing.T) {
 	if err := r.InternalValidate(nil, true); err != nil {
 		t.Fatalf("schema invalid: %v", err)
 	}
-	if iid := r.Schema["instance_id"]; iid == nil || !iid.Required || !iid.ForceNew {
-		t.Error("instance_id should be Required+ForceNew")
+	// instance_id is Optional (resolved by DefaultFunc from env in deployments)
+	// but ForceNew — moving an alarm between instances is destroy+recreate.
+	if iid := r.Schema["instance_id"]; iid == nil || iid.Required || !iid.Optional || !iid.ForceNew || iid.DefaultFunc == nil {
+		t.Error("instance_id should be Optional+ForceNew with a DefaultFunc")
 	}
 	for _, field := range []string{"display_name", "cloud_resource_id"} {
 		if !r.Schema[field].Required {
@@ -359,8 +432,12 @@ func TestResourceInstanceAlarmSchema(t *testing.T) {
 			t.Errorf("%s should be Optional", field)
 		}
 	}
-	// metric is a single-instance nested block.
 	if metric := r.Schema["metric"]; metric.MaxItems != 1 || metric.Type != schema.TypeList {
 		t.Errorf("metric should be TypeList with MaxItems=1, got Type=%v MaxItems=%d", metric.Type, metric.MaxItems)
 	}
 }
+
+// Compile-time assertion: the SDK's *instances.Service must satisfy
+// instanceAlarmsAPI. If the SDK changes a signature, the build breaks here
+// rather than failing at NewProviderClient assignment.
+var _ instanceAlarmsAPI = (*instances.Service)(nil)

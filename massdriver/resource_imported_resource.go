@@ -3,13 +3,24 @@ package massdriver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-
-	"terraform-provider-massdriver/internal/api"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/gql"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/platform/resources"
 )
+
+// resourcesAPI is the slice of *platform/resources.Service this resource calls.
+type resourcesAPI interface {
+	Get(ctx context.Context, id string) (*resources.Resource, error)
+	Create(ctx context.Context, resourceTypeID string, input resources.CreateInput) (*resources.Resource, error)
+	Update(ctx context.Context, id string, input resources.UpdateInput) (*resources.Resource, error)
+	Delete(ctx context.Context, id string) (*resources.Resource, error)
+}
+
+var _ resourcesAPI = (*resources.Service)(nil)
 
 func resourceImportedResource() *schema.Resource {
 	return &schema.Resource{
@@ -50,19 +61,19 @@ This resource is usable anywhere, not just inside a Massdriver bundle deployment
 }
 
 func resourceImportedResourceCreate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*ProviderClient).Client
+	pc := meta.(*ProviderClient)
 
 	payload, err := decodeImportedResourcePayload(d.Get("resource").(string))
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	resource, createErr := api.CreateResource(ctx, client, d.Get("resource_type").(string), api.CreateResourceInput{
+	resource, err := pc.Resources.Create(ctx, d.Get("resource_type").(string), resources.CreateInput{
 		Name:    d.Get("name").(string),
 		Payload: payload,
 	})
-	if createErr != nil {
-		return diag.FromErr(createErr)
+	if err != nil {
+		return diag.FromErr(err)
 	}
 
 	d.SetId(resource.ID)
@@ -70,10 +81,14 @@ func resourceImportedResourceCreate(ctx context.Context, d *schema.ResourceData,
 }
 
 func resourceImportedResourceRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*ProviderClient).Client
+	pc := meta.(*ProviderClient)
 
-	resource, err := api.GetResource(ctx, client, d.Id())
+	resource, err := pc.Resources.Get(ctx, d.Id())
 	if err != nil {
+		if errors.Is(err, gql.ErrNotFound) {
+			d.SetId("")
+			return nil
+		}
 		return diag.FromErr(err)
 	}
 
@@ -85,28 +100,31 @@ func resourceImportedResourceRead(ctx context.Context, d *schema.ResourceData, m
 }
 
 func resourceImportedResourceUpdate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*ProviderClient).Client
+	pc := meta.(*ProviderClient)
 
 	payload, err := decodeImportedResourcePayload(d.Get("resource").(string))
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	_, updateErr := api.UpdateResource(ctx, client, d.Id(), api.UpdateResourceInput{
+	if _, err := pc.Resources.Update(ctx, d.Id(), resources.UpdateInput{
 		Name:    d.Get("name").(string),
 		Payload: payload,
-	})
-	if updateErr != nil {
-		return diag.FromErr(updateErr)
+	}); err != nil {
+		return diag.FromErr(err)
 	}
 
 	return resourceImportedResourceRead(ctx, d, meta)
 }
 
 func resourceImportedResourceDelete(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*ProviderClient).Client
+	pc := meta.(*ProviderClient)
 
-	if _, err := api.DeleteResource(ctx, client, d.Id()); err != nil {
+	if _, err := pc.Resources.Delete(ctx, d.Id()); err != nil {
+		if errors.Is(err, gql.ErrNotFound) {
+			d.SetId("")
+			return nil
+		}
 		return diag.FromErr(err)
 	}
 

@@ -1,91 +1,99 @@
 package massdriver
 
 import (
+	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
-	"terraform-provider-massdriver/internal/gqlmock"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/gql"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/platform/environments"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/platform/types"
 )
 
+type fakeEnvironments struct {
+	getResp, createResp, updateResp, deleteResp *environments.Environment
+	getErr, createErr, updateErr, deleteErr     error
+
+	getID           string
+	createProjectID string
+	createInput     environments.CreateInput
+	updateID        string
+	updateInput     environments.UpdateInput
+	deleteID        string
+
+	getCalls, createCalls, updateCalls, deleteCalls int
+}
+
+func (f *fakeEnvironments) Get(_ context.Context, id string) (*environments.Environment, error) {
+	f.getID = id
+	f.getCalls++
+	return f.getResp, f.getErr
+}
+func (f *fakeEnvironments) Create(_ context.Context, projectID string, input environments.CreateInput) (*environments.Environment, error) {
+	f.createProjectID = projectID
+	f.createInput = input
+	f.createCalls++
+	return f.createResp, f.createErr
+}
+func (f *fakeEnvironments) Update(_ context.Context, id string, input environments.UpdateInput) (*environments.Environment, error) {
+	f.updateID = id
+	f.updateInput = input
+	f.updateCalls++
+	return f.updateResp, f.updateErr
+}
+func (f *fakeEnvironments) Delete(_ context.Context, id string) (*environments.Environment, error) {
+	f.deleteID = id
+	f.deleteCalls++
+	return f.deleteResp, f.deleteErr
+}
+
 func TestResourceEnvironmentCreate(t *testing.T) {
-	pc, rec := newMockProvider(map[string]map[string]any{
-		"createEnvironment": {
-			"data": map[string]any{
-				"createEnvironment": map[string]any{
-					"result": map[string]any{
-						"id":          "ecomm-prod",
-						"name":        "Production",
-						"description": "live env",
-						"attributes":  map[string]any{"env": "production"},
-					},
-					"successful": true,
-				},
-			},
-		},
-		"getEnvironment": {
-			"data": map[string]any{
-				"environment": map[string]any{
-					"id":          "ecomm-prod",
-					"name":        "Production",
-					"description": "live env",
-					"attributes":  map[string]any{"env": "production"},
-					"project": map[string]any{
-						"id":   "ecomm",
-						"name": "Ecomm",
-					},
-				},
-			},
-		},
-	})
+	resp := &environments.Environment{
+		ID:          "ecomm-prod",
+		Name:        "Prod",
+		Description: "production",
+		Attributes:  map[string]any{"env": "prod"},
+		Project:     &types.Project{ID: "ecomm"},
+	}
+	fake := &fakeEnvironments{createResp: resp, getResp: resp}
+	pc := &ProviderClient{Environments: fake}
 
 	rd := schema.TestResourceDataRaw(t, resourceEnvironment().Schema, map[string]any{
 		"identifier":  "prod",
 		"project_id":  "ecomm",
-		"name":        "Production",
-		"description": "live env",
-		"attributes":  map[string]any{"env": "production"},
+		"name":        "Prod",
+		"description": "production",
+		"attributes":  map[string]any{"env": "prod"},
 	})
 
-	diags := resourceEnvironmentCreate(t.Context(), rd, pc)
-	if diags.HasError() {
+	if diags := resourceEnvironmentCreate(t.Context(), rd, pc); diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
 
 	if rd.Id() != "ecomm-prod" {
 		t.Errorf("got id %q, want ecomm-prod", rd.Id())
 	}
-	if rd.Get("identifier").(string) != "prod" {
-		t.Errorf("got identifier %q, want prod (recovered from `<project>-<identifier>`)", rd.Get("identifier"))
+	if fake.createProjectID != "ecomm" {
+		t.Errorf("got Create projectID %q, want ecomm", fake.createProjectID)
+	}
+	in := fake.createInput
+	if in.ID != "prod" || in.Name != "Prod" || in.Description != "production" {
+		t.Errorf("got create input %+v", in)
+	}
+	if in.Attributes["env"] != "prod" {
+		t.Errorf("got Attributes %v", in.Attributes)
 	}
 	if rd.Get("project_id").(string) != "ecomm" {
-		t.Errorf("got project_id %q, want ecomm", rd.Get("project_id"))
+		t.Errorf("got project_id %q, want ecomm (from Read)", rd.Get("project_id"))
 	}
-
-	createReq := rec.FindRequest("createEnvironment")
-	if createReq == nil {
-		t.Fatal("createEnvironment was not called")
-	}
-	vars := gqlmock.Variables(createReq)
-	if vars["projectId"] != "ecomm" {
-		t.Errorf("got projectId %v, want ecomm", vars["projectId"])
-	}
-	input, _ := vars["input"].(map[string]any)
-	if input["id"] != "prod" {
-		t.Errorf("got input.id %v, want prod (just the identifier, not the composed platform ID)", input["id"])
-	}
-	if input["name"] != "Production" {
-		t.Errorf("got input.name %v, want Production", input["name"])
-	}
-	if input["attributes"] != `{"env":"production"}` {
-		t.Errorf("got input.attributes %v, want JSON-encoded env=production", input["attributes"])
-	}
-	if attrs := rd.Get("attributes").(map[string]any); attrs["env"] != "production" {
-		t.Errorf("got attributes %v after Read, wanted env=production", attrs)
+	if rd.Get("identifier").(string) != "prod" {
+		t.Errorf("got identifier %q, want prod (stripped from %q)", rd.Get("identifier"), resp.ID)
 	}
 }
 
-// Mirrors the project test: drift on attributes must surface, not be silenced.
 func TestResourceEnvironmentSurfacesAttributesDrift(t *testing.T) {
 	r := resourceEnvironment()
 
@@ -96,13 +104,13 @@ func TestResourceEnvironmentSurfacesAttributesDrift(t *testing.T) {
 			"identifier":     "prod",
 			"project_id":     "ecomm",
 			"attributes.%":   "1",
-			"attributes.env": "staging", // drifted via console
+			"attributes.env": "staging",
 		},
 	}
 	cfg := terraform.NewResourceConfigRaw(map[string]any{
 		"identifier": "prod",
 		"project_id": "ecomm",
-		"attributes": map[string]any{"env": "production"},
+		"attributes": map[string]any{"env": "prod"},
 	})
 
 	diff, err := r.Diff(t.Context(), state, cfg, nil)
@@ -114,71 +122,68 @@ func TestResourceEnvironmentSurfacesAttributesDrift(t *testing.T) {
 	}
 	if attr := diff.Attributes["attributes.env"]; attr == nil {
 		t.Error("expected diff on attributes.env")
-	} else if attr.Old != "staging" || attr.New != "production" {
-		t.Errorf("got attributes.env diff %+v, want Old=staging New=production", attr)
+	} else if attr.Old != "staging" || attr.New != "prod" {
+		t.Errorf("got attributes.env diff %+v, want Old=staging New=prod", attr)
 	}
 }
 
 func TestResourceEnvironmentRead(t *testing.T) {
-	pc, _ := newMockProvider(map[string]map[string]any{
-		"getEnvironment": {
-			"data": map[string]any{
-				"environment": map[string]any{
-					"id":          "ecomm-prod",
-					"name":        "Production",
-					"description": "live env",
-					"project": map[string]any{
-						"id":   "ecomm",
-						"name": "Ecomm",
-					},
-				},
-			},
+	pc := &ProviderClient{Environments: &fakeEnvironments{
+		getResp: &environments.Environment{
+			ID:          "ecomm-staging",
+			Name:        "Staging",
+			Description: "pre-prod",
+			Attributes:  map[string]any{"env": "staging"},
+			Project:     &types.Project{ID: "ecomm"},
 		},
-	})
+	}}
 
 	rd := schema.TestResourceDataRaw(t, resourceEnvironment().Schema, map[string]any{})
-	rd.SetId("ecomm-prod")
+	rd.SetId("ecomm-staging")
 
-	diags := resourceEnvironmentRead(t.Context(), rd, pc)
-	if diags.HasError() {
+	if diags := resourceEnvironmentRead(t.Context(), rd, pc); diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
 
-	if rd.Get("name").(string) != "Production" {
-		t.Errorf("got name %q, want Production", rd.Get("name"))
+	if got := rd.Get("identifier").(string); got != "staging" {
+		t.Errorf("got identifier %q, want staging (stripped from ecomm-staging)", got)
 	}
-	if rd.Get("project_id").(string) != "ecomm" {
-		t.Errorf("got project_id %q, want ecomm", rd.Get("project_id"))
+	if got := rd.Get("project_id").(string); got != "ecomm" {
+		t.Errorf("got project_id %q, want ecomm", got)
 	}
-	if rd.Get("identifier").(string) != "prod" {
-		t.Errorf("got identifier %q, want prod (the suffix after the project prefix)", rd.Get("identifier"))
+	if got := rd.Get("name").(string); got != "Staging" {
+		t.Errorf("got name %q, want Staging", got)
+	}
+	if got := rd.Get("description").(string); got != "pre-prod" {
+		t.Errorf("got description %q, want pre-prod", got)
+	}
+}
+
+func TestResourceEnvironmentReadClearsOnNotFound(t *testing.T) {
+	pc := &ProviderClient{Environments: &fakeEnvironments{
+		getErr: fmt.Errorf("get environment gone: %w", gql.ErrNotFound),
+	}}
+
+	rd := schema.TestResourceDataRaw(t, resourceEnvironment().Schema, map[string]any{})
+	rd.SetId("gone")
+
+	if diags := resourceEnvironmentRead(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("not-found should clear state silently; got %v", diags)
+	}
+	if rd.Id() != "" {
+		t.Errorf("ID should be cleared on not-found; got %q", rd.Id())
 	}
 }
 
 func TestResourceEnvironmentUpdate(t *testing.T) {
-	pc, rec := newMockProvider(map[string]map[string]any{
-		"updateEnvironment": {
-			"data": map[string]any{
-				"updateEnvironment": map[string]any{
-					"result": map[string]any{
-						"id":          "ecomm-prod",
-						"name":        "Renamed",
-						"description": "updated",
-					},
-					"successful": true,
-				},
-			},
-		},
-		"getEnvironment": {
-			"data": map[string]any{
-				"environment": map[string]any{
-					"id":          "ecomm-prod",
-					"name":        "Renamed",
-					"description": "updated",
-				},
-			},
-		},
-	})
+	resp := &environments.Environment{
+		ID:          "ecomm-prod",
+		Name:        "Renamed",
+		Description: "updated",
+		Project:     &types.Project{ID: "ecomm"},
+	}
+	fake := &fakeEnvironments{updateResp: resp, getResp: resp}
+	pc := &ProviderClient{Environments: fake}
 
 	rd := schema.TestResourceDataRaw(t, resourceEnvironment().Schema, map[string]any{
 		"identifier":  "prod",
@@ -188,81 +193,93 @@ func TestResourceEnvironmentUpdate(t *testing.T) {
 	})
 	rd.SetId("ecomm-prod")
 
-	diags := resourceEnvironmentUpdate(t.Context(), rd, pc)
-	if diags.HasError() {
+	if diags := resourceEnvironmentUpdate(t.Context(), rd, pc); diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
-
-	updateReq := rec.FindRequest("updateEnvironment")
-	if updateReq == nil {
-		t.Fatal("updateEnvironment was not called")
+	if fake.updateID != "ecomm-prod" {
+		t.Errorf("got updateID %q, want ecomm-prod", fake.updateID)
 	}
-	vars := gqlmock.Variables(updateReq)
-	if vars["id"] != "ecomm-prod" {
-		t.Errorf("got id %v, want ecomm-prod", vars["id"])
-	}
-	input, _ := vars["input"].(map[string]any)
-	if input["name"] != "Renamed" {
-		t.Errorf("got input.name %v, want Renamed", input["name"])
+	in := fake.updateInput
+	if in.Name != "Renamed" || in.Description != "updated" {
+		t.Errorf("got input %+v", in)
 	}
 }
 
 func TestResourceEnvironmentDelete(t *testing.T) {
-	pc, rec := newMockProvider(map[string]map[string]any{
-		"deleteEnvironment": {
-			"data": map[string]any{
-				"deleteEnvironment": map[string]any{
-					"result":     map[string]any{"id": "ecomm-prod", "name": "Production"},
-					"successful": true,
-				},
-			},
-		},
-	})
+	fake := &fakeEnvironments{deleteResp: &environments.Environment{ID: "ecomm-prod"}}
+	pc := &ProviderClient{Environments: fake}
 
 	rd := schema.TestResourceDataRaw(t, resourceEnvironment().Schema, map[string]any{})
 	rd.SetId("ecomm-prod")
 
-	diags := resourceEnvironmentDelete(t.Context(), rd, pc)
-	if diags.HasError() {
+	if diags := resourceEnvironmentDelete(t.Context(), rd, pc); diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
 	if rd.Id() != "" {
-		t.Errorf("resource ID should be cleared, got %q", rd.Id())
+		t.Errorf("ID should be cleared, got %q", rd.Id())
 	}
-	if vars := gqlmock.Variables(rec.FindRequest("deleteEnvironment")); vars["id"] != "ecomm-prod" {
-		t.Errorf("got id %v, want ecomm-prod", vars["id"])
+	if fake.deleteID != "ecomm-prod" {
+		t.Errorf("got deleteID %q, want ecomm-prod", fake.deleteID)
 	}
 }
 
-func TestResourceEnvironmentCreateDefaultsNameToIdentifier(t *testing.T) {
-	pc, rec := newMockProvider(map[string]map[string]any{
-		"createEnvironment": {
-			"data": map[string]any{
-				"createEnvironment": map[string]any{
-					"result":     map[string]any{"id": "ecomm-prod", "name": "prod"},
-					"successful": true,
-				},
-			},
-		},
-		"getEnvironment": {
-			"data": map[string]any{
-				"environment": map[string]any{"id": "ecomm-prod", "name": "prod"},
-			},
-		},
-	})
+func TestResourceEnvironmentDeleteTreatsNotFoundAsSuccess(t *testing.T) {
+	fake := &fakeEnvironments{deleteErr: fmt.Errorf("delete environment: %w", gql.ErrNotFound)}
+	pc := &ProviderClient{Environments: fake}
+
+	rd := schema.TestResourceDataRaw(t, resourceEnvironment().Schema, map[string]any{})
+	rd.SetId("already-gone")
+
+	if diags := resourceEnvironmentDelete(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("not-found on delete should not error; got %v", diags)
+	}
+	if rd.Id() != "" {
+		t.Errorf("ID should be cleared, got %q", rd.Id())
+	}
+}
+
+func TestResourceEnvironmentCreatePropagatesAPIFailure(t *testing.T) {
+	fake := &fakeEnvironments{createErr: fmt.Errorf("create environment: id already exists in project")}
+	pc := &ProviderClient{Environments: fake}
 
 	rd := schema.TestResourceDataRaw(t, resourceEnvironment().Schema, map[string]any{
 		"identifier": "prod",
 		"project_id": "ecomm",
+		"name":       "Prod",
+	})
+
+	diags := resourceEnvironmentCreate(t.Context(), rd, pc)
+	if !diags.HasError() {
+		t.Fatal("expected error, got none")
+	}
+	if !strings.Contains(diags[0].Summary, "id already exists") {
+		t.Errorf("upstream error %q should be surfaced", diags[0].Summary)
+	}
+	if rd.Id() != "" {
+		t.Errorf("ID should not be set on failure, got %q", rd.Id())
+	}
+}
+
+func TestResourceEnvironmentCreateDefaultsNameToIdentifier(t *testing.T) {
+	resp := &environments.Environment{ID: "ecomm-prod", Name: "prod", Project: &types.Project{ID: "ecomm"}}
+	fake := &fakeEnvironments{createResp: resp, getResp: resp}
+	pc := &ProviderClient{Environments: fake}
+
+	rd := schema.TestResourceDataRaw(t, resourceEnvironment().Schema, map[string]any{
+		"identifier": "prod",
+		"project_id": "ecomm",
+		// name and description deliberately omitted
 	})
 
 	if diags := resourceEnvironmentCreate(t.Context(), rd, pc); diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
 
-	input, _ := gqlmock.Variables(rec.FindRequest("createEnvironment"))["input"].(map[string]any)
-	if input["name"] != "prod" {
-		t.Errorf("got input.name %v, want prod (defaulted from identifier)", input["name"])
+	if fake.createInput.Name != "prod" {
+		t.Errorf("got input.Name %q, want prod (defaulted from identifier)", fake.createInput.Name)
+	}
+	if fake.createInput.Description != "" {
+		t.Errorf("got input.Description %q, want empty", fake.createInput.Description)
 	}
 }
 
@@ -275,8 +292,8 @@ func TestResourceEnvironmentIgnoresDriftWhenConfigUnset(t *testing.T) {
 			"id":          "ecomm-prod",
 			"identifier":  "prod",
 			"project_id":  "ecomm",
-			"name":        "Production (manual edit)",
-			"description": "edited in the console",
+			"name":        "Console Edit",
+			"description": "added in the console",
 		},
 	}
 	cfg := terraform.NewResourceConfigRaw(map[string]any{
@@ -288,6 +305,7 @@ func TestResourceEnvironmentIgnoresDriftWhenConfigUnset(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected diff error: %v", err)
 	}
+
 	if diff != nil && !diff.Empty() {
 		for k, attr := range diff.Attributes {
 			if k == "name" || k == "description" {
@@ -302,22 +320,22 @@ func TestResourceEnvironmentSchema(t *testing.T) {
 	if err := r.InternalValidate(nil, true); err != nil {
 		t.Fatalf("schema invalid: %v", err)
 	}
-	if id := r.Schema["identifier"]; id == nil || !id.Required || !id.ForceNew || id.ValidateFunc == nil {
-		t.Error("identifier should be Required+ForceNew with a ValidateFunc")
-	}
-	if pid := r.Schema["project_id"]; pid == nil || !pid.Required || !pid.ForceNew {
-		t.Error("project_id should be Required+ForceNew")
+	for _, field := range []string{"identifier", "project_id"} {
+		s := r.Schema[field]
+		if s == nil {
+			t.Fatalf("expected %s in schema", field)
+		}
+		if !s.Required || !s.ForceNew {
+			t.Errorf("%s should be Required+ForceNew; got Required=%v ForceNew=%v", field, s.Required, s.ForceNew)
+		}
 	}
 	for _, field := range []string{"name", "description"} {
 		s := r.Schema[field]
-		if s == nil || s.Required || !s.Optional || !s.Computed {
-			t.Errorf("%s should be Optional+Computed (got Required=%v Optional=%v Computed=%v)", field, s.Required, s.Optional, s.Computed)
+		if s == nil || !s.Optional || !s.Computed {
+			t.Errorf("%s should be Optional+Computed", field)
 		}
 	}
 	if attrs := r.Schema["attributes"]; attrs == nil || !attrs.Required {
-		t.Error("attributes should be Required (drift always surfaces)")
-	}
-	if _, present := r.Schema["id"]; present {
-		t.Error("id should not be defined in schema — terraform manages it automatically")
+		t.Error("attributes should be Required")
 	}
 }

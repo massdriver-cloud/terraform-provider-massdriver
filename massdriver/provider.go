@@ -7,23 +7,27 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-// Provider -
+// Provider is the v2.0 provider. The deprecated v1 resources
+// (`massdriver_artifact`, `massdriver_package_alarm`) have been removed; users
+// on `~> 1.0` must migrate to `massdriver_resource` and
+// `massdriver_instance_alarm` before upgrading.
+//
+// `massdriver_component_link` is intentionally not exposed yet — it will land
+// in a follow-up release once the bundle-version semantics it relies on are
+// settled.
 func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{},
 		ResourcesMap: map[string]*schema.Resource{
-			"massdriver_artifact":          resourceArtifact(),
-			"massdriver_package_alarm":     resourcePackageAlarm(),
 			"massdriver_project":           resourceProject(),
 			"massdriver_environment":       resourceEnvironment(),
 			"massdriver_component":         resourceComponent(),
-			"massdriver_component_link":    resourceComponentLink(),
 			"massdriver_resource":          resourceResource(),
 			"massdriver_imported_resource": resourceImportedResource(),
 			"massdriver_instance_alarm":    resourceInstanceAlarm(),
 			"massdriver_group":             resourceGroup(),
 			"massdriver_group_policy":      resourceGroupPolicy(),
-			"massdriver_bundle_repository": resourceBundleRepository(),
+			"massdriver_oci_repository":    resourceOciRepository(),
 		},
 		DataSourcesMap:       map[string]*schema.Resource{},
 		ConfigureContextFunc: providerConfigure,

@@ -2,18 +2,28 @@ package massdriver
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
-
-	"terraform-provider-massdriver/internal/api"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/gql"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/platform/components"
 )
 
 // componentIDSeparator joins a project identifier and a component identifier
 // to form the platform component ID (e.g., `ecomm-db`).
 const componentIDSeparator = "-"
+
+// componentsAPI is the slice of *components.Service this resource calls.
+type componentsAPI interface {
+	Get(ctx context.Context, id string) (*components.Component, error)
+	Add(ctx context.Context, projectID string, input components.AddInput) (*components.Component, error)
+	Update(ctx context.Context, id string, input components.UpdateInput) (*components.Component, error)
+	Remove(ctx context.Context, id string) (*components.Component, error)
+}
+
+var _ componentsAPI = (*components.Service)(nil)
 
 func resourceComponent() *schema.Resource {
 	return &schema.Resource{
@@ -56,7 +66,7 @@ func resourceComponent() *schema.Resource {
 }
 
 func resourceComponentCreate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*ProviderClient).Client
+	pc := meta.(*ProviderClient)
 	projectID := d.Get("project_id").(string)
 
 	identifier := d.Get("identifier").(string)
@@ -65,8 +75,9 @@ func resourceComponentCreate(ctx context.Context, d *schema.ResourceData, meta a
 		name = identifier
 	}
 
-	component, err := api.AddComponent(ctx, client, projectID, d.Get("bundle_name").(string), api.AddComponentInput{
-		Id:          identifier,
+	component, err := pc.Components.Add(ctx, projectID, components.AddInput{
+		OciRepoName: d.Get("bundle_name").(string),
+		ID:          identifier,
 		Name:        name,
 		Description: d.Get("description").(string),
 		Attributes:  attributesFromConfig(d.Get("attributes")),
@@ -80,39 +91,39 @@ func resourceComponentCreate(ctx context.Context, d *schema.ResourceData, meta a
 }
 
 func resourceComponentRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*ProviderClient).Client
+	pc := meta.(*ProviderClient)
 
-	projectID := d.Get("project_id").(string)
-	if projectID == "" {
-		// Recover project_id from the component ID during `terraform import`.
-		// Component IDs follow `<project>*<identifier>`.
-		if idx := strings.LastIndex(d.Id(), componentIDSeparator); idx > 0 {
-			projectID = d.Id()[:idx]
-		}
-	}
-
-	components, err := api.ListComponents(ctx, client, projectID, &api.ComponentsFilter{
-		Id: &api.IdFilter{Eq: d.Id()},
-	})
+	component, err := pc.Components.Get(ctx, d.Id())
 	if err != nil {
+		if errors.Is(err, gql.ErrNotFound) {
+			d.SetId("")
+			return nil
+		}
 		return diag.FromErr(err)
 	}
-	if len(components) == 0 {
-		d.SetId("")
-		return nil
+
+	projectID := ""
+	if component.Project != nil {
+		projectID = component.Project.ID
+	} else if existing := d.Get("project_id").(string); existing != "" {
+		// Carry through HCL-provided value when the API didn't return a Project
+		// (shouldn't happen for Get, but defensive).
+		projectID = existing
+	} else if idx := strings.LastIndex(d.Id(), componentIDSeparator); idx > 0 {
+		// Fall back to deriving from ID (mainly for `terraform import` paths).
+		projectID = d.Id()[:idx]
 	}
 
-	component := components[0]
+	d.Set("project_id", projectID)
 	d.Set("name", component.Name)
 	d.Set("description", component.Description)
-	d.Set("project_id", projectID)
 	d.Set("attributes", attributesToState(component.Attributes))
 	if component.OciRepo != nil {
 		d.Set("bundle_name", component.OciRepo.Name)
 	}
 
 	prefix := projectID + componentIDSeparator
-	if strings.HasPrefix(component.ID, prefix) {
+	if projectID != "" && strings.HasPrefix(component.ID, prefix) {
 		d.Set("identifier", strings.TrimPrefix(component.ID, prefix))
 	}
 
@@ -120,14 +131,13 @@ func resourceComponentRead(ctx context.Context, d *schema.ResourceData, meta any
 }
 
 func resourceComponentUpdate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*ProviderClient).Client
+	pc := meta.(*ProviderClient)
 
-	_, err := api.UpdateComponent(ctx, client, d.Id(), api.UpdateComponentInput{
+	if _, err := pc.Components.Update(ctx, d.Id(), components.UpdateInput{
 		Name:        d.Get("name").(string),
 		Description: d.Get("description").(string),
 		Attributes:  attributesFromConfig(d.Get("attributes")),
-	})
-	if err != nil {
+	}); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -135,10 +145,14 @@ func resourceComponentUpdate(ctx context.Context, d *schema.ResourceData, meta a
 }
 
 func resourceComponentDelete(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*ProviderClient).Client
+	pc := meta.(*ProviderClient)
 
-	if _, err := api.RemoveComponent(ctx, client, d.Id()); err != nil {
-		return diag.FromErr(fmt.Errorf("failed to remove component %s: %w", d.Id(), err))
+	if _, err := pc.Components.Remove(ctx, d.Id()); err != nil {
+		if errors.Is(err, gql.ErrNotFound) {
+			d.SetId("")
+			return nil
+		}
+		return diag.FromErr(err)
 	}
 
 	d.SetId("")

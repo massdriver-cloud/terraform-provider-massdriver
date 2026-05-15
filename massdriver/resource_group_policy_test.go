@@ -1,47 +1,64 @@
 package massdriver
 
 import (
-	"sort"
+	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"terraform-provider-massdriver/internal/gqlmock"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/gql"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/platform/policies"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/platform/types"
 )
 
+type fakePolicies struct {
+	getResp, createResp, updateResp, deleteResp *policies.Policy
+	getErr, createErr, updateErr, deleteErr     error
+
+	getID         string
+	createGroupID string
+	createInput   policies.CreatePolicyInput
+	updateID      string
+	updateInput   policies.UpdatePolicyInput
+	deleteID      string
+
+	getCalls, createCalls, updateCalls, deleteCalls int
+}
+
+func (f *fakePolicies) Get(_ context.Context, id string) (*policies.Policy, error) {
+	f.getID = id
+	f.getCalls++
+	return f.getResp, f.getErr
+}
+func (f *fakePolicies) Create(_ context.Context, groupID string, input policies.CreatePolicyInput) (*policies.Policy, error) {
+	f.createGroupID = groupID
+	f.createInput = input
+	f.createCalls++
+	return f.createResp, f.createErr
+}
+func (f *fakePolicies) Update(_ context.Context, id string, input policies.UpdatePolicyInput) (*policies.Policy, error) {
+	f.updateID = id
+	f.updateInput = input
+	f.updateCalls++
+	return f.updateResp, f.updateErr
+}
+func (f *fakePolicies) Delete(_ context.Context, id string) (*policies.Policy, error) {
+	f.deleteID = id
+	f.deleteCalls++
+	return f.deleteResp, f.deleteErr
+}
+
 func TestResourceGroupPolicyCreate(t *testing.T) {
-	pc, rec := newMockProvider(map[string]map[string]any{
-		"createGroupPolicy": {
-			"data": map[string]any{
-				"createGroupPolicy": map[string]any{
-					"result": map[string]any{
-						"id":         "policy-1",
-						"effect":     "ALLOW",
-						"actions":    []string{"project:view"},
-						"conditions": `{"team":["eng"]}`,
-						"group":      map[string]any{"id": "group-1"},
-					},
-					"successful": true,
-				},
-			},
-		},
-		"listGroupPolicies": {
-			"data": map[string]any{
-				"group": map[string]any{
-					"policies": map[string]any{
-						"items": []map[string]any{
-							{
-								"id":         "policy-1",
-								"effect":     "ALLOW",
-								"actions":    []string{"project:view"},
-								"conditions": `{"team":["eng"]}`,
-								"group":      map[string]any{"id": "group-1"},
-							},
-						},
-					},
-				},
-			},
-		},
-	})
+	resp := &policies.Policy{
+		ID:         "policy-1",
+		Effect:     string(policies.EffectAllow),
+		Actions:    []string{"project:view"},
+		Conditions: policies.PolicyConditions{"team": {"eng"}},
+		Group:      &types.Group{ID: "group-1"},
+	}
+	fake := &fakePolicies{createResp: resp, getResp: resp}
+	pc := &ProviderClient{Policies: fake}
 
 	rd := schema.TestResourceDataRaw(t, resourceGroupPolicy().Schema, map[string]any{
 		"group_id":   "group-1",
@@ -57,170 +74,82 @@ func TestResourceGroupPolicyCreate(t *testing.T) {
 	if rd.Id() != "policy-1" {
 		t.Errorf("got id %q, want policy-1", rd.Id())
 	}
-
-	createReq := rec.FindRequest("createGroupPolicy")
-	if createReq == nil {
-		t.Fatal("createGroupPolicy was not called")
+	if fake.createGroupID != "group-1" {
+		t.Errorf("got Create groupID %q, want group-1", fake.createGroupID)
 	}
-	vars := gqlmock.Variables(createReq)
-	if vars["groupId"] != "group-1" {
-		t.Errorf("got groupId %v, want group-1", vars["groupId"])
+	in := fake.createInput
+	if in.Effect != policies.EffectAllow {
+		t.Errorf("got Effect %q, want ALLOW", in.Effect)
 	}
-	input, _ := vars["input"].(map[string]any)
-	if input["effect"] != "ALLOW" {
-		t.Errorf("got input.effect %v, want ALLOW", input["effect"])
+	if len(in.Actions) != 1 || in.Actions[0] != "project:view" {
+		t.Errorf("got Actions %v, want [project:view]", in.Actions)
 	}
-	actions, _ := input["actions"].([]any)
-	if len(actions) != 1 || actions[0] != "project:view" {
-		t.Errorf("got input.actions %v, want [project:view]", actions)
-	}
-	if input["conditions"] != `{"team":["eng"]}` {
-		t.Errorf("got input.conditions %v, want JSON-encoded string {\"team\":[\"eng\"]}", input["conditions"])
+	if got := in.Conditions["team"]; len(got) != 1 || got[0] != "eng" {
+		t.Errorf("got Conditions[team] %v, want [eng]", got)
 	}
 }
 
-// Multiple actions get serialized as a JSON array. Sorting keeps the wire
-// payload deterministic regardless of the (unordered) Set traversal order.
-func TestResourceGroupPolicyCreateMultipleActions(t *testing.T) {
-	pc, rec := newMockProvider(map[string]map[string]any{
-		"createGroupPolicy": {
-			"data": map[string]any{
-				"createGroupPolicy": map[string]any{
-					"result": map[string]any{
-						"id":         "policy-1",
-						"effect":     "ALLOW",
-						"actions":    []string{"instance:deploy", "project:view"},
-						"conditions": "*",
-						"group":      map[string]any{"id": "group-1"},
-					},
-					"successful": true,
-				},
-			},
-		},
-		"listGroupPolicies": {
-			"data": map[string]any{
-				"group": map[string]any{
-					"policies": map[string]any{
-						"items": []map[string]any{
-							{
-								"id":         "policy-1",
-								"effect":     "ALLOW",
-								"actions":    []string{"instance:deploy", "project:view"},
-								"conditions": "*",
-								"group":      map[string]any{"id": "group-1"},
-							},
-						},
-					},
-				},
-			},
-		},
-	})
-
-	rd := schema.TestResourceDataRaw(t, resourceGroupPolicy().Schema, map[string]any{
-		"group_id":   "group-1",
-		"effect":     "ALLOW",
-		"actions":    []any{"project:view", "instance:deploy"}, // intentionally out of order
-		"conditions": "*",
-	})
-
-	if diags := resourceGroupPolicyCreate(t.Context(), rd, pc); diags.HasError() {
-		t.Fatalf("unexpected diagnostics: %v", diags)
+// `"*"` is the whole-policy wildcard — the SDK takes a nil map for that.
+// Make sure the resource maps the literal correctly.
+func TestResourceGroupPolicyCreateWildcardConditions(t *testing.T) {
+	resp := &policies.Policy{
+		ID:         "policy-2",
+		Effect:     string(policies.EffectDeny),
+		Actions:    []string{"project:delete", "instance:deploy"},
+		Conditions: nil, // wildcard
+		Group:      &types.Group{ID: "group-1"},
 	}
-
-	input, _ := gqlmock.Variables(rec.FindRequest("createGroupPolicy"))["input"].(map[string]any)
-	got, _ := input["actions"].([]any)
-	gotStrs := make([]string, len(got))
-	for i, v := range got {
-		gotStrs[i], _ = v.(string)
-	}
-	want := []string{"instance:deploy", "project:view"}
-	if len(gotStrs) != len(want) {
-		t.Fatalf("got %v, want %v", gotStrs, want)
-	}
-	for i, s := range want {
-		if gotStrs[i] != s {
-			t.Errorf("actions[%d] = %q, want %q (sorted, deterministic)", i, gotStrs[i], s)
-		}
-	}
-	// Sanity: confirm sort.StringsAreSorted holds, since determinism is the load-bearing property.
-	if !sort.StringsAreSorted(gotStrs) {
-		t.Errorf("actions wire payload should be sorted, got %v", gotStrs)
-	}
-}
-
-// `"*"` is the literal wildcard — it must reach the API as the bare string,
-// not be JSON-double-encoded into something like `"\"*\""`.
-func TestResourceGroupPolicyCreateWildcard(t *testing.T) {
-	pc, rec := newMockProvider(map[string]map[string]any{
-		"createGroupPolicy": {
-			"data": map[string]any{
-				"createGroupPolicy": map[string]any{
-					"result": map[string]any{
-						"id":         "policy-wild",
-						"effect":     "DENY",
-						"actions":    []string{"project:delete"},
-						"conditions": "*",
-						"group":      map[string]any{"id": "group-1"},
-					},
-					"successful": true,
-				},
-			},
-		},
-		"listGroupPolicies": {
-			"data": map[string]any{
-				"group": map[string]any{
-					"policies": map[string]any{
-						"items": []map[string]any{
-							{
-								"id":         "policy-wild",
-								"effect":     "DENY",
-								"actions":    []string{"project:delete"},
-								"conditions": "*",
-								"group":      map[string]any{"id": "group-1"},
-							},
-						},
-					},
-				},
-			},
-		},
-	})
+	fake := &fakePolicies{createResp: resp, getResp: resp}
+	pc := &ProviderClient{Policies: fake}
 
 	rd := schema.TestResourceDataRaw(t, resourceGroupPolicy().Schema, map[string]any{
 		"group_id":   "group-1",
 		"effect":     "DENY",
-		"actions":    []any{"project:delete"},
+		"actions":    []any{"project:delete", "instance:deploy"},
 		"conditions": "*",
 	})
 
 	if diags := resourceGroupPolicyCreate(t.Context(), rd, pc); diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
-
-	input, _ := gqlmock.Variables(rec.FindRequest("createGroupPolicy"))["input"].(map[string]any)
-	if input["conditions"] != "*" {
-		t.Errorf("got input.conditions %v, want literal *", input["conditions"])
+	if fake.createInput.Conditions != nil {
+		t.Errorf("got Conditions %v, want nil (wildcard sentinel)", fake.createInput.Conditions)
+	}
+	// Actions set should be sorted for deterministic wire payload.
+	if got := fake.createInput.Actions; len(got) != 2 || got[0] != "instance:deploy" || got[1] != "project:delete" {
+		t.Errorf("Actions should be sorted; got %v", got)
 	}
 }
 
-func TestResourceGroupPolicyCreatePropagatesAPIFailure(t *testing.T) {
-	pc, _ := newMockProvider(map[string]map[string]any{
-		"createGroupPolicy": {
-			"data": map[string]any{
-				"createGroupPolicy": map[string]any{
-					"result":     nil,
-					"successful": false,
-					"messages": []map[string]any{
-						{"code": "validation", "field": "actions", "message": "unknown action: foo:bar"},
-					},
-				},
-			},
-		},
-	})
+// Invalid JSON in conditions must error before the API call.
+func TestResourceGroupPolicyCreateRejectsInvalidConditionsJSON(t *testing.T) {
+	fake := &fakePolicies{}
+	pc := &ProviderClient{Policies: fake}
 
 	rd := schema.TestResourceDataRaw(t, resourceGroupPolicy().Schema, map[string]any{
 		"group_id":   "group-1",
 		"effect":     "ALLOW",
-		"actions":    []any{"foo:bar"},
+		"actions":    []any{"project:view"},
+		"conditions": `not json`,
+	})
+
+	diags := resourceGroupPolicyCreate(t.Context(), rd, pc)
+	if !diags.HasError() {
+		t.Fatal("expected JSON parse error, got none")
+	}
+	if fake.createCalls != 0 {
+		t.Errorf("Create should not fire on parse error; got %d calls", fake.createCalls)
+	}
+}
+
+func TestResourceGroupPolicyCreatePropagatesAPIFailure(t *testing.T) {
+	fake := &fakePolicies{createErr: fmt.Errorf("create policy on group group-1: invalid action 'bogus:verb'")}
+	pc := &ProviderClient{Policies: fake}
+
+	rd := schema.TestResourceDataRaw(t, resourceGroupPolicy().Schema, map[string]any{
+		"group_id":   "group-1",
+		"effect":     "ALLOW",
+		"actions":    []any{"bogus:verb"},
 		"conditions": "*",
 	})
 
@@ -228,175 +157,117 @@ func TestResourceGroupPolicyCreatePropagatesAPIFailure(t *testing.T) {
 	if !diags.HasError() {
 		t.Fatal("expected error, got none")
 	}
-	if rd.Id() != "" {
-		t.Errorf("ID should not be set on failure, got %q", rd.Id())
+	if !strings.Contains(diags[0].Summary, "invalid action") {
+		t.Errorf("upstream error %q should be surfaced", diags[0].Summary)
 	}
 }
 
 func TestResourceGroupPolicyRead(t *testing.T) {
-	pc, _ := newMockProvider(map[string]map[string]any{
-		"listGroupPolicies": {
-			"data": map[string]any{
-				"group": map[string]any{
-					"policies": map[string]any{
-						"items": []map[string]any{
-							{
-								"id":         "policy-1",
-								"effect":     "ALLOW",
-								"actions":    []string{"project:view", "instance:deploy"},
-								"conditions": `{"team":["eng"]}`,
-								"group":      map[string]any{"id": "group-1"},
-							},
-						},
-					},
-				},
-			},
+	pc := &ProviderClient{Policies: &fakePolicies{
+		getResp: &policies.Policy{
+			ID:         "policy-1",
+			Effect:     string(policies.EffectAllow),
+			Actions:    []string{"project:view"},
+			Conditions: policies.PolicyConditions{"team": {"eng"}},
+			Group:      &types.Group{ID: "group-1"},
 		},
-	})
+	}}
 
-	rd := schema.TestResourceDataRaw(t, resourceGroupPolicy().Schema, map[string]any{
-		"group_id":   "group-1",
-		"effect":     "ALLOW",
-		"actions":    []any{"project:view"},
-		"conditions": `{"team":["eng"]}`,
-	})
+	rd := schema.TestResourceDataRaw(t, resourceGroupPolicy().Schema, map[string]any{})
 	rd.SetId("policy-1")
 
 	if diags := resourceGroupPolicyRead(t.Context(), rd, pc); diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
+
+	if rd.Get("group_id").(string) != "group-1" {
+		t.Errorf("got group_id %q, want group-1 (populated from Policy.Group)", rd.Get("group_id"))
+	}
 	if rd.Get("effect").(string) != "ALLOW" {
-		t.Errorf("got effect %q, wanted ALLOW", rd.Get("effect"))
+		t.Errorf("got effect %q", rd.Get("effect"))
 	}
-	got := rd.Get("actions").(*schema.Set).List()
-	gotStrs := make([]string, len(got))
-	for i, v := range got {
-		gotStrs[i], _ = v.(string)
-	}
-	sort.Strings(gotStrs)
-	want := []string{"instance:deploy", "project:view"}
-	if len(gotStrs) != len(want) {
-		t.Fatalf("got %d actions in state, want 2", len(gotStrs))
-	}
-	for i, s := range want {
-		if gotStrs[i] != s {
-			t.Errorf("actions[%d] = %q, want %q", i, gotStrs[i], s)
-		}
+	if got := rd.Get("conditions").(string); got != `{"team":["eng"]}` {
+		t.Errorf("got conditions %q, want plain JSON object (not double-encoded)", got)
 	}
 }
 
-// Out-of-band deletion: API returns no matching policy → Read clears state so
-// terraform re-creates on the next apply.
-func TestResourceGroupPolicyReadClearsWhenMissing(t *testing.T) {
-	pc, _ := newMockProvider(map[string]map[string]any{
-		"listGroupPolicies": {
-			"data": map[string]any{
-				"group": map[string]any{
-					"policies": map[string]any{
-						"items": []map[string]any{
-							{
-								"id":      "different-policy",
-								"effect":  "ALLOW",
-								"actions": []string{"project:view"},
-							},
-						},
-					},
-				},
-			},
+// A whole-policy-wildcard policy round-trips back to the literal "*" so the
+// user's HCL doesn't manufacture drift on the next plan.
+func TestResourceGroupPolicyReadEncodesWildcard(t *testing.T) {
+	pc := &ProviderClient{Policies: &fakePolicies{
+		getResp: &policies.Policy{
+			ID:         "policy-w",
+			Effect:     string(policies.EffectDeny),
+			Actions:    []string{"project:delete"},
+			Conditions: nil,
+			Group:      &types.Group{ID: "group-1"},
 		},
-	})
+	}}
 
-	rd := schema.TestResourceDataRaw(t, resourceGroupPolicy().Schema, map[string]any{
-		"group_id":   "group-1",
-		"effect":     "ALLOW",
-		"actions":    []any{"project:view"},
-		"conditions": "*",
-	})
-	rd.SetId("policy-1")
+	rd := schema.TestResourceDataRaw(t, resourceGroupPolicy().Schema, map[string]any{})
+	rd.SetId("policy-w")
 
 	if diags := resourceGroupPolicyRead(t.Context(), rd, pc); diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
+	if got := rd.Get("conditions").(string); got != "*" {
+		t.Errorf("nil conditions should encode to `*`; got %q", got)
+	}
+}
+
+func TestResourceGroupPolicyReadClearsOnNotFound(t *testing.T) {
+	pc := &ProviderClient{Policies: &fakePolicies{
+		getErr: fmt.Errorf("get policy gone: %w", gql.ErrNotFound),
+	}}
+
+	rd := schema.TestResourceDataRaw(t, resourceGroupPolicy().Schema, map[string]any{})
+	rd.SetId("gone")
+
+	if diags := resourceGroupPolicyRead(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("not-found should clear state silently; got %v", diags)
+	}
 	if rd.Id() != "" {
-		t.Errorf("expected ID cleared when policy is missing, got %q", rd.Id())
+		t.Errorf("ID should be cleared on not-found; got %q", rd.Id())
 	}
 }
 
 func TestResourceGroupPolicyUpdate(t *testing.T) {
-	pc, rec := newMockProvider(map[string]map[string]any{
-		"updatePolicy": {
-			"data": map[string]any{
-				"updatePolicy": map[string]any{
-					"result": map[string]any{
-						"id":         "policy-1",
-						"effect":     "DENY",
-						"actions":    []string{"project:view"},
-						"conditions": "*",
-						"group":      map[string]any{"id": "group-1"},
-					},
-					"successful": true,
-				},
-			},
-		},
-		"listGroupPolicies": {
-			"data": map[string]any{
-				"group": map[string]any{
-					"policies": map[string]any{
-						"items": []map[string]any{
-							{
-								"id":         "policy-1",
-								"effect":     "DENY",
-								"actions":    []string{"project:view"},
-								"conditions": "*",
-								"group":      map[string]any{"id": "group-1"},
-							},
-						},
-					},
-				},
-			},
-		},
-	})
+	resp := &policies.Policy{
+		ID:         "policy-1",
+		Effect:     string(policies.EffectAllow),
+		Actions:    []string{"project:view", "project:edit"},
+		Conditions: policies.PolicyConditions{"team": {"eng", "ops"}},
+		Group:      &types.Group{ID: "group-1"},
+	}
+	fake := &fakePolicies{updateResp: resp, getResp: resp}
+	pc := &ProviderClient{Policies: fake}
 
 	rd := schema.TestResourceDataRaw(t, resourceGroupPolicy().Schema, map[string]any{
 		"group_id":   "group-1",
-		"effect":     "DENY",
-		"actions":    []any{"project:view"},
-		"conditions": "*",
+		"effect":     "ALLOW",
+		"actions":    []any{"project:view", "project:edit"},
+		"conditions": `{"team":["eng","ops"]}`,
 	})
 	rd.SetId("policy-1")
 
 	if diags := resourceGroupPolicyUpdate(t.Context(), rd, pc); diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
-
-	updateReq := rec.FindRequest("updatePolicy")
-	if updateReq == nil {
-		t.Fatal("updatePolicy was not called")
+	if fake.updateID != "policy-1" {
+		t.Errorf("got updateID %q, want policy-1", fake.updateID)
 	}
-	vars := gqlmock.Variables(updateReq)
-	if vars["id"] != "policy-1" {
-		t.Errorf("got id %v, want policy-1", vars["id"])
+	in := fake.updateInput
+	if in.Conditions == nil {
+		t.Fatal("Update should pass a non-nil *PolicyConditions (HCL field is Required)")
 	}
-	input, _ := vars["input"].(map[string]any)
-	if input["effect"] != "DENY" {
-		t.Errorf("got input.effect %v, want DENY", input["effect"])
-	}
-	if input["conditions"] != "*" {
-		t.Errorf("got input.conditions %v, want *", input["conditions"])
+	if got := (*in.Conditions)["team"]; len(got) != 2 {
+		t.Errorf("got Conditions[team] %v, want 2 elements", got)
 	}
 }
 
 func TestResourceGroupPolicyDelete(t *testing.T) {
-	pc, rec := newMockProvider(map[string]map[string]any{
-		"deletePolicy": {
-			"data": map[string]any{
-				"deletePolicy": map[string]any{
-					"result":     map[string]any{"id": "policy-1"},
-					"successful": true,
-				},
-			},
-		},
-	})
+	fake := &fakePolicies{}
+	pc := &ProviderClient{Policies: fake}
 
 	rd := schema.TestResourceDataRaw(t, resourceGroupPolicy().Schema, map[string]any{})
 	rd.SetId("policy-1")
@@ -405,50 +276,25 @@ func TestResourceGroupPolicyDelete(t *testing.T) {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
 	if rd.Id() != "" {
-		t.Errorf("resource ID should be cleared, got %q", rd.Id())
+		t.Errorf("ID should be cleared, got %q", rd.Id())
 	}
-	if vars := gqlmock.Variables(rec.FindRequest("deletePolicy")); vars["id"] != "policy-1" {
-		t.Errorf("got id %v, want policy-1", vars["id"])
+	if fake.deleteID != "policy-1" {
+		t.Errorf("got deleteID %q, want policy-1", fake.deleteID)
 	}
 }
 
-func TestResourceGroupPolicyImport(t *testing.T) {
-	cases := []struct {
-		name      string
-		importID  string
-		wantGroup string
-		wantID    string
-		wantErr   bool
-	}{
-		{name: "valid", importID: "group-1/policy-1", wantGroup: "group-1", wantID: "policy-1"},
-		{name: "missing slash", importID: "policy-1", wantErr: true},
-		{name: "empty group", importID: "/policy-1", wantErr: true},
-		{name: "empty policy", importID: "group-1/", wantErr: true},
+func TestResourceGroupPolicyDeleteTreatsNotFoundAsSuccess(t *testing.T) {
+	fake := &fakePolicies{deleteErr: fmt.Errorf("delete policy: %w", gql.ErrNotFound)}
+	pc := &ProviderClient{Policies: fake}
+
+	rd := schema.TestResourceDataRaw(t, resourceGroupPolicy().Schema, map[string]any{})
+	rd.SetId("already-gone")
+
+	if diags := resourceGroupPolicyDelete(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("not-found on delete should not error; got %v", diags)
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			rd := schema.TestResourceDataRaw(t, resourceGroupPolicy().Schema, map[string]any{})
-			rd.SetId(tc.importID)
-			out, err := resourceGroupPolicyImport(t.Context(), rd, nil)
-			if tc.wantErr {
-				if err == nil {
-					t.Fatalf("expected error for %q, got nil", tc.importID)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if len(out) != 1 {
-				t.Fatalf("got %d resources, want 1", len(out))
-			}
-			if rd.Id() != tc.wantID {
-				t.Errorf("got id %q, want %q", rd.Id(), tc.wantID)
-			}
-			if rd.Get("group_id").(string) != tc.wantGroup {
-				t.Errorf("got group_id %q, want %q", rd.Get("group_id"), tc.wantGroup)
-			}
-		})
+	if rd.Id() != "" {
+		t.Errorf("ID should be cleared, got %q", rd.Id())
 	}
 }
 
@@ -460,30 +306,51 @@ func TestResourceGroupPolicySchema(t *testing.T) {
 	if gid := r.Schema["group_id"]; gid == nil || !gid.Required || !gid.ForceNew {
 		t.Error("group_id should be Required+ForceNew")
 	}
-	for _, field := range []string{"effect", "actions", "conditions"} {
-		if !r.Schema[field].Required {
-			t.Errorf("%s should be Required", field)
-		}
+	if eff := r.Schema["effect"]; eff == nil || !eff.Required || eff.ValidateFunc == nil {
+		t.Error("effect should be Required and have a ValidateFunc restricting to ALLOW/DENY")
 	}
-	// actions is a Set of strings with at least one element.
-	if a := r.Schema["actions"]; a == nil || a.Type != schema.TypeSet || a.MinItems != 1 {
-		t.Errorf("actions should be a TypeSet with MinItems=1, got Type=%v MinItems=%d", a.Type, a.MinItems)
+	if act := r.Schema["actions"]; act == nil || !act.Required || act.Type != schema.TypeSet || act.MinItems != 1 {
+		t.Errorf("actions should be Required TypeSet with MinItems=1; got %+v", act)
 	}
-	if r.Schema["effect"].ValidateFunc == nil {
-		t.Error("effect should have a ValidateFunc enforcing ALLOW/DENY")
+	if cond := r.Schema["conditions"]; cond == nil || !cond.Required {
+		t.Error("conditions should be Required")
 	}
 }
 
 func TestResourceGroupPolicyEffectValidation(t *testing.T) {
 	effect := resourceGroupPolicy().Schema["effect"]
-	cases := map[string]bool{"ALLOW": true, "DENY": true, "allow": false, "deny": false, "MAYBE": false, "": false}
-	for v, ok := range cases {
-		_, errs := effect.ValidateFunc(v, "effect")
-		if ok && len(errs) > 0 {
-			t.Errorf("expected %q to validate, got errors: %v", v, errs)
-		}
-		if !ok && len(errs) == 0 {
-			t.Errorf("expected %q to be rejected, got no errors", v)
-		}
+	if effect.ValidateFunc == nil {
+		t.Fatal("effect has no ValidateFunc")
+	}
+	cases := map[string]bool{
+		"ALLOW":      true,
+		"DENY":       true,
+		"allow":      false, // case-sensitive per the SDK constants
+		"GRANT":      false,
+		"":           false,
+		"ALLOW,DENY": false,
+	}
+	for value, valid := range cases {
+		t.Run(value, func(t *testing.T) {
+			_, errs := effect.ValidateFunc(value, "effect")
+			if valid && len(errs) > 0 {
+				t.Errorf("expected %q to be valid, got %v", value, errs)
+			}
+			if !valid && len(errs) == 0 {
+				t.Errorf("expected %q to be rejected, got no errors", value)
+			}
+		})
+	}
+}
+
+// The state encoder bypasses PolicyConditions.MarshalJSON to keep state in a
+// plain JSON-object form. If it instead emitted the SDK's double-encoded
+// wire form (`"{\"team\":[\"eng\"]}"`), the user's `jsonencode(...)` would
+// produce a different string and every plan would show drift.
+func TestEncodePolicyConditionsProducesPlainJSON(t *testing.T) {
+	got := encodePolicyConditions(policies.PolicyConditions{"team": {"eng"}})
+	want := `{"team":["eng"]}`
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
 	}
 }

@@ -2,11 +2,23 @@ package massdriver
 
 import (
 	"context"
+	"errors"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"terraform-provider-massdriver/internal/api"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/gql"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/platform/groups"
 )
+
+// groupsAPI is the slice of *groups.Service this resource calls.
+type groupsAPI interface {
+	Get(ctx context.Context, id string) (*groups.Group, error)
+	Create(ctx context.Context, input groups.CreateInput) (*groups.Group, error)
+	Update(ctx context.Context, id string, input groups.UpdateInput) (*groups.Group, error)
+	Delete(ctx context.Context, id string) (*groups.Group, error)
+}
+
+var _ groupsAPI = (*groups.Service)(nil)
 
 func resourceGroup() *schema.Resource {
 	return &schema.Resource{
@@ -33,19 +45,14 @@ func resourceGroup() *schema.Resource {
 				Optional:    true,
 				Computed:    true,
 			},
-			"role": {
-				Description: "Access level granted by membership. New custom groups always come back as `CUSTOM`; the field is exposed for clarity and importing built-in groups.",
-				Type:        schema.TypeString,
-				Computed:    true,
-			},
 		},
 	}
 }
 
 func resourceGroupCreate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*ProviderClient).Client
+	pc := meta.(*ProviderClient)
 
-	group, err := api.CreateGroup(ctx, client, api.CreateGroupInput{
+	group, err := pc.Groups.Create(ctx, groups.CreateInput{
 		Name:        d.Get("name").(string),
 		Description: d.Get("description").(string),
 	})
@@ -58,27 +65,29 @@ func resourceGroupCreate(ctx context.Context, d *schema.ResourceData, meta any) 
 }
 
 func resourceGroupRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*ProviderClient).Client
+	pc := meta.(*ProviderClient)
 
-	group, err := api.GetGroup(ctx, client, d.Id())
+	group, err := pc.Groups.Get(ctx, d.Id())
 	if err != nil {
+		if errors.Is(err, gql.ErrNotFound) {
+			d.SetId("")
+			return nil
+		}
 		return diag.FromErr(err)
 	}
 
 	d.Set("name", group.Name)
 	d.Set("description", group.Description)
-	d.Set("role", group.Role)
 	return nil
 }
 
 func resourceGroupUpdate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*ProviderClient).Client
+	pc := meta.(*ProviderClient)
 
-	_, err := api.UpdateGroup(ctx, client, d.Id(), api.UpdateGroupInput{
+	if _, err := pc.Groups.Update(ctx, d.Id(), groups.UpdateInput{
 		Name:        d.Get("name").(string),
 		Description: d.Get("description").(string),
-	})
-	if err != nil {
+	}); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -86,9 +95,13 @@ func resourceGroupUpdate(ctx context.Context, d *schema.ResourceData, meta any) 
 }
 
 func resourceGroupDelete(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*ProviderClient).Client
+	pc := meta.(*ProviderClient)
 
-	if _, err := api.DeleteGroup(ctx, client, d.Id()); err != nil {
+	if _, err := pc.Groups.Delete(ctx, d.Id()); err != nil {
+		if errors.Is(err, gql.ErrNotFound) {
+			d.SetId("")
+			return nil
+		}
 		return diag.FromErr(err)
 	}
 

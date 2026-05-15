@@ -10,12 +10,23 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/client"
-	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/config"
-	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/services/resources"
+	provresources "github.com/massdriver-cloud/massdriver-sdk-go/massdriver/provisioning/resources"
 	"github.com/xeipuuv/gojsonschema"
 	"gopkg.in/yaml.v2"
 )
+
+// provisioningResourcesAPI is the slice of *provisioning/resources.Service
+// this resource calls. Lives here (not in client.go) so the interface is
+// co-located with the code that uses it; the placeholder we keep in client.go
+// is just a type-name reference that resolves to this declaration.
+type provisioningResourcesAPI interface {
+	CreateResource(ctx context.Context, a *provresources.Resource) (*provresources.Resource, error)
+	GetResource(ctx context.Context, id string) (*provresources.Resource, error)
+	UpdateResource(ctx context.Context, id string, a *provresources.Resource) (*provresources.Resource, error)
+	DeleteResource(ctx context.Context, id, field string) error
+}
+
+var _ provisioningResourcesAPI = (*provresources.Service)(nil)
 
 const (
 	defaultResourceSchemaPath        = "../schema-artifacts.json"
@@ -90,18 +101,19 @@ If you need to create a resource that is not managed by a Massdriver bundle, use
 func resourceResourceCreate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
 	pc := meta.(*ProviderClient)
 
-	if err := requireDeploymentAuth(pc.Client); err != nil {
-		return diag.FromErr(err)
-	}
-
-	resource, err := buildResource(d, pc.Client)
+	api, err := pc.ProvisioningResources()
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	created, createErr := pc.ResourceService().CreateResource(ctx, resource)
-	if createErr != nil {
-		return diag.FromErr(createErr)
+	resource, err := buildResource(d, pc.Config.OrganizationID)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	created, err := api.CreateResource(ctx, resource)
+	if err != nil {
+		return diag.FromErr(err)
 	}
 
 	d.SetId(created.ID)
@@ -112,13 +124,14 @@ func resourceResourceCreate(ctx context.Context, d *schema.ResourceData, meta an
 func resourceResourceRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
 	pc := meta.(*ProviderClient)
 
-	if err := requireDeploymentAuth(pc.Client); err != nil {
+	api, err := pc.ProvisioningResources()
+	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	got, err := pc.ResourceService().GetResource(ctx, d.Id())
+	got, err := api.GetResource(ctx, d.Id())
 	if err != nil {
-		if err.Error() == "not found" {
+		if errors.Is(err, provresources.ErrNotFound) {
 			d.SetId("")
 			return nil
 		}
@@ -134,17 +147,18 @@ func resourceResourceRead(ctx context.Context, d *schema.ResourceData, meta any)
 func resourceResourceUpdate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
 	pc := meta.(*ProviderClient)
 
-	if err := requireDeploymentAuth(pc.Client); err != nil {
-		return diag.FromErr(err)
-	}
-
-	resource, err := buildResource(d, pc.Client)
+	api, err := pc.ProvisioningResources()
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	if _, updateErr := pc.ResourceService().UpdateResource(ctx, d.Id(), resource); updateErr != nil {
-		return diag.FromErr(updateErr)
+	resource, err := buildResource(d, pc.Config.OrganizationID)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	if _, err := api.UpdateResource(ctx, d.Id(), resource); err != nil {
+		return diag.FromErr(err)
 	}
 
 	d.Set("resource_type", resource.Type)
@@ -154,12 +168,18 @@ func resourceResourceUpdate(ctx context.Context, d *schema.ResourceData, meta an
 func resourceResourceDelete(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
 	pc := meta.(*ProviderClient)
 
-	if err := requireDeploymentAuth(pc.Client); err != nil {
+	api, err := pc.ProvisioningResources()
+	if err != nil {
 		return diag.FromErr(err)
 	}
 
 	field := d.Get("field").(string)
-	if err := pc.ResourceService().DeleteResource(ctx, d.Id(), field); err != nil {
+	if err := api.DeleteResource(ctx, d.Id(), field); err != nil {
+		// Already gone server-side — fine for destroy.
+		if errors.Is(err, provresources.ErrNotFound) {
+			d.SetId("")
+			return nil
+		}
 		return diag.FromErr(err)
 	}
 
@@ -167,20 +187,9 @@ func resourceResourceDelete(ctx context.Context, d *schema.ResourceData, meta an
 	return nil
 }
 
-// requireDeploymentAuth fast-fails with a clear error when the caller isn't
-// running inside a Massdriver deployment. The endpoint backing massdriver_resource
-// only accepts deployment-scoped credentials — checking up front gives a
-// clearer message than the opaque 401 we'd get from the server.
-func requireDeploymentAuth(mdClient *client.Client) error {
-	if mdClient == nil || mdClient.Config.Credentials == nil || mdClient.Config.Credentials.Method != config.AuthDeployment {
-		return fmt.Errorf("massdriver_resource can only be used inside a Massdriver bundle deployment. Use massdriver_imported_resource for cloud assets managed outside of Massdriver.")
-	}
-	return nil
-}
-
 // buildResource constructs the SDK Resource from terraform state, including
 // schema validation, type lookup, and payload parsing.
-func buildResource(d *schema.ResourceData, mdClient *client.Client) (*resources.Resource, error) {
+func buildResource(d *schema.ResourceData, orgID string) (*provresources.Resource, error) {
 	field := d.Get("field").(string)
 	resourceJSON := d.Get("resource").(string)
 
@@ -188,7 +197,7 @@ func buildResource(d *schema.ResourceData, mdClient *client.Client) (*resources.
 		return nil, err
 	}
 
-	resourceType, err := resolveResourceType(d, mdClient)
+	resourceType, err := resolveResourceType(d, orgID)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +207,7 @@ func buildResource(d *schema.ResourceData, mdClient *client.Client) (*resources.
 		return nil, fmt.Errorf("invalid JSON in `resource`: %w", err)
 	}
 
-	return &resources.Resource{
+	return &provresources.Resource{
 		Field:   field,
 		Name:    d.Get("name").(string),
 		Type:    resourceType,
@@ -207,8 +216,7 @@ func buildResource(d *schema.ResourceData, mdClient *client.Client) (*resources.
 }
 
 // validateResourceJSON runs the user's `resource` JSON against the JSON Schema
-// extracted from schema-artifacts.json under `properties.<field>`. Mirrors the
-// behavior of the deprecated `massdriver_artifact` resource.
+// extracted from schema-artifacts.json under `properties.<field>`.
 func validateResourceJSON(field, resourceJSON, schemaPath string) error {
 	if schemaPath == "" {
 		schemaPath = defaultResourceSchemaPath
@@ -249,9 +257,9 @@ func validateResourceJSON(field, resourceJSON, schemaPath string) error {
 // the first apply, before the field has been computed — we fall back to
 // reading `artifacts.<field>.$ref` from massdriver.yaml. Bare type IDs (no
 // slash) are prefixed with the org ID, matching the legacy artifact behavior.
-func resolveResourceType(d *schema.ResourceData, mdClient *client.Client) (string, error) {
+func resolveResourceType(d *schema.ResourceData, orgID string) (string, error) {
 	if existing := d.Get("resource_type").(string); existing != "" {
-		return prefixOrgIfNeeded(existing, mdClient.Config.OrganizationID), nil
+		return prefixOrgIfNeeded(existing, orgID), nil
 	}
 
 	field := d.Get("field").(string)
@@ -280,12 +288,11 @@ func resolveResourceType(d *schema.ResourceData, mdClient *client.Client) (strin
 		return "", fmt.Errorf(`field %q in %s has no $ref`, field, specPath)
 	}
 
-	return prefixOrgIfNeeded(ref, mdClient.Config.OrganizationID), nil
+	return prefixOrgIfNeeded(ref, orgID), nil
 }
 
-// prefixOrgIfNeeded matches the legacy artifact behavior: a bare type ID like
-// `aws-iam-role` becomes `<orgID>/aws-iam-role`; a fully-qualified type with a
-// slash is left alone.
+// prefixOrgIfNeeded: a bare type ID like `aws-iam-role` becomes
+// `<orgID>/aws-iam-role`; a fully-qualified type with a slash is left alone.
 func prefixOrgIfNeeded(typeRef, orgID string) string {
 	if strings.Contains(typeRef, "/") {
 		return typeRef
