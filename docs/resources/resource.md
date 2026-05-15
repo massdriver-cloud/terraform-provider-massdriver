@@ -3,19 +3,19 @@
 page_title: "massdriver_resource Resource - massdriver"
 subcategory: ""
 description: |-
-  Declares a connectable resource produced by a Massdriver bundle. Use this only inside the IaC of a Massdriver bundle to satisfy a resource declared in the bundle's massdriver.yaml; outside a deployment it will fail.
+  Creates a provisioned resource produced by a Massdriver bundle. Use this only inside the IaC of a Massdriver bundle to satisfy a resource declared in the bundle's massdriver.yaml; outside a deployment it will fail.
 ---
 
 # massdriver_resource (Resource)
 
-Declares a connectable resource produced by a Massdriver bundle. Use this **only** inside the IaC of a Massdriver bundle to satisfy a resource declared in the bundle's `massdriver.yaml`; outside a deployment it will fail.
+Creates a provisioned resource produced by a Massdriver bundle. Use this **only** inside the IaC of a Massdriver bundle to satisfy a resource declared in the bundle's `massdriver.yaml`; outside a deployment it will fail.
 
 If you need to create a resource that is not managed by a Massdriver bundle, use `massdriver_imported_resource` instead.
 
 ## Example Usage
 
 ```terraform
-# Declares a connectable resource produced by a Massdriver bundle. Use
+# Creates a provisioned resource produced by a Massdriver bundle. Use
 # this only inside the IaC of a Massdriver bundle to satisfy a resource
 # slot declared in the bundle's massdriver.yaml; outside a deployment the
 # provider fast-fails on the missing MASSDRIVER_DEPLOYMENT_ID / _TOKEN

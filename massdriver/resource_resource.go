@@ -49,7 +49,7 @@ type resourceBundleSpec struct {
 
 func resourceResource() *schema.Resource {
 	return &schema.Resource{
-		Description: `Declares a connectable resource produced by a Massdriver bundle. Use this **only** inside the IaC of a Massdriver bundle to satisfy a resource declared in the bundle's ` + "`massdriver.yaml`" + `; outside a deployment it will fail.
+		Description: `Creates a provisioned resource produced by a Massdriver bundle. Use this **only** inside the IaC of a Massdriver bundle to satisfy a resource declared in the bundle's ` + "`massdriver.yaml`" + `; outside a deployment it will fail.
 
 If you need to create a resource that is not managed by a Massdriver bundle, use ` + "`massdriver_imported_resource`" + ` instead.`,
 
