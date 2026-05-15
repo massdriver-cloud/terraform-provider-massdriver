@@ -4,8 +4,7 @@
 # correlates inbound webhooks back to this record.
 
 # Inside a Massdriver bundle deployment, `instance_id` defaults from
-# MASSDRIVER_INSTANCE_ID (or the legacy MASSDRIVER_PACKAGE_NAME with the
-# deployment suffix stripped), so you can omit it entirely:
+# MASSDRIVER_INSTANCE_ID, so you can omit it entirely:
 resource "massdriver_instance_alarm" "high_cpu_in_bundle" {
   display_name      = "High CPU"
   cloud_resource_id = aws_cloudwatch_metric_alarm.cpu.arn
