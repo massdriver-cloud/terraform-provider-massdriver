@@ -45,3 +45,10 @@ docs: ## Generate documentation
 	@# Pinned to v0.20.1 — v0.21.0+ requires Go >= 1.25.
 	@go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@v0.20.1
 	@tfplugindocs generate --provider-name=massdriver --examples-dir=./examples
+
+.PHONY: lint
+lint: ## Run golangci-lint (same version as CI)
+	@echo "Linting..."
+	@# Pinned to match .github/workflows/lint.yml.
+	@go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
+	@golangci-lint run ./...

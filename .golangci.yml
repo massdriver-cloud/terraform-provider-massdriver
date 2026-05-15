@@ -1,16 +1,19 @@
-# Linter set is the v1.62 default (errcheck, govet, ineffassign, staticcheck,
-# unused) plus typecheck. No extras enabled — the defaults cover the high-
-# value checks without bikeshedding style.
+version: "2"
 
-linters-settings:
-  errcheck:
-    # (*schema.ResourceData).Set returns an error that fires only when the
-    # value type doesn't match the schema field's type — which the schema
-    # definition catches at validation time. The terraform-plugin-sdk
-    # convention is to ignore the return value on scalar Set calls;
-    # nested-block Set returns are handled explicitly where it matters
-    # (see the metric blocks in resource_instance_alarm.go etc.). Excluding
-    # the function here keeps that convention explicit instead of
-    # sprinkling `_ = d.Set(...)` everywhere.
-    exclude-functions:
-      - (*github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema.ResourceData).Set
+# Linter set is the default golangci-lint v2 selection (errcheck, govet,
+# ineffassign, staticcheck, unused). No extras enabled — the defaults cover
+# the high-value checks without bikeshedding style.
+
+linters:
+  settings:
+    errcheck:
+      # (*schema.ResourceData).Set returns an error that fires only when the
+      # value type doesn't match the schema field's type — which the schema
+      # definition catches at validation time. The terraform-plugin-sdk
+      # convention is to ignore the return value on scalar Set calls;
+      # nested-block Set returns are handled explicitly where it matters
+      # (see the metric blocks in resource_instance_alarm.go etc.). Excluding
+      # the function here keeps that convention explicit instead of
+      # sprinkling `_ = d.Set(...)` everywhere.
+      exclude-functions:
+        - (*github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema.ResourceData).Set

@@ -21,7 +21,8 @@ jobs:
           go-version-file: go.mod
           cache: false # the lint action manages its own cache
 
-      - uses: golangci/golangci-lint-action@v6
+      - uses: golangci/golangci-lint-action@v8
         with:
-          # Pinned to match the version configured in .golangci.yml's schema.
-          version: v1.62.2
+          # Pinned to a known-good v2.x; v8 of the action requires v2.1.0+.
+          # Bump in lockstep with the version in the Makefile's `lint` target.
+          version: v2.1.6
