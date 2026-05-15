@@ -165,13 +165,25 @@ func resourceArtifactDelete(ctx context.Context, d *schema.ResourceData, meta an
 	return diags
 }
 
+// getID returns the artifact identifier.
+//
+// When MASSDRIVER_PACKAGE_ID is set, uses dot-separated format: {package_id}.{field}
+// Falls back to MASSDRIVER_PACKAGE_NAME with dash separator for backward compatibility.
 func getID(d *schema.ResourceData) string {
 	artifactID := d.Id()
 
-	// If the ID is a timestamp, it was from the older system where we didn't have IDs. We need to convert the ID to the new format, which is <package_name>-<field>
+	// If the ID is a timestamp, it was from the older system where we didn't have IDs.
 	if _, err := time.Parse(time.RFC3339, artifactID); err == nil {
-		packageName := os.Getenv("MASSDRIVER_PACKAGE_NAME")
-		artifactID = fmt.Sprintf("%s-%s", packageName, d.Get("field"))
+		field := d.Get("field").(string)
+		packageID := os.Getenv("MASSDRIVER_PACKAGE_ID")
+		if packageID != "" {
+			// New format: dot-separated
+			artifactID = fmt.Sprintf("%s.%s", packageID, field)
+		} else {
+			// Backward compatibility: dash-separated with MASSDRIVER_PACKAGE_NAME
+			packageName := os.Getenv("MASSDRIVER_PACKAGE_NAME")
+			artifactID = fmt.Sprintf("%s-%s", packageName, field)
+		}
 	}
 	return artifactID
 }
