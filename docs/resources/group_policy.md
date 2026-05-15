@@ -51,11 +51,3 @@ resource "massdriver_group_policy" "deny_destructive" {
 ### Read-Only
 
 - `id` (String) The ID of this resource.
-
-## Import
-
-Import is supported using the following syntax:
-
-```shell
-terraform import massdriver_group_policy.example <policy-uuid>
-```

@@ -3,7 +3,8 @@
 page_title: "massdriver_imported_resource Resource - massdriver"
 subcategory: ""
 description: |-
-  Registers an existing infrastructure or cloud asset with Massdriver as a connectable resource — for example credentials, or an existing cloud resource not managed by Massdriver.
+  Registers an existing infrastructure or cloud asset with Massdriver as a connectable resource — for example credentials, or an existing cloud resource not managed by Massdriver. Use this when the underlying asset is not managed by a Massdriver bundle but you want other components to be able to connect to it.
+  This resource is usable anywhere, not just inside a Massdriver bundle deployment. To declare a resource produced by a Massdriver bundle, use massdriver_resource instead.
 ---
 
 # massdriver_imported_resource (Resource)

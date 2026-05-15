@@ -3,7 +3,7 @@
 page_title: "massdriver_oci_repository Resource - massdriver"
 subcategory: ""
 description: |-
-  An OCI repository in the Massdriver catalog. Repositories must exist before any version can be published; pushing to a non-existent repository returns 404.
+  An OCI repository in the Massdriver catalog. Repositories must exist before any version can be published; pushing to a non-existent repository returns 404. The artifact_type field selects what kind of artifact the repository holds — today the only supported value is BUNDLE, but additional types (e.g. resource-type definitions, provisioner images) are planned.
 ---
 
 # massdriver_oci_repository (Resource)
