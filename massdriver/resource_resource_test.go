@@ -27,7 +27,6 @@ type fakeProvisioningResources struct {
 	updateID    string
 	updateInput *provresources.Resource
 	deleteID    string
-	deleteField string
 
 	createCalls, getCalls, updateCalls, deleteCalls int
 }
@@ -48,9 +47,8 @@ func (f *fakeProvisioningResources) UpdateResource(_ context.Context, id string,
 	f.updateCalls++
 	return f.updateResp, f.updateErr
 }
-func (f *fakeProvisioningResources) DeleteResource(_ context.Context, id, field string) error {
+func (f *fakeProvisioningResources) DeleteResource(_ context.Context, id string) error {
 	f.deleteID = id
-	f.deleteField = field
 	f.deleteCalls++
 	return f.deleteErr
 }
@@ -331,9 +329,6 @@ func TestResourceResourceDelete(t *testing.T) {
 	}
 	if fake.deleteID != "res-1" {
 		t.Errorf("got deleteID %q, want res-1", fake.deleteID)
-	}
-	if fake.deleteField != "vpc" {
-		t.Errorf("got deleteField %q, want vpc (the SDK sends it in the body to match the right artifact slot)", fake.deleteField)
 	}
 }
 

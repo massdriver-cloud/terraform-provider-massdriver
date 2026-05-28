@@ -23,7 +23,7 @@ type provisioningResourcesAPI interface {
 	CreateResource(ctx context.Context, a *provresources.Resource) (*provresources.Resource, error)
 	GetResource(ctx context.Context, id string) (*provresources.Resource, error)
 	UpdateResource(ctx context.Context, id string, a *provresources.Resource) (*provresources.Resource, error)
-	DeleteResource(ctx context.Context, id, field string) error
+	DeleteResource(ctx context.Context, id string) error
 }
 
 var _ provisioningResourcesAPI = (*provresources.Service)(nil)
@@ -173,8 +173,7 @@ func resourceResourceDelete(ctx context.Context, d *schema.ResourceData, meta an
 		return diag.FromErr(err)
 	}
 
-	field := d.Get("field").(string)
-	if err := api.DeleteResource(ctx, d.Id(), field); err != nil {
+	if err := api.DeleteResource(ctx, d.Id()); err != nil {
 		// Already gone server-side — fine for destroy.
 		if errors.Is(err, provresources.ErrNotFound) {
 			d.SetId("")
