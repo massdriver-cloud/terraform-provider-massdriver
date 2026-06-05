@@ -1,8 +1,8 @@
 # Changelog
 
-## 1.3.0
+## 1.4.0
 
-v1.3.0 is a **bridge release**. The two new resources (`massdriver_resource`,
+v1.4.0 is a **bridge release**. The two new resources (`massdriver_resource`,
 `massdriver_instance_alarm`) land alongside the two existing ones
 (`massdriver_artifact`, `massdriver_package_alarm`), which are now deprecated
 but remain fully functional. v2.0 removes the deprecated resources entirely.
