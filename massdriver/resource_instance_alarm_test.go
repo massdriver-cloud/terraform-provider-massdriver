@@ -426,7 +426,8 @@ func TestResourceInstanceAlarmSchema(t *testing.T) {
 	for _, field := range []string{"comparison_operator", "threshold", "period", "metric"} {
 		s := r.Schema[field]
 		if s == nil {
-			t.Fatalf("expected %s in schema", field)
+			t.Errorf("expected %s in schema", field)
+			continue
 		}
 		if !s.Optional {
 			t.Errorf("%s should be Optional", field)

@@ -27,6 +27,7 @@ type ProviderClient struct {
 	Projects       projectsAPI
 	Environments   environmentsAPI
 	Components     componentsAPI
+	ComponentLinks componentLinksAPI
 	Groups         groupsAPI
 	Policies       policiesAPI
 	Resources      resourcesAPI
@@ -58,6 +59,7 @@ func NewProviderClient() (*ProviderClient, error) {
 		Projects:       platform.Projects,
 		Environments:   platform.Environments,
 		Components:     platform.Components,
+		ComponentLinks: platform.Components,
 		Groups:         platform.Groups,
 		Policies:       platform.Policies,
 		Resources:      platform.Resources,

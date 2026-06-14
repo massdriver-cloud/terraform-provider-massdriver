@@ -1,0 +1,64 @@
+# A link between two components in a project's blueprint. The link declares
+# "this component's output feeds that component's input" at design time —
+# when those components are deployed in an environment, the platform
+# automatically wires each producing instance's output to the corresponding
+# consuming instance's input.
+
+resource "massdriver_component_link" "network_to_database" {
+  from_component_id = massdriver_component.network.id
+  from_field        = "network"
+
+  to_component_id = massdriver_component.database.id
+  to_field        = "network"
+}
+
+# Field renames across bundle versions
+# -----------------------------------------------------------------------------
+# Component links are versionless on the server: one link applies to every
+# deployed instance whose bundle still exposes the named field. So if a
+# newer bundle version renames a field, you DON'T mutate the existing link —
+# you declare a new one alongside it, and keep the old one around for
+# environments still on the previous bundle version.
+#
+# In the example below, the `app` bundle exposes a connection named `database`
+# in v1.x but renames it to `postgres` in v2.x. Both links coexist:
+
+resource "massdriver_component_link" "database_to_app_legacy" {
+  from_component_id = massdriver_component.database.id
+  from_field        = "database"
+
+  to_component_id = massdriver_component.app.id
+  to_field        = "database" # v1.x bundle name
+}
+
+resource "massdriver_component_link" "database_to_app_v2" {
+  from_component_id = massdriver_component.database.id
+  from_field        = "database"
+
+  to_component_id = massdriver_component.app.id
+  to_field        = "postgres" # v2.x bundle name
+}
+
+# Environments still on app v1.x pick up the legacy link; environments
+# upgraded to v2.x pick up the new one. Once every environment is off the
+# older bundle, the legacy link can be deleted.
+
+# Pinning a historical bundle version
+# -----------------------------------------------------------------------------
+# from_version / to_version are Create-time-only validation arguments. The
+# API uses them to confirm the named fields exist on the named bundle
+# versions, then discards them. The persisted link is still versionless.
+#
+# The default (`latest+dev`) is the right choice nearly every time. Override
+# only when you need the API to validate against a historical bundle version
+# whose field names no longer exist in `latest`.
+
+resource "massdriver_component_link" "legacy_field_validation" {
+  from_component_id = massdriver_component.database.id
+  from_field        = "database"
+  from_version      = "1.0.0"
+
+  to_component_id = massdriver_component.app.id
+  to_field        = "database"
+  to_version      = "1.0.0"
+}

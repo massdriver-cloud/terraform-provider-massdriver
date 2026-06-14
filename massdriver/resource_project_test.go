@@ -384,19 +384,21 @@ func TestResourceProjectSchema(t *testing.T) {
 
 	identifier := r.Schema["identifier"]
 	if identifier == nil {
-		t.Fatal("expected identifier attribute in schema")
-	}
-	if !identifier.Required || !identifier.ForceNew {
-		t.Errorf("identifier should be Required+ForceNew, got Required=%v ForceNew=%v", identifier.Required, identifier.ForceNew)
-	}
-	if identifier.ValidateFunc == nil {
-		t.Error("identifier should have a ValidateFunc enforcing the regex")
+		t.Error("expected identifier attribute in schema")
+	} else {
+		if !identifier.Required || !identifier.ForceNew {
+			t.Errorf("identifier should be Required+ForceNew, got Required=%v ForceNew=%v", identifier.Required, identifier.ForceNew)
+		}
+		if identifier.ValidateFunc == nil {
+			t.Error("identifier should have a ValidateFunc enforcing the regex")
+		}
 	}
 
 	for _, field := range []string{"name", "description"} {
 		s := r.Schema[field]
 		if s == nil {
-			t.Fatalf("expected %s attribute in schema", field)
+			t.Errorf("expected %s attribute in schema", field)
+			continue
 		}
 		if s.Required {
 			t.Errorf("%s should not be Required", field)

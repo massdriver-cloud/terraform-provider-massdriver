@@ -333,7 +333,8 @@ func TestResourceComponentSchema(t *testing.T) {
 	for _, field := range []string{"identifier", "project_id", "bundle_name"} {
 		s := r.Schema[field]
 		if s == nil {
-			t.Fatalf("expected %s in schema", field)
+			t.Errorf("expected %s in schema", field)
+			continue
 		}
 		if !s.Required || !s.ForceNew {
 			t.Errorf("%s should be Required+ForceNew; got Required=%v ForceNew=%v", field, s.Required, s.ForceNew)
