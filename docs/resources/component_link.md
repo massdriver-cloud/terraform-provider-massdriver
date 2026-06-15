@@ -97,4 +97,4 @@ resource "massdriver_component_link" "legacy_field_validation" {
 ### Read-Only
 
 - `id` (String) The ID of this resource.
-- `project_id` (String) ID of the project this link lives in. Populated automatically at Create from the linked components' parent project; used by Read to confirm the link still exists.
+- `project_id` (String) ID of the project this link lives in.
