@@ -34,6 +34,10 @@ func resourceComponent() *schema.Resource {
 		UpdateContext: resourceComponentUpdate,
 		DeleteContext: resourceComponentDelete,
 
+		Importer: &schema.ResourceImporter{
+			StateContext: schema.ImportStatePassthroughContext,
+		},
+
 		Schema: map[string]*schema.Schema{
 			"identifier": identifierSchema("component"),
 			"project_id": {

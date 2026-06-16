@@ -230,6 +230,21 @@ func TestResourceComponentLinkDelete(t *testing.T) {
 	}
 }
 
+func TestResourceComponentLinkDeleteTreatsNotFoundAsSuccess(t *testing.T) {
+	fake := &fakeComponentLinks{removeErr: fmt.Errorf("remove link: %w", gql.ErrNotFound)}
+	pc := &ProviderClient{ComponentLinks: fake}
+
+	rd := schema.TestResourceDataRaw(t, resourceComponentLink().Schema, map[string]any{})
+	rd.SetId("already-gone")
+
+	if diags := resourceComponentLinkDelete(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("not-found on delete should not error; got %v", diags)
+	}
+	if rd.Id() != "" {
+		t.Errorf("ID should be cleared, got %q", rd.Id())
+	}
+}
+
 // The version fields are inputs to AddLink only — the server discards them
 // after validation. After Create, any HCL change to from_version / to_version
 // should be suppressed and produce no plan diff.

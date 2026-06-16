@@ -203,6 +203,10 @@ func resourceComponentLinkDelete(ctx context.Context, d *schema.ResourceData, me
 	pc := meta.(*ProviderClient)
 
 	if _, err := pc.ComponentLinks.RemoveLink(ctx, d.Id()); err != nil {
+		if errors.Is(err, gql.ErrNotFound) {
+			d.SetId("")
+			return nil
+		}
 		return diag.FromErr(err)
 	}
 
