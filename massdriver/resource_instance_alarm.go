@@ -2,18 +2,30 @@ package massdriver
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 
-	"terraform-provider-massdriver/internal/api"
-
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/gql"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/platform/instances"
 )
+
+// instanceAlarmsAPI is the slice of *instances.Service that this resource
+// calls. Lives next to the resource so the interface stays tight to the
+// methods actually used; *instances.Service satisfies it in production,
+// hand-rolled fakes satisfy it in tests.
+type instanceAlarmsAPI interface {
+	GetAlarm(ctx context.Context, id string) (*instances.Alarm, error)
+	CreateAlarm(ctx context.Context, instanceID string, input instances.CreateAlarmInput) (*instances.Alarm, error)
+	UpdateAlarm(ctx context.Context, id string, input instances.UpdateAlarmInput) (*instances.Alarm, error)
+	DeleteAlarm(ctx context.Context, id string) (*instances.Alarm, error)
+}
 
 func resourceInstanceAlarm() *schema.Resource {
 	return &schema.Resource{
-		Description: "Registers a cloud metric alarm with a Massdriver instance. State updates arrive via webhooks from CloudWatch / Azure Monitor / GCP Cloud Monitoring / Alertmanager. Replaces the v0 `massdriver_package_alarm`.",
+		Description: "Registers a cloud metric alarm with a Massdriver instance. State updates arrive via webhooks from CloudWatch / Azure Monitor / GCP Cloud Monitoring / Alertmanager. Replaces the v1 `massdriver_package_alarm`.",
 
 		CreateContext: resourceInstanceAlarmCreate,
 		ReadContext:   resourceInstanceAlarmRead,
@@ -26,7 +38,7 @@ func resourceInstanceAlarm() *schema.Resource {
 
 		Schema: map[string]*schema.Schema{
 			"instance_id": {
-				Description: "ID of the instance this alarm is attached to. Defaults to the environment variable `MASSDRIVER_INSTANCE_ID` if set, which is the case in a Massdriver deployment. Must be set explicitly when running outside a Massdriver deployment. Immutable after creation.",
+				Description: "ID of the instance this alarm is attached to. Defaults to `MASSDRIVER_INSTANCE_ID` if set, otherwise to `MASSDRIVER_PACKAGE_NAME` with the trailing deployment suffix stripped (so bundles get the right ID for free). Must be set explicitly when running outside a Massdriver deployment. Immutable after creation.",
 				Type:        schema.TypeString,
 				Optional:    true,
 				ForceNew:    true,
@@ -43,49 +55,49 @@ func resourceInstanceAlarm() *schema.Resource {
 				Required:    true,
 			},
 			"comparison_operator": {
-				Description: "How the metric is compared against `threshold` (e.g., `GREATER_THAN`, `LESS_THAN`). This is displayed in the Massdriver UI for informational purposes only.",
+				Description: "How the metric is compared against `threshold` (e.g., `GREATER_THAN`, `LESS_THAN`). May be empty for providers that don't expose this concept (Alertmanager, GCP).",
 				Type:        schema.TypeString,
 				Optional:    true,
 			},
 			"threshold": {
-				Description: "Value crossed to trigger the alarm. This is displayed in the Massdriver UI for informational purposes only.",
+				Description: "Value crossed to trigger the alarm.",
 				Type:        schema.TypeFloat,
 				Optional:    true,
 			},
 			"period": {
-				Description: "Evaluation window in seconds over which the metric is aggregated. This is displayed in the Massdriver UI for informational purposes only.",
+				Description: "Evaluation window in seconds over which the metric is aggregated.",
 				Type:        schema.TypeInt,
 				Optional:    true,
 			},
 			"metric": {
-				Description: "Cloud metric the alarm evaluates. This is displayed in the Massdriver UI for informational purposes only.",
+				Description: "Cloud metric the alarm evaluates. Optional — providers like Alertmanager don't supply structured metric data.",
 				Type:        schema.TypeList,
 				Optional:    true,
 				MaxItems:    1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"namespace": {
-							Description: "Cloud service namespace (e.g., `AWS/RDS`). This is displayed in the Massdriver UI for informational purposes only.",
+							Description: "Cloud service namespace (e.g., `AWS/RDS`).",
 							Type:        schema.TypeString,
 							Optional:    true,
 						},
 						"name": {
-							Description: "Metric name within the namespace (e.g., `CPUUtilization`). This is displayed in the Massdriver UI for informational purposes only.",
+							Description: "Metric name within the namespace (e.g., `CPUUtilization`).",
 							Type:        schema.TypeString,
 							Optional:    true,
 						},
 						"statistic": {
-							Description: "Aggregation function (e.g., `Average`). Empty for providers without it. This is displayed in the Massdriver UI for informational purposes only.",
+							Description: "Aggregation function (e.g., `Average`). Empty for providers without it.",
 							Type:        schema.TypeString,
 							Optional:    true,
 						},
 						"region": {
-							Description: "Cloud region the metric is scoped to, when applicable. This is displayed in the Massdriver UI for informational purposes only.",
+							Description: "Cloud region the metric is scoped to, when applicable.",
 							Type:        schema.TypeString,
 							Optional:    true,
 						},
 						"dimensions": {
-							Description: "Key-value dimensions identifying the monitored resource. Empty when the provider doesn't expose structured dimensions. This is displayed in the Massdriver UI for informational purposes only.",
+							Description: "Key-value dimensions identifying the monitored resource. Empty when the provider doesn't expose structured dimensions.",
 							Type:        schema.TypeMap,
 							Optional:    true,
 							Elem: &schema.Schema{
@@ -100,15 +112,15 @@ func resourceInstanceAlarm() *schema.Resource {
 }
 
 func resourceInstanceAlarmCreate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*ProviderClient).Client
+	pc := meta.(*ProviderClient)
 
 	instanceID := d.Get("instance_id").(string)
 	if instanceID == "" {
 		return diag.Errorf("instance_id must be set in config, or MASSDRIVER_INSTANCE_ID / MASSDRIVER_PACKAGE_NAME must be set in the environment")
 	}
 
-	input := api.CreateInstanceAlarmInput{
-		CloudResourceId: d.Get("cloud_resource_id").(string),
+	input := instances.CreateAlarmInput{
+		CloudResourceID: d.Get("cloud_resource_id").(string),
 		DisplayName:     d.Get("display_name").(string),
 	}
 	if v, ok := d.GetOk("comparison_operator"); ok {
@@ -124,7 +136,7 @@ func resourceInstanceAlarmCreate(ctx context.Context, d *schema.ResourceData, me
 	}
 	input.Metric = parseAlarmMetric(d.Get("metric").([]any))
 
-	alarm, err := api.CreateInstanceAlarm(ctx, client, instanceID, input)
+	alarm, err := pc.InstanceAlarms.CreateAlarm(ctx, instanceID, input)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -133,34 +145,16 @@ func resourceInstanceAlarmCreate(ctx context.Context, d *schema.ResourceData, me
 	return resourceInstanceAlarmRead(ctx, d, meta)
 }
 
-// instanceIDFromEnv is the DefaultFunc for `instance_id`. MASSDRIVER_INSTANCE_ID
-// wins if set (use case: caller already knows the canonical instance ID).
-// Otherwise it falls back to MASSDRIVER_PACKAGE_NAME — the env var bundle
-// deployments inject — and strips the trailing deployment suffix (e.g.
-// `bundtst-plygrnd-awsaurorapos-rbpt` → `bundtst-plygrnd-awsaurorapos`).
-// Returns nil when neither is set so the user can resolve it explicitly via
-// HCL when running outside a deployment; Create surfaces a clear error if it
-// stays empty.
-func instanceIDFromEnv() (any, error) {
-	if id := os.Getenv("MASSDRIVER_INSTANCE_ID"); id != "" {
-		return id, nil
-	}
-	name := os.Getenv("MASSDRIVER_PACKAGE_NAME")
-	if name == "" {
-		return nil, nil
-	}
-	parts := strings.Split(name, "-")
-	if len(parts) < 2 {
-		return name, nil
-	}
-	return strings.Join(parts[:len(parts)-1], "-"), nil
-}
-
 func resourceInstanceAlarmRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*ProviderClient).Client
+	pc := meta.(*ProviderClient)
 
-	alarm, err := api.GetInstanceAlarm(ctx, client, d.Id())
+	alarm, err := pc.InstanceAlarms.GetAlarm(ctx, d.Id())
 	if err != nil {
+		// Out-of-band deletion: clear state so terraform plans a recreate.
+		if errors.Is(err, gql.ErrNotFound) {
+			d.SetId("")
+			return nil
+		}
 		return diag.FromErr(err)
 	}
 
@@ -189,10 +183,10 @@ func resourceInstanceAlarmRead(ctx context.Context, d *schema.ResourceData, meta
 }
 
 func resourceInstanceAlarmUpdate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*ProviderClient).Client
+	pc := meta.(*ProviderClient)
 
-	input := api.UpdateInstanceAlarmInput{
-		CloudResourceId:    d.Get("cloud_resource_id").(string),
+	input := instances.UpdateAlarmInput{
+		CloudResourceID:    d.Get("cloud_resource_id").(string),
 		DisplayName:        d.Get("display_name").(string),
 		ComparisonOperator: d.Get("comparison_operator").(string),
 	}
@@ -206,7 +200,7 @@ func resourceInstanceAlarmUpdate(ctx context.Context, d *schema.ResourceData, me
 	}
 	input.Metric = parseAlarmMetric(d.Get("metric").([]any))
 
-	if _, err := api.UpdateInstanceAlarm(ctx, client, d.Id(), input); err != nil {
+	if _, err := pc.InstanceAlarms.UpdateAlarm(ctx, d.Id(), input); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -214,9 +208,14 @@ func resourceInstanceAlarmUpdate(ctx context.Context, d *schema.ResourceData, me
 }
 
 func resourceInstanceAlarmDelete(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*ProviderClient).Client
+	pc := meta.(*ProviderClient)
 
-	if _, err := api.DeleteInstanceAlarm(ctx, client, d.Id()); err != nil {
+	if _, err := pc.InstanceAlarms.DeleteAlarm(ctx, d.Id()); err != nil {
+		// "Already gone" doesn't block destroy.
+		if errors.Is(err, gql.ErrNotFound) {
+			d.SetId("")
+			return nil
+		}
 		return diag.FromErr(err)
 	}
 
@@ -224,10 +223,37 @@ func resourceInstanceAlarmDelete(ctx context.Context, d *schema.ResourceData, me
 	return nil
 }
 
-// parseAlarmMetric converts the optional metric block from terraform's nested-list
-// representation into the API input. Returns nil when the block is omitted, which
-// makes the field disappear from the JSON body via `omitempty`.
-func parseAlarmMetric(block []any) *api.AlarmMetricInput {
+// instanceIDFromEnv is the DefaultFunc for `instance_id`. We read env vars
+// directly rather than going through provisioning.Config: that Config errors
+// when *any* deployment env var is missing (an intentional design of the
+// provisioning surface), but the DefaultFunc must succeed even outside a
+// bundle deployment — its job is to provide a default if the env exists, and
+// otherwise leave the field empty so the user can supply it via HCL.
+//
+// MASSDRIVER_INSTANCE_ID wins when set (canonical, matches the SDK's
+// provisioning.Config.InstanceID field). If only the legacy
+// MASSDRIVER_PACKAGE_NAME is present (older bundle deploys), strip the
+// trailing deployment suffix (e.g. `bundtst-plygrnd-awsaurorapos-rbpt` →
+// `bundtst-plygrnd-awsaurorapos`).
+func instanceIDFromEnv() (any, error) {
+	if id := os.Getenv("MASSDRIVER_INSTANCE_ID"); id != "" {
+		return id, nil
+	}
+	name := os.Getenv("MASSDRIVER_PACKAGE_NAME")
+	if name == "" {
+		return nil, nil
+	}
+	parts := strings.Split(name, "-")
+	if len(parts) < 2 {
+		return name, nil
+	}
+	return strings.Join(parts[:len(parts)-1], "-"), nil
+}
+
+// parseAlarmMetric converts the optional `metric` HCL block into the SDK
+// input. Returns nil when the block is omitted so the SDK leaves the field
+// unset on the wire.
+func parseAlarmMetric(block []any) *instances.AlarmMetric {
 	if len(block) == 0 || block[0] == nil {
 		return nil
 	}
@@ -235,7 +261,7 @@ func parseAlarmMetric(block []any) *api.AlarmMetricInput {
 	if !ok {
 		return nil
 	}
-	metric := &api.AlarmMetricInput{
+	metric := &instances.AlarmMetric{
 		Namespace: stringFrom(raw, "namespace"),
 		Name:      stringFrom(raw, "name"),
 		Statistic: stringFrom(raw, "statistic"),
@@ -244,7 +270,7 @@ func parseAlarmMetric(block []any) *api.AlarmMetricInput {
 	if dims, ok := raw["dimensions"].(map[string]any); ok {
 		for k, v := range dims {
 			s, _ := v.(string)
-			metric.Dimensions = append(metric.Dimensions, api.AlarmMetricDimensionInput{
+			metric.Dimensions = append(metric.Dimensions, instances.AlarmMetricDimension{
 				Name:  k,
 				Value: s,
 			})
@@ -258,7 +284,7 @@ func stringFrom(m map[string]any, key string) string {
 	return v
 }
 
-func dimensionsToMap(dims []api.AlarmMetricDimension) map[string]string {
+func dimensionsToMap(dims []instances.AlarmMetricDimension) map[string]string {
 	out := make(map[string]string, len(dims))
 	for _, d := range dims {
 		out[d.Name] = d.Value

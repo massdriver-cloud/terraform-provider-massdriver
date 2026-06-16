@@ -1,29 +1,56 @@
 package massdriver
 
 import (
-	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/client"
-	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/services/artifacts"
-	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/services/resources"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/config"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/provisioning"
 )
 
+// ProviderClient holds one minimal interface per resource so tests can
+// inject fakes without mocking the GraphQL transport. Each interface is
+// declared next to its resource in resource_<name>.go.
 type ProviderClient struct {
-	Client *client.Client
+	Config config.Config
+
+	InstanceAlarms instanceAlarmsAPI
+	Projects       projectsAPI
+	Environments   environmentsAPI
+	Components     componentsAPI
+	ComponentLinks componentLinksAPI
+	Groups         groupsAPI
+	Policies       policiesAPI
+	Resources      resourcesAPI
+	OciRepos       ociReposAPI
+
+	// Thunked because provisioning.NewClient() errors when deployment env
+	// vars are absent. Deferring construction lets platform-only callers
+	// configure successfully and only fail if they actually use it.
+	ProvisioningResources func() (provisioningResourcesAPI, error)
 }
 
-func NewProviderClient() (*ProviderClient, error) {
-	client, err := client.New()
+func NewProviderClient(opts ...massdriver.Option) (*ProviderClient, error) {
+	platform, err := massdriver.NewClient(opts...)
 	if err != nil {
 		return nil, err
 	}
+
 	return &ProviderClient{
-		Client: client,
+		Config:         platform.Config(),
+		InstanceAlarms: platform.Instances,
+		Projects:       platform.Projects,
+		Environments:   platform.Environments,
+		Components:     platform.Components,
+		ComponentLinks: platform.Components,
+		Groups:         platform.Groups,
+		Policies:       platform.Policies,
+		Resources:      platform.Resources,
+		OciRepos:       platform.OciRepos,
+		ProvisioningResources: func() (provisioningResourcesAPI, error) {
+			prov, err := provisioning.NewClient()
+			if err != nil {
+				return nil, err
+			}
+			return prov.Resources, nil
+		},
 	}, nil
-}
-
-func (p *ProviderClient) ArtifactService() *artifacts.Service {
-	return artifacts.NewService(p.Client)
-}
-
-func (p *ProviderClient) ResourceService() *resources.Service {
-	return resources.NewService(p.Client)
 }
