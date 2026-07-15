@@ -5,7 +5,8 @@
 # Setup:
 #   1. Build the provider binary (from the repo root):
 #        make build
-#   2. Export credentials for a sandbox org:
+#   2. Export credentials for a sandbox org (or fill in the gitignored
+#      .env at the repo root — copy .env.example — and `set -a; . ../.env`):
 #        export MASSDRIVER_API_KEY=...
 #        export MASSDRIVER_ORGANIZATION_ID=...
 #        export MASSDRIVER_URL=...        # only if not targeting prod
@@ -52,7 +53,10 @@ resource "massdriver_oci_repository_grant" "pull_for_team" {
 resource "massdriver_imported_resource" "test" {
   name          = "provider-live-test-role"
   resource_type = "aws-iam-role"
-  resource      = jsonencode({ arn = "arn:aws:iam::111111111111:role/provider-live-test" })
+  resource = jsonencode({
+    data  = { arn = "arn:aws:iam::111111111111:role/provider-live-test" }
+    specs = { aws = { region = "us-west-2" } }
+  })
 }
 
 # Wildcard grant: every environment in the org may use the resource.

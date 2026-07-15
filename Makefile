@@ -39,6 +39,11 @@ test:
 	go test -i $(TEST) || exit 1
 	echo $(TEST) | xargs -t -n4 go test $(TESTARGS) -timeout=30s -parallel=4
 
+.PHONY: testacc
+testacc: ## Run acceptance tests against a real Massdriver org (loads credentials from .env)
+	@if [ -f .env ]; then set -a; . ./.env; set +a; fi; \
+	TF_ACC=1 go test ./massdriver/ -v -run '^TestAcc' -timeout 30m $(TESTARGS)
+
 .PHONY: docs
 docs: ## Generate documentation
 	@echo "Generating documentation..."

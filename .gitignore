@@ -3,6 +3,9 @@ terraform-provider-massdriver
 bin
 tmp
 
+# Acceptance test / smoke test credentials (copy .env.example to .env)
+.env
+
 # Created by https://www.toptal.com/developers/gitignore/api/go,terraform
 # Edit at https://www.toptal.com/developers/gitignore?templates=go,terraform
 
