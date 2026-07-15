@@ -1,10 +1,10 @@
 module terraform-provider-massdriver
 
-go 1.24.2
+go 1.25
 
 require (
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.16.0
-	github.com/massdriver-cloud/massdriver-sdk-go v0.2.6
+	github.com/massdriver-cloud/massdriver-sdk-go v0.2.8
 	github.com/xeipuuv/gojsonschema v1.2.0
 	gopkg.in/yaml.v2 v2.4.0
 )

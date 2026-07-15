@@ -50,7 +50,7 @@ make install    # build + install into ~/.terraform.d/plugins/ for all OS_ARCHS
 go test ./...   # unit tests (no live API needed)
 ```
 
-For live API tests, point the provider at a sandbox org via a `~/.tofurc` `dev_overrides` block and apply the configuration under [`testing/`](./testing/) — see the comments in `testing/test.tf` for the setup.
+For live API tests, apply the configuration under [`testing/`](./testing/) with the `dev_overrides` CLI config in `testing/dev.tfrc`, which points terraform at the locally-built binary — see the comments in `testing/test.tf` for the full setup.
 
 ### Regenerate docs
 

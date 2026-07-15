@@ -42,8 +42,7 @@ test:
 .PHONY: docs
 docs: ## Generate documentation
 	@echo "Generating documentation..."
-	@# tfplugindocs v0.20.1 is pinned because v0.21.0+ requires Go >= 1.25.
-	@go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@v0.20.1
+	@go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@v0.25.0
 	@tfplugindocs generate --provider-name=massdriver --examples-dir=./examples
 
 .PHONY: lint
