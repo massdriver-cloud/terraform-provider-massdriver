@@ -24,5 +24,6 @@ jobs:
       - uses: golangci/golangci-lint-action@v8
         with:
           # Pinned to a known-good v2.x; v8 of the action requires v2.1.0+.
+          # Must be built with a Go toolchain >= the go.mod `go` directive.
           # Bump in lockstep with the version in the Makefile's `lint` target.
-          version: v2.1.6
+          version: v2.12.2

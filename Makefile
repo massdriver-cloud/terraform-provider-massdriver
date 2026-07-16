@@ -54,5 +54,5 @@ docs: ## Generate documentation
 lint: ## Run golangci-lint (same version as CI)
 	@echo "Linting..."
 	@# Pinned to match .github/workflows/lint.yml.
-	@go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
+	@go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
 	@golangci-lint run ./...
