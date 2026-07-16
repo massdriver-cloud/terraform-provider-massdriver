@@ -20,7 +20,9 @@ type ProviderClient struct {
 	Groups         groupsAPI
 	Policies       policiesAPI
 	Resources      resourcesAPI
+	ResourceGrants resourceGrantsAPI
 	OciRepos       ociReposAPI
+	OciRepoGrants  ociRepoGrantsAPI
 
 	// Thunked because provisioning.NewClient() errors when deployment env
 	// vars are absent. Deferring construction lets platform-only callers
@@ -44,7 +46,9 @@ func NewProviderClient(opts ...massdriver.Option) (*ProviderClient, error) {
 		Groups:         platform.Groups,
 		Policies:       platform.Policies,
 		Resources:      platform.Resources,
+		ResourceGrants: platform.Resources,
 		OciRepos:       platform.OciRepos,
+		OciRepoGrants:  platform.OciRepos,
 		ProvisioningResources: func() (provisioningResourcesAPI, error) {
 			prov, err := provisioning.NewClient()
 			if err != nil {

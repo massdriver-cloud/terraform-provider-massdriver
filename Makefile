@@ -39,16 +39,20 @@ test:
 	go test -i $(TEST) || exit 1
 	echo $(TEST) | xargs -t -n4 go test $(TESTARGS) -timeout=30s -parallel=4
 
+.PHONY: testacc
+testacc: ## Run acceptance tests against a real Massdriver org (loads credentials from .env)
+	@if [ -f .env ]; then set -a; . ./.env; set +a; fi; \
+	TF_ACC=1 go test ./massdriver/ -v -run '^TestAcc' -timeout 30m $(TESTARGS)
+
 .PHONY: docs
 docs: ## Generate documentation
 	@echo "Generating documentation..."
-	@# tfplugindocs v0.20.1 is pinned because v0.21.0+ requires Go >= 1.25.
-	@go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@v0.20.1
+	@go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@v0.25.0
 	@tfplugindocs generate --provider-name=massdriver --examples-dir=./examples
 
 .PHONY: lint
 lint: ## Run golangci-lint (same version as CI)
 	@echo "Linting..."
 	@# Pinned to match .github/workflows/lint.yml.
-	@go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
+	@go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
 	@golangci-lint run ./...

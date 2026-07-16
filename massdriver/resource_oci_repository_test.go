@@ -323,10 +323,10 @@ func TestResourceOciRepositoryArtifactTypeIsForceNew(t *testing.T) {
 	state := &terraform.InstanceState{
 		ID: "my-repo",
 		Attributes: map[string]string{
-			"id":              "my-repo",
-			"name":            "my-repo",
-			"artifact_type":   "BUNDLE",
-			"attributes.%":    "0",
+			"id":            "my-repo",
+			"name":          "my-repo",
+			"artifact_type": "BUNDLE",
+			"attributes.%":  "0",
 		},
 	}
 	cfg := terraform.NewResourceConfigRaw(map[string]any{

@@ -16,12 +16,12 @@ type fakeResources struct {
 	getResp, createResp, updateResp, deleteResp *resources.Resource
 	getErr, createErr, updateErr, deleteErr     error
 
-	getID              string
-	createTypeID       string
-	createInput        resources.CreateInput
-	updateID           string
-	updateInput        resources.UpdateInput
-	deleteID           string
+	getID        string
+	createTypeID string
+	createInput  resources.CreateInput
+	updateID     string
+	updateInput  resources.UpdateInput
+	deleteID     string
 
 	getCalls, createCalls, updateCalls, deleteCalls int
 }

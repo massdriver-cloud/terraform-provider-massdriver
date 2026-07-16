@@ -1,0 +1,17 @@
+# Terraform/OpenTofu CLI configuration that forces terraform to use the
+# locally-built provider binary from the repo root instead of downloading
+# the published release from the registry.
+#
+# Usage (from the testing/ directory):
+#   TF_CLI_CONFIG_FILE=dev.tfrc terraform plan
+#
+# Note: with dev_overrides, `terraform init` is unnecessary (and will warn).
+# Run plan/apply directly.
+provider_installation {
+  dev_overrides {
+    "massdriver-cloud/massdriver" = "/workspaces/terraform-provider-massdriver"
+  }
+
+  # All other providers resolve normally from the registry.
+  direct {}
+}
