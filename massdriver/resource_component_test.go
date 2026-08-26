@@ -173,7 +173,7 @@ func TestResourceComponentUpdate(t *testing.T) {
 		t.Errorf("got updateID %q, want ecomm-db", fake.updateID)
 	}
 	in := fake.updateInput
-	if in.Name != "Renamed" || in.Description != "updated" {
+	if in.Name == nil || *in.Name != "Renamed" || in.Description == nil || *in.Description != "updated" {
 		t.Errorf("got input %+v", in)
 	}
 }
