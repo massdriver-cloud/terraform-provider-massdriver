@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	provresources "github.com/massdriver-cloud/massdriver-sdk-go/massdriver/provisioning/resources"
-	"github.com/xeipuuv/gojsonschema"
 	"gopkg.in/yaml.v2"
 )
 
@@ -29,21 +28,23 @@ type provisioningResourcesAPI interface {
 var _ provisioningResourcesAPI = (*provresources.Service)(nil)
 
 const (
-	defaultResourceSchemaPath        = "../schema-artifacts.json"
 	defaultResourceSpecificationPath = "../massdriver.yaml"
 )
 
-// resourceArtifactSchema is the shape of the schema-artifacts.json file. It
-// contains JSON Schema fragments keyed by the resource's `field` name.
-type resourceArtifactSchema struct {
-	Properties map[string]any `json:"properties"`
-}
-
 // resourceBundleSpec is the shape of the relevant slice of massdriver.yaml.
-// We only look at `artifacts.<field>.$ref` to derive the resource type.
+// The resource type comes from `resources.<field>.resource_type`, falling
+// back to the legacy `artifacts.properties.<field>.$ref`.
+type resourcesBlock struct {
+	ResourceType string `yaml:"resource_type"`
+	Required     bool   `yaml:"required"`
+}
+type artifactPropertyBlock struct {
+	Ref string `yaml:"$ref"`
+}
 type resourceBundleSpec struct {
+	Resources map[string]resourcesBlock `yaml:"resources"`
 	Artifacts struct {
-		Properties map[string]map[string]string `yaml:"properties"`
+		Properties map[string]artifactPropertyBlock `yaml:"properties"`
 	} `yaml:"artifacts"`
 }
 
@@ -57,10 +58,11 @@ If you need to create a resource that is not managed by a Massdriver bundle, use
 		ReadContext:   resourceResourceRead,
 		UpdateContext: resourceResourceUpdate,
 		DeleteContext: resourceResourceDelete,
+		CustomizeDiff: resourceResourceCustomizeDiff,
 
 		Schema: map[string]*schema.Schema{
 			"field": {
-				Description: "The resource's `field` name as declared under `resources.properties` (formerly `artifacts.properties`) in the bundle's `massdriver.yaml`. Immutable.",
+				Description: "The resource's `field` name as declared under `resources` (formerly `artifacts.properties`) in the bundle's `massdriver.yaml`. Immutable.",
 				Type:        schema.TypeString,
 				Required:    true,
 				ForceNew:    true,
@@ -71,25 +73,19 @@ If you need to create a resource that is not managed by a Massdriver bundle, use
 				Required:    true,
 			},
 			"resource_type": {
-				Description: "Resource type identifier (e.g., `aws-iam-role`). This attribute is computed from the `massdriver.yaml` specification.",
+				Description: "Resource type identifier (e.g., `aws-iam-role`). Computed at plan time from the bundle's `massdriver.yaml`; when it changes there (e.g., a version bump), the resource is replaced.",
 				Type:        schema.TypeString,
 				Computed:    true,
 				ForceNew:    true,
 			},
 			"resource": {
-				Description: "JSON-encoded resource data. Validated locally against `schema-artifacts.json` (when present at `schema_path`) before being sent.",
+				Description: "JSON-encoded resource data.",
 				Type:        schema.TypeString,
 				Required:    true,
 				Sensitive:   true,
 			},
-			"schema_path": {
-				Description: "Path to the `schema-artifacts.json` JSON Schema file used for client-side validation. Defaults to `../schema-artifacts.json` (the location bundle scaffolding produces). Override only for local provider testing.",
-				Type:        schema.TypeString,
-				Optional:    true,
-				Default:     defaultResourceSchemaPath,
-			},
 			"specification_path": {
-				Description: "Path to `massdriver.yaml`, used to look up the resource type from `$ref` when `resource_type` is unset. Defaults to `../massdriver.yaml`. Override only for local provider testing.",
+				Description: "Path to `massdriver.yaml`, used to look up the resource type. Defaults to `../massdriver.yaml`. Override only for local provider testing.",
 				Type:        schema.TypeString,
 				Optional:    true,
 				Default:     defaultResourceSpecificationPath,
@@ -106,7 +102,7 @@ func resourceResourceCreate(ctx context.Context, d *schema.ResourceData, meta an
 		return diag.FromErr(err)
 	}
 
-	resource, err := buildResource(d, pc.Config.OrganizationID)
+	resource, err := buildResource(d)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -137,10 +133,11 @@ func resourceResourceRead(ctx context.Context, d *schema.ResourceData, meta any)
 		}
 		return diag.FromErr(err)
 	}
+	resourceType := stripOrgPrefix(got.Type)
 
 	d.Set("field", got.Field)
 	d.Set("name", got.Name)
-	d.Set("resource_type", got.Type)
+	d.Set("resource_type", resourceType)
 	return nil
 }
 
@@ -152,7 +149,7 @@ func resourceResourceUpdate(ctx context.Context, d *schema.ResourceData, meta an
 		return diag.FromErr(err)
 	}
 
-	resource, err := buildResource(d, pc.Config.OrganizationID)
+	resource, err := buildResource(d)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -186,19 +183,43 @@ func resourceResourceDelete(ctx context.Context, d *schema.ResourceData, meta an
 	return nil
 }
 
+// resourceResourceCustomizeDiff resolves the resource type from
+// massdriver.yaml at plan time so a change there (e.g. a version bump on a
+// versioned resource type) produces a diff — and, since `resource_type` is
+// ForceNew, a replacement — even when nothing in the terraform config changed.
+func resourceResourceCustomizeDiff(_ context.Context, d *schema.ResourceDiff, _ any) error {
+	// If the inputs aren't known yet (interpolated from another resource's
+	// unknown output), leave resource_type to be resolved at apply time.
+	if !d.NewValueKnown("field") || !d.NewValueKnown("specification_path") {
+		return nil
+	}
+
+	resourceType, err := resolveResourceType(d.Get("field").(string), d.Get("specification_path").(string))
+	if err != nil {
+		return err
+	}
+	if resourceType != d.Get("resource_type").(string) {
+		return d.SetNew("resource_type", resourceType)
+	}
+	return nil
+}
+
 // buildResource constructs the SDK Resource from terraform state, including
-// schema validation, type lookup, and payload parsing.
-func buildResource(d *schema.ResourceData, orgID string) (*provresources.Resource, error) {
+// type lookup and payload parsing.
+func buildResource(d *schema.ResourceData) (*provresources.Resource, error) {
 	field := d.Get("field").(string)
 	resourceJSON := d.Get("resource").(string)
 
-	if err := validateResourceJSON(field, resourceJSON, d.Get("schema_path").(string)); err != nil {
-		return nil, err
-	}
-
-	resourceType, err := resolveResourceType(d, orgID)
-	if err != nil {
-		return nil, err
+	// CustomizeDiff resolves resource_type at plan time, so normally we just
+	// send the planned value. It's only empty when plan-time inputs were
+	// unknown and the resolution was deferred; resolve it now.
+	resourceType := d.Get("resource_type").(string)
+	if resourceType == "" {
+		var err error
+		resourceType, err = resolveResourceType(field, d.Get("specification_path").(string))
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var payload map[string]any
@@ -214,55 +235,11 @@ func buildResource(d *schema.ResourceData, orgID string) (*provresources.Resourc
 	}, nil
 }
 
-// validateResourceJSON runs the user's `resource` JSON against the JSON Schema
-// extracted from schema-artifacts.json under `properties.<field>`.
-func validateResourceJSON(field, resourceJSON, schemaPath string) error {
-	if schemaPath == "" {
-		schemaPath = defaultResourceSchemaPath
-	}
-
-	schemaBytes, err := os.ReadFile(schemaPath)
-	if err != nil {
-		return fmt.Errorf("unable to open schema file: %s", schemaPath)
-	}
-
-	var schemaObj resourceArtifactSchema
-	if err := json.Unmarshal(schemaBytes, &schemaObj); err != nil {
-		return fmt.Errorf("invalid JSON in %s: %w", schemaPath, err)
-	}
-
-	specificSchema, exists := schemaObj.Properties[field]
-	if !exists {
-		return fmt.Errorf(`resource validation failed: field %q does not exist in schema`, field)
-	}
-
-	sl := gojsonschema.NewGoLoader(specificSchema.(map[string]any))
-	dl := gojsonschema.NewStringLoader(resourceJSON)
-
-	result, err := gojsonschema.Validate(sl, dl)
-	if err != nil {
-		return err
-	}
-	if !result.Valid() {
-		return errors.New("resource validation failed: " + result.Errors()[0].String())
-	}
-	return nil
-}
-
-// resolveResourceType returns the resource type to send to the API.
-//
-// If `resource_type` is set in state (either explicitly by the user or
-// computed from a previous apply) we use it verbatim. Otherwise — only on
-// the first apply, before the field has been computed — we fall back to
-// reading `artifacts.<field>.$ref` from massdriver.yaml. Bare type IDs (no
-// slash) are prefixed with the org ID, matching the legacy artifact behavior.
-func resolveResourceType(d *schema.ResourceData, orgID string) (string, error) {
-	if existing := d.Get("resource_type").(string); existing != "" {
-		return prefixOrgIfNeeded(existing, orgID), nil
-	}
-
-	field := d.Get("field").(string)
-	specPath := d.Get("specification_path").(string)
+// resolveResourceType looks up the resource type for `field` in the bundle's
+// massdriver.yaml: `resources.<field>.resource_type` first, falling back to
+// the legacy `artifacts.properties.<field>.$ref`. Types are canonically bare
+// in v2, so any org qualifier is stripped before use.
+func resolveResourceType(field, specPath string) (string, error) {
 	if specPath == "" {
 		specPath = defaultResourceSpecificationPath
 	}
@@ -277,24 +254,27 @@ func resolveResourceType(d *schema.ResourceData, orgID string) (string, error) {
 		return "", fmt.Errorf("invalid YAML in %s: %w", specPath, err)
 	}
 
-	artifactSpec, exists := spec.Artifacts.Properties[field]
-	if !exists {
-		return "", fmt.Errorf(`field %q does not exist in %s`, field, specPath)
+	resourceSpec, resourceSpecExists := spec.Resources[field]
+	if resourceSpecExists {
+		if resourceSpec.ResourceType == "" {
+			return "", fmt.Errorf(`field %q in %s has empty resource_type`, field, specPath)
+		}
+		return stripOrgPrefix(resourceSpec.ResourceType), nil
 	}
 
-	ref, exists := artifactSpec["$ref"]
-	if !exists {
-		return "", fmt.Errorf(`field %q in %s has no $ref`, field, specPath)
+	artifactSpec, artifactSpecExists := spec.Artifacts.Properties[field]
+	if artifactSpecExists {
+		if artifactSpec.Ref == "" {
+			return "", fmt.Errorf(`field %q in %s has empty $ref`, field, specPath)
+		}
+		return stripOrgPrefix(artifactSpec.Ref), nil
 	}
 
-	return prefixOrgIfNeeded(ref, orgID), nil
+	return "", fmt.Errorf(`field %q not found in "resources" or "artifacts" of %s`, field, specPath)
 }
 
-// prefixOrgIfNeeded: a bare type ID like `aws-iam-role` becomes
-// `<orgID>/aws-iam-role`; a fully-qualified type with a slash is left alone.
-func prefixOrgIfNeeded(typeRef, orgID string) string {
-	if strings.Contains(typeRef, "/") {
-		return typeRef
-	}
-	return orgID + "/" + typeRef
+// stripOrgPrefix removes the org prefix from a resource type, if present.
+func stripOrgPrefix(resourceType string) string {
+	parts := strings.Split(resourceType, "/")
+	return parts[len(parts)-1]
 }

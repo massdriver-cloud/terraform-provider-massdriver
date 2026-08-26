@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/gql"
 	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/platform/environments"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/platform/types"
 )
 
 // environmentsAPI is the slice of *environments.Service this resource calls.
@@ -115,8 +116,8 @@ func resourceEnvironmentUpdate(ctx context.Context, d *schema.ResourceData, meta
 	pc := meta.(*ProviderClient)
 
 	if _, err := pc.Environments.Update(ctx, d.Id(), environments.UpdateInput{
-		Name:        d.Get("name").(string),
-		Description: d.Get("description").(string),
+		Name:        types.Ptr(d.Get("name").(string)),
+		Description: types.Ptr(d.Get("description").(string)),
 		Attributes:  attributesFromConfig(d.Get("attributes")),
 	}); err != nil {
 		return diag.FromErr(err)

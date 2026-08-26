@@ -8,12 +8,11 @@
 # massdriver_imported_resource instead.
 
 resource "massdriver_resource" "vpc" {
-  # The `field` name from the bundle's massdriver.yaml `resources.properties`.
+  # The `field` name from the bundle's massdriver.yaml `resources` block.
   field = "vpc"
   name  = "VPC ${var.md_name_prefix} (${aws_vpc.main.id})"
 
-  # JSON-encoded resource data, validated locally against
-  # schema-artifacts.json before being sent.
+  # JSON-encoded resource data.
   resource = jsonencode(
     {
       data = {

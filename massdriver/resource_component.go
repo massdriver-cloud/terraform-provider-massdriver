@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/gql"
 	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/platform/components"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/platform/types"
 )
 
 // componentIDSeparator joins a project identifier and a component identifier
@@ -138,8 +139,8 @@ func resourceComponentUpdate(ctx context.Context, d *schema.ResourceData, meta a
 	pc := meta.(*ProviderClient)
 
 	if _, err := pc.Components.Update(ctx, d.Id(), components.UpdateInput{
-		Name:        d.Get("name").(string),
-		Description: d.Get("description").(string),
+		Name:        types.Ptr(d.Get("name").(string)),
+		Description: types.Ptr(d.Get("description").(string)),
 		Attributes:  attributesFromConfig(d.Get("attributes")),
 	}); err != nil {
 		return diag.FromErr(err)

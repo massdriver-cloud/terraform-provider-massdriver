@@ -248,7 +248,7 @@ func TestResourceProjectUpdate(t *testing.T) {
 		t.Errorf("got updateID %q, want ecomm", fake.updateID)
 	}
 	in := fake.updateInput
-	if in.Name != "Renamed" || in.Description != "updated" {
+	if in.Name == nil || *in.Name != "Renamed" || in.Description == nil || *in.Description != "updated" {
 		t.Errorf("got input %+v, want name=Renamed description=updated", in)
 	}
 }

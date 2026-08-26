@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/gql"
 	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/platform/projects"
+	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/platform/types"
 )
 
 // projectsAPI is the slice of *projects.Service that this resource calls.
@@ -101,8 +102,8 @@ func resourceProjectUpdate(ctx context.Context, d *schema.ResourceData, meta any
 	pc := meta.(*ProviderClient)
 
 	if _, err := pc.Projects.Update(ctx, d.Id(), projects.UpdateInput{
-		Name:        d.Get("name").(string),
-		Description: d.Get("description").(string),
+		Name:        types.Ptr(d.Get("name").(string)),
+		Description: types.Ptr(d.Get("description").(string)),
 		Attributes:  attributesFromConfig(d.Get("attributes")),
 	}); err != nil {
 		return diag.FromErr(err)
