@@ -4,7 +4,7 @@ go 1.25
 
 require (
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.16.0
-	github.com/massdriver-cloud/massdriver-sdk-go v0.2.8
+	github.com/massdriver-cloud/massdriver-sdk-go v0.2.19
 	gopkg.in/yaml.v2 v2.4.0
 )
 
