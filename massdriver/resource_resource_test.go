@@ -2,7 +2,6 @@ package massdriver
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/massdriver-cloud/massdriver-sdk-go/massdriver/config"
 	provresources "github.com/massdriver-cloud/massdriver-sdk-go/massdriver/provisioning/resources"
 )
@@ -54,8 +54,7 @@ func (f *fakeProvisioningResources) DeleteResource(_ context.Context, id string)
 }
 
 // providerForResource builds a ProviderClient whose ProvisioningResources
-// thunk returns the supplied fake. Config carries the testOrgID so
-// resolveResourceType can prefix bare type refs.
+// thunk returns the supplied fake.
 func providerForResource(fake *fakeProvisioningResources) *ProviderClient {
 	return &ProviderClient{
 		Config: config.Config{OrganizationID: testOrgID},
@@ -65,37 +64,26 @@ func providerForResource(fake *fakeProvisioningResources) *ProviderClient {
 	}
 }
 
-// writeBundleFiles writes minimal massdriver.yaml + schema-artifacts.json into
-// a temp dir and returns the two paths. The schema file declares one field's
-// JSON Schema; the spec file declares the same field's $ref so the type
-// lookup succeeds.
-func writeBundleFiles(t *testing.T, field, ref string, fieldSchema map[string]any) (specPath, schemaPath string) {
+// writeSpec writes the given massdriver.yaml contents into a temp dir and
+// returns the file's path.
+func writeSpec(t *testing.T, yaml string) string {
 	t.Helper()
-	dir := t.TempDir()
-
-	specPath = filepath.Join(dir, "massdriver.yaml")
-	specYAML := "artifacts:\n  properties:\n    " + field + ":\n      $ref: " + ref + "\n"
-	if err := os.WriteFile(specPath, []byte(specYAML), 0644); err != nil {
+	specPath := filepath.Join(t.TempDir(), "massdriver.yaml")
+	if err := os.WriteFile(specPath, []byte(yaml), 0644); err != nil {
 		t.Fatal(err)
 	}
-
-	schemaPath = filepath.Join(dir, "schema-artifacts.json")
-	schemaDoc := map[string]any{
-		"properties": map[string]any{
-			field: fieldSchema,
-		},
-	}
-	schemaBytes, _ := json.Marshal(schemaDoc)
-	if err := os.WriteFile(schemaPath, schemaBytes, 0644); err != nil {
-		t.Fatal(err)
-	}
-	return specPath, schemaPath
+	return specPath
 }
 
-// objectSchema is a permissive "anything goes as long as it's an object" JSON
-// Schema — useful for tests that don't care about field-level validation.
-func objectSchema() map[string]any {
-	return map[string]any{"type": "object"}
+// resourcesSpec declares `field` under the `resources` block.
+func resourcesSpec(field, resourceType string) string {
+	return "resources:\n  " + field + ":\n    resource_type: " + resourceType + "\n    required: true\n"
+}
+
+// artifactsSpec declares `field` under the legacy `artifacts.properties`
+// block with a $ref.
+func artifactsSpec(field, ref string) string {
+	return "artifacts:\n  properties:\n    " + field + ":\n      $ref: " + ref + "\n"
 }
 
 func TestResourceResourceCreate(t *testing.T) {
@@ -104,24 +92,23 @@ func TestResourceResourceCreate(t *testing.T) {
 			ID:    "res-1",
 			Field: "vpc",
 			Name:  "My VPC",
-			Type:  testOrgID + "/aws-vpc",
+			Type:  "aws-vpc",
 		},
 		getResp: &provresources.Resource{
 			ID:    "res-1",
 			Field: "vpc",
 			Name:  "My VPC",
-			Type:  testOrgID + "/aws-vpc",
+			Type:  "aws-vpc",
 		},
 	}
 	pc := providerForResource(fake)
 
-	specPath, schemaPath := writeBundleFiles(t, "vpc", "aws-vpc", objectSchema())
+	specPath := writeSpec(t, resourcesSpec("vpc", "aws-vpc"))
 	rd := schema.TestResourceDataRaw(t, resourceResource().Schema, map[string]any{
 		"field":              "vpc",
 		"name":               "My VPC",
 		"resource":           `{"arn":"arn:aws:ec2:us-east-1:111:vpc/vpc-abc"}`,
 		"specification_path": specPath,
-		"schema_path":        schemaPath,
 	})
 
 	if diags := resourceResourceCreate(t.Context(), rd, pc); diags.HasError() {
@@ -131,8 +118,8 @@ func TestResourceResourceCreate(t *testing.T) {
 	if rd.Id() != "res-1" {
 		t.Errorf("got id %q, want res-1", rd.Id())
 	}
-	if got := rd.Get("resource_type").(string); got != testOrgID+"/aws-vpc" {
-		t.Errorf("got resource_type %q, want %s/aws-vpc", got, testOrgID)
+	if got := rd.Get("resource_type").(string); got != "aws-vpc" {
+		t.Errorf("got resource_type %q, want aws-vpc", got)
 	}
 
 	if fake.createCalls != 1 {
@@ -142,88 +129,51 @@ func TestResourceResourceCreate(t *testing.T) {
 	if in.Field != "vpc" || in.Name != "My VPC" {
 		t.Errorf("got create input %+v", in)
 	}
-	if in.Type != testOrgID+"/aws-vpc" {
-		t.Errorf("got Type %q, want %s/aws-vpc", in.Type, testOrgID)
+	if in.Type != "aws-vpc" {
+		t.Errorf("got Type %q, want aws-vpc", in.Type)
 	}
 	if in.Payload["arn"] != "arn:aws:ec2:us-east-1:111:vpc/vpc-abc" {
 		t.Errorf("got payload.arn %v", in.Payload["arn"])
 	}
 }
 
-// A fully-qualified `$ref` (already containing a slash) is sent as-is — no
-// double-prefixing with the org ID.
-func TestResourceResourceCreateFullyQualifiedRefPassesThrough(t *testing.T) {
+// The legacy `artifacts.properties.<field>.$ref` path still resolves the
+// type, and the ref is sent verbatim — no org prefixing.
+func TestResourceResourceCreateLegacyArtifactsRefSentVerbatim(t *testing.T) {
 	fake := &fakeProvisioningResources{
 		createResp: &provresources.Resource{ID: "res-1", Field: "vpc"},
 		getResp:    &provresources.Resource{ID: "res-1", Field: "vpc"},
 	}
 	pc := providerForResource(fake)
 
-	specPath, schemaPath := writeBundleFiles(t, "vpc", "other-org/aws-vpc", objectSchema())
+	specPath := writeSpec(t, artifactsSpec("vpc", "aws-vpc"))
 	rd := schema.TestResourceDataRaw(t, resourceResource().Schema, map[string]any{
 		"field":              "vpc",
 		"name":               "My VPC",
 		"resource":           `{"k":"v"}`,
 		"specification_path": specPath,
-		"schema_path":        schemaPath,
 	})
 
 	if diags := resourceResourceCreate(t.Context(), rd, pc); diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
-	if got := fake.createInput.Type; got != "other-org/aws-vpc" {
-		t.Errorf("got Type %q, want other-org/aws-vpc (no double-prefix)", got)
+	if got := fake.createInput.Type; got != "aws-vpc" {
+		t.Errorf("got Type %q, want aws-vpc (sent verbatim)", got)
 	}
 }
 
-// Schema validation runs *before* the API call — bad payloads must not reach
-// the SDK.
-func TestResourceResourceCreateRejectsInvalidPayloadAgainstSchema(t *testing.T) {
-	fake := &fakeProvisioningResources{}
-	pc := providerForResource(fake)
-
-	fieldSchema := map[string]any{
-		"type":     "object",
-		"required": []any{"arn"},
-		"properties": map[string]any{
-			"arn": map[string]any{"type": "string"},
-		},
-	}
-	specPath, schemaPath := writeBundleFiles(t, "vpc", "aws-vpc", fieldSchema)
-
-	rd := schema.TestResourceDataRaw(t, resourceResource().Schema, map[string]any{
-		"field":              "vpc",
-		"name":               "My VPC",
-		"resource":           `{"not_arn":"oops"}`,
-		"specification_path": specPath,
-		"schema_path":        schemaPath,
-	})
-
-	diags := resourceResourceCreate(t.Context(), rd, pc)
-	if !diags.HasError() {
-		t.Fatal("expected validation error, got none")
-	}
-	if !strings.Contains(diags[0].Summary, "validation failed") {
-		t.Errorf("got error %q, want one mentioning validation failure", diags[0].Summary)
-	}
-	if fake.createCalls != 0 {
-		t.Errorf("expected 0 Create calls when validation fails, got %d", fake.createCalls)
-	}
-}
-
-// A field that exists in massdriver.yaml but not in schema-artifacts.json
-// surfaces a clear error rather than silently skipping validation.
+// A field missing from both `resources` and `artifacts` surfaces a clear
+// error naming the field, before any API call.
 func TestResourceResourceCreateRejectsUnknownField(t *testing.T) {
 	fake := &fakeProvisioningResources{}
 	pc := providerForResource(fake)
 
-	specPath, schemaPath := writeBundleFiles(t, "vpc", "aws-vpc", objectSchema())
+	specPath := writeSpec(t, resourcesSpec("vpc", "aws-vpc"))
 	rd := schema.TestResourceDataRaw(t, resourceResource().Schema, map[string]any{
 		"field":              "database",
 		"name":               "DB",
 		"resource":           `{}`,
 		"specification_path": specPath,
-		"schema_path":        schemaPath,
 	})
 
 	diags := resourceResourceCreate(t.Context(), rd, pc)
@@ -233,9 +183,14 @@ func TestResourceResourceCreateRejectsUnknownField(t *testing.T) {
 	if !strings.Contains(diags[0].Summary, "database") {
 		t.Errorf("error %q should mention the unknown field name", diags[0].Summary)
 	}
+	if fake.createCalls != 0 {
+		t.Errorf("expected 0 Create calls when type lookup fails, got %d", fake.createCalls)
+	}
 }
 
 func TestResourceResourceRead(t *testing.T) {
+	// The API echoes back an org-qualified type; Read must normalize it so the
+	// next plan's comparison against the (bare) yaml value stays clean.
 	fake := &fakeProvisioningResources{
 		getResp: &provresources.Resource{
 			ID:    "res-1",
@@ -258,7 +213,7 @@ func TestResourceResourceRead(t *testing.T) {
 	if rd.Get("field").(string) != "vpc" {
 		t.Errorf("got field %q, want vpc", rd.Get("field"))
 	}
-	if rd.Get("resource_type").(string) != testOrgID+"/aws-vpc" {
+	if rd.Get("resource_type").(string) != "aws-vpc" {
 		t.Errorf("got resource_type %q", rd.Get("resource_type"))
 	}
 }
@@ -285,18 +240,17 @@ func TestResourceResourceUpdate(t *testing.T) {
 		ID:    "res-1",
 		Field: "vpc",
 		Name:  "Updated",
-		Type:  testOrgID + "/aws-vpc",
+		Type:  "aws-vpc",
 	}
 	fake := &fakeProvisioningResources{updateResp: updated, getResp: updated}
 	pc := providerForResource(fake)
 
-	specPath, schemaPath := writeBundleFiles(t, "vpc", "aws-vpc", objectSchema())
+	specPath := writeSpec(t, resourcesSpec("vpc", "aws-vpc"))
 	rd := schema.TestResourceDataRaw(t, resourceResource().Schema, map[string]any{
 		"field":              "vpc",
 		"name":               "Updated",
 		"resource":           `{"arn":"new"}`,
 		"specification_path": specPath,
-		"schema_path":        schemaPath,
 	})
 	rd.SetId("res-1")
 
@@ -364,13 +318,12 @@ func TestResourceResourceRejectsNonDeploymentAuth(t *testing.T) {
 		},
 	}
 
-	specPath, schemaPath := writeBundleFiles(t, "vpc", "aws-vpc", objectSchema())
+	specPath := writeSpec(t, resourcesSpec("vpc", "aws-vpc"))
 	rd := schema.TestResourceDataRaw(t, resourceResource().Schema, map[string]any{
 		"field":              "vpc",
 		"name":               "My VPC",
 		"resource":           `{"k":"v"}`,
 		"specification_path": specPath,
-		"schema_path":        schemaPath,
 	})
 
 	diags := resourceResourceCreate(t.Context(), rd, pc)
@@ -399,10 +352,112 @@ func TestResourceResourceSchema(t *testing.T) {
 	if res := r.Schema["resource"]; res == nil || !res.Required || !res.Sensitive {
 		t.Error("resource should be Required+Sensitive")
 	}
-	if sp := r.Schema["schema_path"]; sp.Default != defaultResourceSchemaPath {
-		t.Errorf("got schema_path default %v, want %s", sp.Default, defaultResourceSchemaPath)
-	}
 	if sp := r.Schema["specification_path"]; sp.Default != defaultResourceSpecificationPath {
 		t.Errorf("got specification_path default %v, want %s", sp.Default, defaultResourceSpecificationPath)
+	}
+	if r.CustomizeDiff == nil {
+		t.Error("CustomizeDiff should be set (re-resolves resource_type from massdriver.yaml at plan time)")
+	}
+}
+
+func TestResolveResourceType(t *testing.T) {
+	cases := []struct {
+		name    string
+		spec    string
+		field   string
+		want    string
+		wantErr string
+	}{
+		{"resources block", resourcesSpec("vpc", "aws-vpc@1.0.0"), "vpc", "aws-vpc@1.0.0", ""},
+		{"resources wins over legacy artifacts", resourcesSpec("vpc", "aws-vpc@2.0.0") + artifactsSpec("vpc", "aws-vpc"), "vpc", "aws-vpc@2.0.0", ""},
+		{"legacy artifacts $ref normalized to bare type", artifactsSpec("vpc", "other-org/aws-vpc"), "vpc", "aws-vpc", ""},
+		{"qualified versioned type normalized", resourcesSpec("vpc", "some-org/aws-vpc@2.0.0"), "vpc", "aws-vpc@2.0.0", ""},
+		{"empty resource_type", "resources:\n  vpc:\n    required: true\n", "vpc", "", "empty resource_type"},
+		{"empty $ref", "artifacts:\n  properties:\n    vpc: {}\n", "vpc", "", "empty $ref"},
+		{"unknown field", resourcesSpec("vpc", "aws-vpc"), "database", "", "not found"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := resolveResourceType(tc.field, writeSpec(t, tc.spec))
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("got err %v, want one containing %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tc.want {
+				t.Errorf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+
+	t.Run("missing file", func(t *testing.T) {
+		if _, err := resolveResourceType("vpc", filepath.Join(t.TempDir(), "nope.yaml")); err == nil || !strings.Contains(err.Error(), "unable to open") {
+			t.Fatalf("got err %v, want unable-to-open error", err)
+		}
+	})
+}
+
+// resourceStateAndConfig builds a matching prior state and config for a
+// resource whose last apply stored `stateType`, pointing at specPath.
+func resourceStateAndConfig(stateType, specPath string) (*terraform.InstanceState, *terraform.ResourceConfig) {
+	state := &terraform.InstanceState{
+		ID: "res-1",
+		Attributes: map[string]string{
+			"id":                 "res-1",
+			"field":              "vpc",
+			"name":               "My VPC",
+			"resource":           `{"k":"v"}`,
+			"resource_type":      stateType,
+			"specification_path": specPath,
+		},
+	}
+	cfg := terraform.NewResourceConfigRaw(map[string]any{
+		"field":              "vpc",
+		"name":               "My VPC",
+		"resource":           `{"k":"v"}`,
+		"specification_path": specPath,
+	})
+	return state, cfg
+}
+
+// A resource_type change in massdriver.yaml alone — with no change to the
+// terraform config — must plan a replacement: CustomizeDiff re-resolves the
+// type at plan time and resource_type is ForceNew.
+func TestResourceResourceTypeBumpPlansReplacement(t *testing.T) {
+	specPath := writeSpec(t, resourcesSpec("vpc", "aws-vpc@2.0.0"))
+	state, cfg := resourceStateAndConfig("aws-vpc@1.0.0", specPath)
+
+	diff, err := resourceResource().Diff(t.Context(), state, cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff == nil {
+		t.Fatal("expected a diff, got none")
+	}
+	attr := diff.Attributes["resource_type"]
+	if attr == nil || attr.New != "aws-vpc@2.0.0" {
+		t.Fatalf("got resource_type diff %+v, want new value aws-vpc@2.0.0", attr)
+	}
+	if !diff.RequiresNew() {
+		t.Error("resource_type change should force replacement")
+	}
+}
+
+// With the yaml type matching state, an otherwise-unchanged resource plans no
+// diff at all.
+func TestResourceResourceNoDiffWhenTypeUnchanged(t *testing.T) {
+	specPath := writeSpec(t, resourcesSpec("vpc", "aws-vpc@1.0.0"))
+	state, cfg := resourceStateAndConfig("aws-vpc@1.0.0", specPath)
+
+	diff, err := resourceResource().Diff(t.Context(), state, cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff != nil && !diff.Empty() {
+		t.Fatalf("expected no diff, got %+v", diff)
 	}
 }

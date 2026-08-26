@@ -54,16 +54,15 @@ resource "massdriver_resource" "vpc" {
 
 ### Required
 
-- `field` (String) The resource's `field` name as declared under `resources.properties` (formerly `artifacts.properties`) in the bundle's `massdriver.yaml`. Immutable.
+- `field` (String) The resource's `field` name as declared under `resources` (formerly `artifacts.properties`) in the bundle's `massdriver.yaml`. Immutable.
 - `name` (String) Human-readable name for the resource.
-- `resource` (String, Sensitive) JSON-encoded resource data. Validated locally against `schema-artifacts.json` (when present at `schema_path`) before being sent.
+- `resource` (String, Sensitive) JSON-encoded resource data.
 
 ### Optional
 
-- `schema_path` (String) Path to the `schema-artifacts.json` JSON Schema file used for client-side validation. Defaults to `../schema-artifacts.json` (the location bundle scaffolding produces). Override only for local provider testing.
-- `specification_path` (String) Path to `massdriver.yaml`, used to look up the resource type from `$ref` when `resource_type` is unset. Defaults to `../massdriver.yaml`. Override only for local provider testing.
+- `specification_path` (String) Path to `massdriver.yaml`, used to look up the resource type. Defaults to `../massdriver.yaml`. Override only for local provider testing.
 
 ### Read-Only
 
 - `id` (String) The ID of this resource.
-- `resource_type` (String) Resource type identifier (e.g., `aws-iam-role`). This attribute is computed from the `massdriver.yaml` specification.
+- `resource_type` (String) Resource type identifier (e.g., `aws-iam-role`). Computed at plan time from the bundle's `massdriver.yaml`; when it changes there (e.g., a version bump), the resource is replaced.
