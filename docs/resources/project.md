@@ -35,11 +35,11 @@ resource "massdriver_project" "ecommerce" {
 
 ### Required
 
-- `attributes` (Map of String) Key-value attributes assigned to this project. Used by the platform to compute permissions and policy. Required keys are configured per-organization in the Massdriver console — missing or unknown keys surface as API errors at apply time. Drift is always surfaced; console edits are reverted on the next apply.
 - `identifier` (String) Short, immutable identifier for this project. Composed with parent identifiers to form the platform ID. Max 20 characters, lowercase alphanumeric (a-z, 0-9).
 
 ### Optional
 
+- `attributes` (Map of String) Key-value attributes assigned to this project. Used by the platform to compute permissions and policy. Omit it (or set `{}`) for no attributes. Required keys are configured per-organization in the Massdriver console — missing or unknown keys surface as API errors at apply time. Drift is always surfaced; console edits are reverted on the next apply.
 - `description` (String) Optional description of the project's purpose. When unset, drift on this field (e.g., a console edit) is ignored.
 - `name` (String) Human-readable name for the project. Defaults to `identifier` if unset. When unset, drift on this field (e.g., a console edit) is ignored.
 

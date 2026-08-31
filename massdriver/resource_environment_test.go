@@ -336,7 +336,7 @@ func TestResourceEnvironmentSchema(t *testing.T) {
 			t.Errorf("%s should be Optional+Computed", field)
 		}
 	}
-	if attrs := r.Schema["attributes"]; attrs == nil || !attrs.Required {
-		t.Error("attributes should be Required")
+	if attrs := r.Schema["attributes"]; attrs == nil || !attrs.Optional || attrs.Required || attrs.Computed {
+		t.Error("attributes should be Optional and not Computed (omitted means no attributes; drift always surfaces)")
 	}
 }

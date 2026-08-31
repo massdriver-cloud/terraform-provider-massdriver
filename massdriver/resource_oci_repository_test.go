@@ -358,8 +358,8 @@ func TestResourceOciRepositorySchema(t *testing.T) {
 	if at := r.Schema["artifact_type"]; at == nil || !at.Required || !at.ForceNew {
 		t.Error("artifact_type should be Required+ForceNew (immutable, server-validated)")
 	}
-	if attrs := r.Schema["attributes"]; attrs == nil || !attrs.Required {
-		t.Error("attributes should be Required")
+	if attrs := r.Schema["attributes"]; attrs == nil || !attrs.Optional || attrs.Required || attrs.Computed {
+		t.Error("attributes should be Optional and not Computed (omitted means no attributes; drift always surfaces)")
 	}
 	if ref := r.Schema["reference"]; ref == nil || !ref.Computed {
 		t.Error("reference should be Computed")

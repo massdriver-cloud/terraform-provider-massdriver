@@ -82,3 +82,9 @@ override.tf.json
 .terraformrc
 terraform.rc
 terraform
+
+# Claude Code local settings
+.claude/
+
+# Devcontainer feature lockfile (machine-local resolution)
+.devcontainer/devcontainer-lock.json

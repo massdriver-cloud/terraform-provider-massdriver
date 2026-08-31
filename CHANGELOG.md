@@ -1,5 +1,83 @@
 # Changelog
 
+## 2.1.1
+
+`massdriver_resource` now treats the bundle's `massdriver.yaml` as the
+single source of truth for a resource's type, resolved at plan time. This
+adds support for versioned resource types: bumping a resource's version in
+`massdriver.yaml` — with no other config change — now plans a replacement.
+Previously a type change in the yaml was silently ignored until some other
+attribute happened to change.
+
+API key and deployment token auth also work side by side now, instead of
+the deployment token shadowing the API key.
+
+### Fixed
+
+- **An API key is no longer ignored when a deployment token is present.**
+  The provider authenticates each API surface with the credential that
+  surface requires: the GraphQL platform API (every resource except
+  `massdriver_resource`) uses the API key or PAT, and the deployment-scoped
+  REST API behind `massdriver_resource` uses
+  `MASSDRIVER_DEPLOYMENT_ID` + `MASSDRIVER_TOKEN`. Previously the SDK's
+  resolver preferred the deployment token whenever both were set — even
+  when the API key was set explicitly in the provider block — so platform
+  resources failed with permission errors inside a bundle deployment with
+  no way to opt out. Deployment tokens are now opt-in per API surface, so
+  they can't shadow an API key.
+- **Using an API-key-only resource without an API key now says so.** It
+  fails at plan time with a diagnostic naming the resource and how to
+  supply credentials, instead of attempting the call with a deployment
+  token and returning a server-side permission error. Neither credential is
+  required to configure the provider, so a bundle carrying only a
+  deployment token — the usual case — is unaffected: `massdriver_resource`
+  and `massdriver_instance_alarm` both work with no API key present.
+- **`massdriver_instance_alarm` still works with a deployment token alone.**
+  It authenticates with the API key when one is configured and the
+  deployment token otherwise, so bundles that pair it with
+  `massdriver_resource` and rely on the injected token keep working.
+- **`url` set in the provider block now reaches `massdriver_resource`.** It
+  was previously read from `MASSDRIVER_URL` only for that resource.
+  `organization_id` still comes from the environment there.
+
+### Changed
+
+- **`attributes` is now optional** on `massdriver_project`,
+  `massdriver_environment`, `massdriver_component`, and
+  `massdriver_oci_repository`. Omitting it means "no attributes", exactly
+  as `attributes = {}` did. Drift behavior is unchanged — attributes drive
+  permissions, so console edits are still reverted on the next apply, and
+  that now includes attributes added out of band to a resource whose
+  config omits the field.
+- **`resource_type` is resolved at plan time** from
+  `resources.<field>.resource_type` in `massdriver.yaml`, falling back to
+  the legacy `artifacts.properties.<field>.$ref`. The value stored in
+  state no longer takes precedence, so type changes in the yaml always
+  surface in the plan. Because `resource_type` forces replacement, a
+  version bump destroys and recreates the resource.
+- **Resource types are canonically bare.** Org qualifiers
+  (`<org>/aws-vpc`) are stripped from yaml values and from API responses;
+  versions are preserved (`aws-vpc@2.0.0`). This also fixes a perpetual
+  replacement diff caused by the API echoing org-qualified types back
+  into state.
+
+### Removed
+
+- **`schema_path`** and the client-side JSON Schema validation of
+  `resource` against `schema-artifacts.json`. Validation is handled
+  server-side. The attribute was defaulted-only (never user-set) and its
+  removal is state-safe — existing states are upgraded automatically. If
+  you referenced `massdriver_resource.*.schema_path` in an expression,
+  remove the reference.
+
+### Internal
+
+- Massdriver Go SDK bumped; project, environment, and component updates
+  migrated to its new partial-update (pointer-field) inputs, and the
+  provider now relies on its per-surface auth selection
+  (`massdriver.WithDeploymentTokenAuth`) rather than resolving credentials
+  itself.
+
 ## 2.0.0
 
 v2.0.0 is the **platform-management release**. The provider now manages
