@@ -2,11 +2,7 @@ package massdriver
 
 import (
 	"context"
-	"fmt"
 	"maps"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -16,7 +12,7 @@ func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
 			"api_key": {
-				Description: "Massdriver API key — a service account token or a personal access token (`mds_` / `md_` prefix). Overrides `MASSDRIVER_API_KEY`. Required by every resource except `massdriver_resource` and `massdriver_instance_alarm`, which also accept the deployment token (`MASSDRIVER_DEPLOYMENT_ID` + `MASSDRIVER_TOKEN`) the platform injects into a bundle deployment. Setting both is supported — each resource uses the credential it needs, and the API key wins wherever both work. Keep this out of version control; prefer the env var or `TF_VAR_*` for production setups.",
+				Description: "Massdriver API key — a service account token or a personal access token (`mds_` / `md_` prefix). Overrides `MASSDRIVER_API_KEY`. Required by platform resources. Provisioning resources (`massdriver_resource`, `massdriver_instance_alarm`) use the deployment token (`MASSDRIVER_DEPLOYMENT_ID` + `MASSDRIVER_TOKEN`) the platform injects into a bundle deployment. Setting both is supported — each resource uses the credential it needs, and the API key wins wherever both work. Keep this out of version control; prefer the env var or `TF_VAR_*` for production setups.",
 				Type:        schema.TypeString,
 				Optional:    true,
 				Sensitive:   true,
@@ -178,64 +174,5 @@ func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}
 			Detail:   err.Error(),
 		}}
 	}
-
-	var diags diag.Diagnostics
-	if os.Getenv(authDebugEnv) != "" {
-		diags = append(diags, authDebugDiag(cfg, client))
-	}
-	return client, diags
-}
-
-// authDebugEnv, when non-empty, makes providerConfigure report which
-// credential it resolved and where from.
-const authDebugEnv = "MASSDRIVER_PROVIDER_DEBUG_AUTH"
-
-// authDebugDiag describes the resolved credential without exposing it: only
-// set/unset for secrets, plus the non-secret method, source, and ids.
-func authDebugDiag(cfg ProviderConfig, pc *ProviderClient) diag.Diagnostic {
-	var b strings.Builder
-
-	fmt.Fprintf(&b, "provider block: api_key set=%t organization_id=%q url=%q\n",
-		cfg.APIKey != "", cfg.OrganizationID, cfg.URL)
-
-	b.WriteString("environment:\n")
-	for _, name := range []string{
-		"MASSDRIVER_API_KEY",
-		"MASSDRIVER_ORGANIZATION_ID",
-		"MASSDRIVER_ORG_ID",
-		"MASSDRIVER_PROFILE",
-		"MASSDRIVER_TOKEN",
-		"MASSDRIVER_DEPLOYMENT_ID",
-		"MASSDRIVER_URL",
-	} {
-		if v, ok := os.LookupEnv(name); ok && v != "" {
-			fmt.Fprintf(&b, "  %s = set\n", name)
-		}
-	}
-
-	configPath := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "massdriver", "config.yaml")
-	if os.Getenv("XDG_CONFIG_HOME") == "" {
-		home, _ := os.UserHomeDir()
-		configPath = filepath.Join(home, ".config", "massdriver", "config.yaml")
-	}
-	_, statErr := os.Stat(configPath)
-	fmt.Fprintf(&b, "config file: %s exists=%t\n", configPath, statErr == nil)
-
-	creds := pc.Config.Credentials
-	fmt.Fprintf(&b, "resolved: method=%q source=%q id=%q organization_id=%q\n",
-		creds.Method, creds.Source, creds.ID, pc.Config.OrganizationID)
-
-	errText := func(err error) string {
-		if err == nil {
-			return "<nil>"
-		}
-		return err.Error()
-	}
-	fmt.Fprintf(&b, "PlatformAuthErr: %s\nAlarmAuthErr: %s", errText(pc.PlatformAuthErr), errText(pc.AlarmAuthErr))
-
-	return diag.Diagnostic{
-		Severity: diag.Warning,
-		Summary:  "Massdriver provider credential debug",
-		Detail:   b.String(),
-	}
+	return client, nil
 }

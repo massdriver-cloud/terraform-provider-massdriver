@@ -125,7 +125,9 @@ func TestAnyCredentialResourcesGuardedWithNoCredentials(t *testing.T) {
 	}
 }
 
-// The REST-backed resource is never guarded — it reports its own error.
+// massdriver_resource is never guarded: it has no API-key path at all, so a
+// guard could only ever suggest a credential that would not help. It resolves
+// its own client and reports its own error.
 func TestDeploymentTokenResourceNotGuarded(t *testing.T) {
 	for name := range deploymentTokenResources() {
 		pc := &ProviderClient{
@@ -139,30 +141,6 @@ func TestDeploymentTokenResourceNotGuarded(t *testing.T) {
 		diags := r.ReadContext(context.Background(), r.TestResourceData(), pc)
 		if !diags.HasError() || !strings.Contains(diags[0].Summary, "sentinel") {
 			t.Errorf("%s: diags = %v, want the resource body to run", name, diags)
-		}
-	}
-}
-
-// The debug diagnostic must name the credential's source without exposing the
-// credential itself.
-func TestAuthDebugDiagRedacts(t *testing.T) {
-	isolateCredentialEnv(t)
-	t.Setenv("MASSDRIVER_ORGANIZATION_ID", testOrgID)
-
-	const secret = "mds_super_secret_value"
-	cfg := ProviderConfig{APIKey: secret, OrganizationID: testOrgID}
-	pc, err := NewProviderClient(cfg)
-	if err != nil {
-		t.Fatalf("NewProviderClient: %v", err)
-	}
-
-	detail := authDebugDiag(cfg, pc).Detail
-	if strings.Contains(detail, secret) {
-		t.Error("debug detail leaked the API key")
-	}
-	for _, want := range []string{"api_key set=true", `source="option"`, "PlatformAuthErr: <nil>"} {
-		if !strings.Contains(detail, want) {
-			t.Errorf("debug detail missing %q:\n%s", want, detail)
 		}
 	}
 }

@@ -8,12 +8,12 @@ description: |-
 
 # massdriver Provider
 
-The Massdriver provider manages two distinct surfaces:
+The Massdriver provider manages two classes of resource:
 
-- **Platform resources** (projects, environments, components, component links, instance alarms, groups, group policies, OCI repositories, imported resources) — the design-time topology of an organization on Massdriver. These are typically managed from CI/CD or a local workstation by a platform team.
-- **Deployment-context resources** (`massdriver_resource`) — provisioned resources declared by a bundle's `massdriver.yaml`, produced at deploy time from inside the bundle's IaC.
+- **Platform resources** (projects, environments, components, component links, groups, group policies, OCI repositories, imported resources) — the design-time topology of an organization on Massdriver. These are typically managed from CI/CD or a local workstation by a platform team.
+- **Provisioning resources** (`massdriver_resource`, `massdriver_instance_alarm`) — what a bundle manages about itself at deploy time, from inside the bundle's IaC.
 
-The two surfaces have different authentication requirements. Pick the credentials that match the context where the terraform will run.
+The two classes have different authentication requirements. Pick the credentials that match the context where the terraform will run.
 
 ## Example Usage
 
@@ -61,15 +61,15 @@ provider "massdriver" {
 
 ### Bundle deployments
 
-When the terraform runs inside a Massdriver bundle deployment, **no configuration is required** for `massdriver_resource` or `massdriver_instance_alarm`. The platform injects `MASSDRIVER_DEPLOYMENT_ID` and `MASSDRIVER_TOKEN` into the deployment environment automatically; the empty `provider "massdriver" {}` block above just works.
+When the terraform runs inside a Massdriver bundle deployment, **no configuration is required** for provisioning resources. The platform injects `MASSDRIVER_DEPLOYMENT_ID` and `MASSDRIVER_TOKEN` into the deployment environment automatically; the empty `provider "massdriver" {}` block above just works.
 
-Adding a resource beyond those two — a `massdriver_project`, say — does need an API key, since deployment tokens carry no permissions on the rest of the platform API. Without one the provider still configures and the two deployment-scoped resources still work; only the added resource fails, with a diagnostic saying an API key is required.
+Adding a platform resource to a bundle — a `massdriver_project`, say — does need an API key, since deployment tokens carry no permissions on the platform API. Without one the provider still configures and the provisioning resources still work; only the platform resource fails, with a diagnostic saying an API key is required.
 
 This is by design: a bundle's IaC ships an empty provider block once, and the same HCL runs in every deployment without changes. Deployment-token auth has no HCL knobs — the platform owns those credentials.
 
 ## Authentication
 
-The provider reads credentials from standard `MASSDRIVER_*` environment variables resolved by the [Go SDK](https://github.com/massdriver-cloud/massdriver-sdk-go). Two methods are supported, and they are **not** mutually exclusive — the provider resolves both and each resource uses the one its API surface requires.
+The provider reads credentials from standard `MASSDRIVER_*` environment variables resolved by the [Go SDK](https://github.com/massdriver-cloud/massdriver-sdk-go). Two methods are supported, and they can be used simultaneously.
 
 ### API key auth
 
@@ -92,31 +92,29 @@ Injected automatically by Massdriver into a bundle's IaC at deploy time. You gen
 
 ### Using both at once
 
-The two credentials authenticate two different API surfaces, so setting both is supported and often useful — a bundle deployment that manages platform resources alongside its own `massdriver_resource` outputs needs both.
+The two credentials serve the two resource classes, so setting both is supported and often useful — a bundle deployment that manages platform resources alongside its own outputs needs both.
 
 - **Platform resources** always use the API key (or PAT), from the provider block, `MASSDRIVER_API_KEY`, or the config-file profile — in that order.
-- **`massdriver_resource`** always uses the deployment token from `MASSDRIVER_DEPLOYMENT_ID` + `MASSDRIVER_TOKEN`.
-- **`massdriver_instance_alarm`** uses the API key when there is one, and the deployment token otherwise.
+- **Provisioning resources** use the deployment token from `MASSDRIVER_DEPLOYMENT_ID` + `MASSDRIVER_TOKEN`.
 
 Neither credential is shadowed by the other, and neither is required to configure the provider. Each resource reports its own missing credential when you use it, so a bundle carrying only a deployment token — the usual case — is never blocked by the absence of an API key it doesn't need.
 
 ## Which resources work with which credentials?
 
-| Resource | API key | Deployment token |
+| Class | Resources | Credential |
 | --- | --- | --- |
-| `massdriver_resource` | no | **required** |
-| `massdriver_instance_alarm` | works | works |
-| everything else | **required** | no |
+| Provisioning | `massdriver_resource`, `massdriver_instance_alarm` | deployment token |
+| Platform | everything else | API key |
 
-`massdriver_resource` is backed by a deployment-scoped REST endpoint and fast-fails outside a deployment. `massdriver_instance_alarm` accepts either credential, so a bundle can alarm on itself using only the token the platform injects — pairing the two in a bundle needs no API key at all. When an API key is present it is used for alarms too.
+Provisioning resources run inside a bundle deployment, authenticated by the deployment token the platform injects. A bundle needs no API key to manage its own resources and alarms, and these resources fast-fail outside a deployment.
 
-Every other resource requires an API key: deployment tokens don't carry the server-side permissions those APIs need. Using one without an API key configured fails at plan time with a diagnostic naming the resource, rather than an opaque permission error from the server.
+Platform resources require an API key: deployment tokens don't carry the server-side permissions those APIs need. Using one without an API key configured fails at plan time with a diagnostic naming the resource, rather than an opaque permission error from the server.
 
 <!-- schema generated by tfplugindocs -->
 ## Schema
 
 ### Optional
 
-- `api_key` (String, Sensitive) Massdriver API key — a service account token or a personal access token (`mds_` / `md_` prefix). Overrides `MASSDRIVER_API_KEY`. Required by every resource except `massdriver_resource` and `massdriver_instance_alarm`, which also accept the deployment token (`MASSDRIVER_DEPLOYMENT_ID` + `MASSDRIVER_TOKEN`) the platform injects into a bundle deployment. Setting both is supported — each resource uses the credential it needs, and the API key wins wherever both work. Keep this out of version control; prefer the env var or `TF_VAR_*` for production setups.
+- `api_key` (String, Sensitive) Massdriver API key — a service account token or a personal access token (`mds_` / `md_` prefix). Overrides `MASSDRIVER_API_KEY`. Required by platform resources. Provisioning resources (`massdriver_resource`, `massdriver_instance_alarm`) use the deployment token (`MASSDRIVER_DEPLOYMENT_ID` + `MASSDRIVER_TOKEN`) the platform injects into a bundle deployment. Setting both is supported — each resource uses the credential it needs, and the API key wins wherever both work. Keep this out of version control; prefer the env var or `TF_VAR_*` for production setups.
 - `organization_id` (String) Massdriver organization ID this provider operates against. Overrides `MASSDRIVER_ORGANIZATION_ID`.
 - `url` (String) Massdriver API base URL. Overrides `MASSDRIVER_URL`. Only set when targeting a self-hosted instance.
