@@ -3,7 +3,7 @@ HOSTNAME=registry.terraform.io
 NAMESPACE=massdriver-cloud
 NAME=massdriver
 BINARY=terraform-provider-${NAME}
-VERSION=2.0.0
+VERSION=2.2.0
 OS_ARCHS= darwin_amd64 darwin_arm64 linux_amd64
 
 default: install

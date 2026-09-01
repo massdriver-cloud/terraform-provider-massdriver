@@ -408,8 +408,8 @@ func TestResourceProjectSchema(t *testing.T) {
 		}
 	}
 
-	if attrs := r.Schema["attributes"]; attrs == nil || !attrs.Required {
-		t.Error("attributes should be Required (drift always surfaces)")
+	if attrs := r.Schema["attributes"]; attrs == nil || !attrs.Optional || attrs.Required || attrs.Computed {
+		t.Error("attributes should be Optional and not Computed (omitted means no attributes; drift always surfaces)")
 	}
 
 	if _, present := r.Schema["id"]; present {

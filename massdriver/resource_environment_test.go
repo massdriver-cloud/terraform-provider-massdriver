@@ -336,7 +336,96 @@ func TestResourceEnvironmentSchema(t *testing.T) {
 			t.Errorf("%s should be Optional+Computed", field)
 		}
 	}
-	if attrs := r.Schema["attributes"]; attrs == nil || !attrs.Required {
-		t.Error("attributes should be Required")
+	if attrs := r.Schema["attributes"]; attrs == nil || !attrs.Optional || attrs.Required || attrs.Computed {
+		t.Error("attributes should be Optional and not Computed (omitted means no attributes; drift always surfaces)")
+	}
+	// Not Computed: governance controls must never silently drift, and an
+	// omitted field means false rather than "leave whatever is set".
+	for _, field := range []string{"separation_of_duty", "decommission_protection"} {
+		f := r.Schema[field]
+		if f == nil || !f.Optional || f.Computed || f.Default != false {
+			t.Errorf("%s should be Optional, not Computed, default false; got %+v", field, f)
+		}
+	}
+}
+
+func TestResourceEnvironmentGovernanceFlags(t *testing.T) {
+	resp := &environments.Environment{
+		ID:                     "ecomm-prod",
+		Name:                   "Prod",
+		SeparationOfDuty:       true,
+		DecommissionProtection: true,
+		Project:                &types.Project{ID: "ecomm"},
+	}
+	fake := &fakeEnvironments{createResp: resp, getResp: resp, updateResp: resp}
+	pc := &ProviderClient{Environments: fake}
+
+	rd := schema.TestResourceDataRaw(t, resourceEnvironment().Schema, map[string]any{
+		"identifier":              "prod",
+		"project_id":              "ecomm",
+		"separation_of_duty":      true,
+		"decommission_protection": true,
+	})
+
+	if diags := resourceEnvironmentCreate(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("create diagnostics: %v", diags)
+	}
+	if !fake.createInput.SeparationOfDuty {
+		t.Error("create did not send SeparationOfDuty")
+	}
+	if !fake.createInput.DecommissionProtection {
+		t.Error("create did not send DecommissionProtection")
+	}
+	if !rd.Get("separation_of_duty").(bool) || !rd.Get("decommission_protection").(bool) {
+		t.Error("flags not read back into state")
+	}
+	// Both flags ride along on Create; no follow-up mutation.
+	if fake.updateCalls != 0 {
+		t.Errorf("create issued %d update calls, want 0", fake.updateCalls)
+	}
+
+	if diags := resourceEnvironmentUpdate(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("update diagnostics: %v", diags)
+	}
+	// Pointer field: must be sent explicitly, since nil means "leave unchanged"
+	// and would make the setting impossible to turn back off.
+	if fake.updateInput.SeparationOfDuty == nil {
+		t.Fatal("update sent nil SeparationOfDuty, want an explicit value")
+	}
+	if !*fake.updateInput.SeparationOfDuty {
+		t.Error("update sent SeparationOfDuty=false, want true")
+	}
+	if fake.updateInput.DecommissionProtection == nil || !*fake.updateInput.DecommissionProtection {
+		t.Errorf("update did not send DecommissionProtection; got %v", fake.updateInput.DecommissionProtection)
+	}
+}
+
+// Omitted in config means off, and the update must say so explicitly rather
+// than leaving a server-side enable in place.
+func TestResourceEnvironmentGovernanceFlagsDefaultOff(t *testing.T) {
+	resp := &environments.Environment{ID: "ecomm-prod", Name: "Prod", Project: &types.Project{ID: "ecomm"}}
+	fake := &fakeEnvironments{createResp: resp, getResp: resp, updateResp: resp}
+	pc := &ProviderClient{Environments: fake}
+
+	rd := schema.TestResourceDataRaw(t, resourceEnvironment().Schema, map[string]any{
+		"identifier": "prod",
+		"project_id": "ecomm",
+	})
+
+	if diags := resourceEnvironmentCreate(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("create diagnostics: %v", diags)
+	}
+	if fake.createInput.SeparationOfDuty || fake.createInput.DecommissionProtection {
+		t.Errorf("create sent a governance flag as true for omitted fields; got %+v", fake.createInput)
+	}
+
+	if diags := resourceEnvironmentUpdate(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("update diagnostics: %v", diags)
+	}
+	if fake.updateInput.SeparationOfDuty == nil || *fake.updateInput.SeparationOfDuty {
+		t.Errorf("update should send an explicit false; got %v", fake.updateInput.SeparationOfDuty)
+	}
+	if fake.updateInput.DecommissionProtection == nil || *fake.updateInput.DecommissionProtection {
+		t.Errorf("update should send an explicit false; got %v", fake.updateInput.DecommissionProtection)
 	}
 }

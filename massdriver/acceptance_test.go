@@ -35,7 +35,7 @@ func testAccPreCheck(t *testing.T) {
 // testAccAPIClient builds a client from the same env credentials the provider
 // under test uses, for out-of-band assertions (e.g. CheckDestroy).
 func testAccAPIClient() (*ProviderClient, error) {
-	return NewProviderClient()
+	return NewProviderClient(ProviderConfig{})
 }
 
 // captureID stores the named resource's current ID in *dst, for comparing

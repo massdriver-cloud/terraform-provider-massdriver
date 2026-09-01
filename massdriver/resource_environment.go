@@ -55,6 +55,18 @@ func resourceEnvironment() *schema.Resource {
 				Optional:    true,
 				Computed:    true,
 			},
+			"separation_of_duty": {
+				Description: "When true, a deployment proposed in this environment must be approved by someone other than the proposer. Omitting this means `false`, not \"leave whatever is set\" — an out-of-band change is reverted on the next apply.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     false,
+			},
+			"decommission_protection": {
+				Description: "When true, the environment and its instances can't be decommissioned. Omitting this means `false`, not \"leave whatever is set\" — an out-of-band change is reverted on the next apply. Note that enabling this will make `terraform destroy` fail until it is turned off.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     false,
+			},
 			"attributes": attributesSchema("environment"),
 		},
 	}
@@ -70,10 +82,12 @@ func resourceEnvironmentCreate(ctx context.Context, d *schema.ResourceData, meta
 	}
 
 	env, err := pc.Environments.Create(ctx, d.Get("project_id").(string), environments.CreateInput{
-		ID:          identifier,
-		Name:        name,
-		Description: d.Get("description").(string),
-		Attributes:  attributesFromConfig(d.Get("attributes")),
+		ID:                     identifier,
+		Name:                   name,
+		Description:            d.Get("description").(string),
+		Attributes:             attributesFromConfig(d.Get("attributes")),
+		SeparationOfDuty:       d.Get("separation_of_duty").(bool),
+		DecommissionProtection: d.Get("decommission_protection").(bool),
 	})
 	if err != nil {
 		return diag.FromErr(err)
@@ -97,6 +111,8 @@ func resourceEnvironmentRead(ctx context.Context, d *schema.ResourceData, meta a
 
 	d.Set("name", env.Name)
 	d.Set("description", env.Description)
+	d.Set("separation_of_duty", env.SeparationOfDuty)
+	d.Set("decommission_protection", env.DecommissionProtection)
 	d.Set("attributes", attributesToState(env.Attributes))
 
 	projectID := ""
@@ -116,9 +132,11 @@ func resourceEnvironmentUpdate(ctx context.Context, d *schema.ResourceData, meta
 	pc := meta.(*ProviderClient)
 
 	if _, err := pc.Environments.Update(ctx, d.Id(), environments.UpdateInput{
-		Name:        types.Ptr(d.Get("name").(string)),
-		Description: types.Ptr(d.Get("description").(string)),
-		Attributes:  attributesFromConfig(d.Get("attributes")),
+		Name:                   types.Ptr(d.Get("name").(string)),
+		Description:            types.Ptr(d.Get("description").(string)),
+		Attributes:             attributesFromConfig(d.Get("attributes")),
+		SeparationOfDuty:       types.Ptr(d.Get("separation_of_duty").(bool)),
+		DecommissionProtection: types.Ptr(d.Get("decommission_protection").(bool)),
 	}); err != nil {
 		return diag.FromErr(err)
 	}

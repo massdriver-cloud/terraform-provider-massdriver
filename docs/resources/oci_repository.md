@@ -36,8 +36,11 @@ resource "massdriver_oci_repository" "aws_rds_cluster" {
 ### Required
 
 - `artifact_type` (String) OCI artifact type this repository holds (e.g., `BUNDLE`). Immutable — repositories cannot be retyped. The server is the source of truth for valid values; new types added platform-side become usable here immediately. Plan-time validation is intentionally not performed against a client-side allowlist so the provider doesn't lag behind the platform.
-- `attributes` (Map of String) Key-value attributes assigned to this OCI repository. Used by the platform to compute permissions and policy. Required keys are configured per-organization in the Massdriver console — missing or unknown keys surface as API errors at apply time. Drift is always surfaced; console edits are reverted on the next apply.
 - `name` (String) Unique repository name within your organization (e.g., `aws-aurora-postgres`). Lowercase letters, numbers, dashes, and underscores only. Max 53 characters. Immutable.
+
+### Optional
+
+- `attributes` (Map of String) Key-value attributes assigned to this OCI repository. Used by the platform to compute permissions and policy. Omit it (or set `{}`) for no attributes. Required keys are configured per-organization in the Massdriver console — missing or unknown keys surface as API errors at apply time. Drift is always surfaced; console edits are reverted on the next apply.
 
 ### Read-Only
 

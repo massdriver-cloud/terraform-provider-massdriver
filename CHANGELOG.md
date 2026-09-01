@@ -1,5 +1,122 @@
 # Changelog
 
+## 2.2.0
+
+API key and deployment token auth now work side by side. Each API surface
+authenticates with the credential it requires, instead of a deployment token
+in the environment shadowing an API key.
+
+### Upgrade notes
+
+- **`decommission_protection` is sent on every apply, so an environment
+  protected out of band will be unprotected.** If someone enabled
+  decommission protection in the console and the environment's terraform
+  config doesn't set `decommission_protection = true`, the next apply turns
+  it off — the field defaults to `false` and omitting it means `false`, not
+  "leave whatever is set". Before upgrading, add
+  `decommission_protection = true` to any environment that should keep it.
+  `separation_of_duty` behaves the same way.
+
+### Fixed
+
+- **An API key is no longer ignored when a deployment token is present.**
+  Each resource authenticates with the credential its class requires:
+  platform resources take an API key or PAT, and provisioning resources
+  (`massdriver_resource`, `massdriver_instance_alarm`) take the
+  `MASSDRIVER_DEPLOYMENT_ID` + `MASSDRIVER_TOKEN` pair the platform injects
+  into a bundle deployment. Previously the SDK's resolver preferred the
+  deployment token whenever both were set — even when the API key was set
+  explicitly in the provider block — so platform resources failed with
+  permission errors inside a bundle deployment with no way to opt out.
+- **Using a platform resource without an API key now says so.** It fails
+  at plan time with a diagnostic naming the resource and how to supply
+  credentials, instead of attempting the call with a deployment token and
+  returning a server-side permission error. Neither credential is required
+  to configure the provider, so a bundle carrying only a deployment token —
+  the usual case — is unaffected: provisioning resources work with no API
+  key present.
+- **`url` set in the provider block now reaches `massdriver_resource`.** It
+  was previously read from `MASSDRIVER_URL` only for that resource.
+  `organization_id` still comes from the environment there.
+
+### Added
+
+- **`separation_of_duty` and `decommission_protection` on
+  `massdriver_environment`.** `separation_of_duty` requires a deployment
+  proposal to be approved by someone other than the proposer;
+  `decommission_protection` blocks decommissioning the environment and its
+  instances. Both are optional and default to `false`. Neither is
+  `Computed`: like `attributes`, omitting one means `false` rather than
+  "leave whatever is set", so an out-of-band change in the console is
+  reverted on the next apply. Note that turning on
+  `decommission_protection` makes `terraform destroy` fail until it is
+  turned back off.
+
+### Changed
+
+- **`attributes` is now optional** on `massdriver_project`,
+  `massdriver_environment`, `massdriver_component`, and
+  `massdriver_oci_repository`. Omitting it means "no attributes", exactly
+  as `attributes = {}` did. Drift behavior is unchanged — attributes drive
+  permissions, so console edits are still reverted on the next apply, and
+  that now includes attributes added out of band to a resource whose
+  config omits the field.
+
+### Removed
+
+- **Unprefixed environment variables are no longer honored.** Via the SDK
+  bump, bare `API_KEY`, `TOKEN`, `URL`, `ORG_ID`, `ORGANIZATION_ID`,
+  `PROFILE`, `DEPLOYMENT_ID`, and the `BUNDLE_*` / `INSTANCE_ID` /
+  `STEP_PATH` names are ignored; only the `MASSDRIVER_`-prefixed forms are
+  read. They were silently accepted as fallbacks before, so a generic
+  `TOKEN` or `URL` in the environment could configure the provider by
+  accident. If any pipeline relied on the unprefixed names, add the prefix.
+
+### Internal
+
+- Massdriver Go SDK bumped to v0.3.2, which makes deployment-token auth
+  opt-in per client (`massdriver.WithDeploymentTokenAuth`) rather than an
+  ambient default. The provider relies on that selection instead of
+  resolving credentials itself.
+
+## 2.1.1
+
+`massdriver_resource` now treats the bundle's `massdriver.yaml` as the
+single source of truth for a resource's type, resolved at plan time. This
+adds support for versioned resource types: bumping a resource's version in
+`massdriver.yaml` — with no other config change — now plans a replacement.
+Previously a type change in the yaml was silently ignored until some other
+attribute happened to change.
+
+### Changed
+
+- **`resource_type` is resolved at plan time** from
+  `resources.<field>.resource_type` in `massdriver.yaml`, falling back to
+  the legacy `artifacts.properties.<field>.$ref`. The value stored in
+  state no longer takes precedence, so type changes in the yaml always
+  surface in the plan. Because `resource_type` forces replacement, a
+  version bump destroys and recreates the resource.
+- **Resource types are canonically bare.** Org qualifiers
+  (`<org>/aws-vpc`) are stripped from yaml values and from API responses;
+  versions are preserved (`aws-vpc@2.0.0`). This also fixes a perpetual
+  replacement diff caused by the API echoing org-qualified types back
+  into state.
+
+### Removed
+
+- **`schema_path`** and the client-side JSON Schema validation of
+  `resource` against `schema-artifacts.json`. Validation is handled
+  server-side. The attribute was defaulted-only (never user-set) and its
+  removal is state-safe — existing states are upgraded automatically. If
+  you referenced `massdriver_resource.*.schema_path` in an expression,
+  remove the reference.
+
+### Internal
+
+- Massdriver Go SDK bumped to v0.2.19; project, environment, and component
+  updates migrated to its new partial-update (pointer-field) inputs. No
+  user-facing change.
+
 ## 2.0.0
 
 v2.0.0 is the **platform-management release**. The provider now manages

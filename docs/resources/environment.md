@@ -35,14 +35,16 @@ resource "massdriver_environment" "prod" {
 
 ### Required
 
-- `attributes` (Map of String) Key-value attributes assigned to this environment. Used by the platform to compute permissions and policy. Required keys are configured per-organization in the Massdriver console — missing or unknown keys surface as API errors at apply time. Drift is always surfaced; console edits are reverted on the next apply.
 - `identifier` (String) Short, immutable identifier for this environment. Composed with parent identifiers to form the platform ID. Max 20 characters, lowercase alphanumeric (a-z, 0-9).
 - `project_id` (String) ID of the project this environment belongs to.
 
 ### Optional
 
+- `attributes` (Map of String) Key-value attributes assigned to this environment. Used by the platform to compute permissions and policy. Omit it (or set `{}`) for no attributes. Required keys are configured per-organization in the Massdriver console — missing or unknown keys surface as API errors at apply time. Drift is always surfaced; console edits are reverted on the next apply.
+- `decommission_protection` (Boolean) When true, the environment and its instances can't be decommissioned. Omitting this means `false`, not "leave whatever is set" — an out-of-band change is reverted on the next apply. Note that enabling this will make `terraform destroy` fail until it is turned off.
 - `description` (String) Optional description of the environment's purpose. When unset, drift on this field (e.g., a console edit) is ignored.
 - `name` (String) Human-readable name for the environment. Defaults to `identifier` if unset. When unset, drift on this field (e.g., a console edit) is ignored.
+- `separation_of_duty` (Boolean) When true, a deployment proposed in this environment must be approved by someone other than the proposer. Omitting this means `false`, not "leave whatever is set" — an out-of-band change is reverted on the next apply.
 
 ### Read-Only
 
