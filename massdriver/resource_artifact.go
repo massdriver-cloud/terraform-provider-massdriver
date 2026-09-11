@@ -24,10 +24,31 @@ type ArtifactSchema struct {
 	Properties map[string]interface{} `json:"properties"`
 }
 
+// BundleSpecification is the relevant slice of massdriver.yaml. The artifact
+// type comes from `resources.<field>.resource_type`, falling back to the
+// legacy `artifacts.properties.<field>.$ref`.
 type BundleSpecification struct {
-	Artifacts ArtifactSpecification `yaml:"artifacts"`
+	Resources map[string]ResourceSpecification `yaml:"resources"`
+	Artifacts ArtifactSpecification            `yaml:"artifacts"`
 }
 
+// ResourceSpecification is an entry in the modern `resources` map:
+//
+//	resources:
+//	  my_field:
+//	    resource_type: my-org/my-type
+//	    required: true
+type ResourceSpecification struct {
+	ResourceType string `json:"resource_type" yaml:"resource_type"`
+	Required     bool   `json:"required" yaml:"required"`
+}
+
+// ArtifactSpecification is the legacy `artifacts` block:
+//
+//	artifacts:
+//	  properties:
+//	    my_field:
+//	      $ref: my-type
 type ArtifactSpecification struct {
 	Properties map[string]map[string]string `json:"properties" yaml:"properties"`
 }
@@ -50,7 +71,7 @@ func resourceArtifact() *schema.Resource {
 				Sensitive:   true,
 			},
 			"field": {
-				Description: "The name of this artifact. Must match the name given to this artifact in the massdriver.yaml file.",
+				Description: "The name of this artifact. Must match the field name given to it in the massdriver.yaml file — either a key under `resources` or, in the legacy layout, under `artifacts.properties`.",
 				Type:        schema.TypeString,
 				Required:    true,
 			},
@@ -81,7 +102,7 @@ func resourceArtifact() *schema.Resource {
 			},
 			// need this for now to lookup what "type" the artifact is from the spec
 			"specification_path": {
-				Description: "The path to the massdriver.yaml file in order to lookup the schema type used for this artifact. This value should only ever be changed when doing local provider testing.",
+				Description: "The path to the massdriver.yaml file in order to lookup the type used for this artifact. Reads `resources.<field>.resource_type`, falling back to the legacy `artifacts.properties.<field>.$ref`. This value should only ever be changed when doing local provider testing.",
 				Type:        schema.TypeString,
 				Optional:    true,
 				Default:     DEFAULT_SPECIFICATION_PATH,
@@ -249,14 +270,9 @@ func getArtifactType(d *schema.ResourceData, mdClient *client.Client) (string, e
 		return "", err
 	}
 
-	artifactSpec, exists := bundleSpec.Artifacts.Properties[field]
-	if !exists {
-		return "", errors.New(`artifact validation failed: field "` + field + `" does not exist in specification`)
-	}
-
-	artifactType, exists := artifactSpec["$ref"]
-	if !exists {
-		return "", errors.New(`artifact validation failed: field "` + field + `" does not contain a $ref`)
+	artifactType, err := lookupArtifactType(bundleSpec, field)
+	if err != nil {
+		return "", err
 	}
 
 	split := strings.Split(artifactType, "/")
@@ -265,6 +281,28 @@ func getArtifactType(d *schema.ResourceData, mdClient *client.Client) (string, e
 	}
 
 	return artifactType, nil
+}
+
+// lookupArtifactType resolves a field's type from massdriver.yaml, preferring
+// the modern `resources` block and falling back to the legacy `artifacts`
+// block so bundles written against either layout keep working.
+func lookupArtifactType(bundleSpec BundleSpecification, field string) (string, error) {
+	if resourceSpec, exists := bundleSpec.Resources[field]; exists {
+		if resourceSpec.ResourceType == "" {
+			return "", errors.New(`artifact validation failed: field "` + field + `" has an empty resource_type`)
+		}
+		return resourceSpec.ResourceType, nil
+	}
+
+	if artifactSpec, exists := bundleSpec.Artifacts.Properties[field]; exists {
+		artifactType, hasRef := artifactSpec["$ref"]
+		if !hasRef || artifactType == "" {
+			return "", errors.New(`artifact validation failed: field "` + field + `" does not contain a $ref`)
+		}
+		return artifactType, nil
+	}
+
+	return "", errors.New(`artifact validation failed: field "` + field + `" does not exist in specification`)
 }
 
 func generateArtifact(d *schema.ResourceData, mdClient *client.Client) (*artifacts.Artifact, error) {

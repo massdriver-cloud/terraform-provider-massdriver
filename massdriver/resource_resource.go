@@ -28,9 +28,27 @@ type resourceArtifactSchema struct {
 	Properties map[string]any `json:"properties"`
 }
 
+// resourcesBlock is an entry in the modern `resources` map of massdriver.yaml:
+//
+//	resources:
+//	  my_field:
+//	    resource_type: my-org/my-type
+//	    required: true
+type resourcesBlock struct {
+	ResourceType string `yaml:"resource_type"`
+	Required     bool   `yaml:"required"`
+}
+
 // resourceBundleSpec is the shape of the relevant slice of massdriver.yaml.
-// We only look at `artifacts.<field>.$ref` to derive the resource type.
+// The resource type comes from `resources.<field>.resource_type`, falling back
+// to the legacy `artifacts.properties.<field>.$ref`:
+//
+//	artifacts:
+//	  properties:
+//	    my_field:
+//	      $ref: my-type
 type resourceBundleSpec struct {
+	Resources map[string]resourcesBlock `yaml:"resources"`
 	Artifacts struct {
 		Properties map[string]map[string]string `yaml:"properties"`
 	} `yaml:"artifacts"`
@@ -47,7 +65,7 @@ func resourceResource() *schema.Resource {
 
 		Schema: map[string]*schema.Schema{
 			"field": {
-				Description: "The resource's `field` name as declared under `resources.properties` (formerly `artifacts.properties`) in the bundle's `massdriver.yaml`. Immutable.",
+				Description: "The resource's `field` name as declared in the bundle's `massdriver.yaml` — either as a key under `resources` or, in the legacy layout, under `artifacts.properties`. Immutable.",
 				Type:        schema.TypeString,
 				Required:    true,
 				ForceNew:    true,
@@ -76,7 +94,7 @@ func resourceResource() *schema.Resource {
 				Default:     defaultResourceSchemaPath,
 			},
 			"specification_path": {
-				Description: "Path to `massdriver.yaml`, used to look up the resource type from `$ref` when `resource_type` is unset. Defaults to `../massdriver.yaml`. Override only for local provider testing.",
+				Description: "Path to `massdriver.yaml`, used to look up the resource type when `resource_type` is unset. Reads `resources.<field>.resource_type`, falling back to the legacy `artifacts.properties.<field>.$ref`. Defaults to `../massdriver.yaml`. Override only for local provider testing.",
 				Type:        schema.TypeString,
 				Optional:    true,
 				Default:     defaultResourceSpecificationPath,
@@ -258,9 +276,10 @@ func validateResourceJSON(field, resourceJSON, schemaPath string) error {
 //
 // If `resource_type` is set in state (either explicitly by the user or
 // computed from a previous apply) we use it verbatim. Otherwise — only on
-// the first apply, before the field has been computed — we fall back to
-// reading `artifacts.<field>.$ref` from massdriver.yaml. Bare type IDs (no
-// slash) are prefixed with the org ID, matching the legacy artifact behavior.
+// the first apply, before the field has been computed — we read it from
+// massdriver.yaml: `resources.<field>.resource_type` first, falling back to
+// the legacy `artifacts.properties.<field>.$ref`. Bare type IDs (no slash)
+// are prefixed with the org ID, matching the legacy artifact behavior.
 func resolveResourceType(d *schema.ResourceData, mdClient *client.Client) (string, error) {
 	if existing := d.Get("resource_type").(string); existing != "" {
 		return prefixOrgIfNeeded(existing, mdClient.Config.OrganizationID), nil
@@ -282,17 +301,24 @@ func resolveResourceType(d *schema.ResourceData, mdClient *client.Client) (strin
 		return "", fmt.Errorf("invalid YAML in %s: %w", specPath, err)
 	}
 
-	artifactSpec, exists := spec.Artifacts.Properties[field]
-	if !exists {
-		return "", fmt.Errorf(`field %q does not exist in %s`, field, specPath)
+	// Modern `resources` block takes precedence.
+	if resourceSpec, exists := spec.Resources[field]; exists {
+		if resourceSpec.ResourceType == "" {
+			return "", fmt.Errorf(`field %q in %s has empty resource_type`, field, specPath)
+		}
+		return prefixOrgIfNeeded(resourceSpec.ResourceType, mdClient.Config.OrganizationID), nil
 	}
 
-	ref, exists := artifactSpec["$ref"]
-	if !exists {
-		return "", fmt.Errorf(`field %q in %s has no $ref`, field, specPath)
+	// Legacy `artifacts.properties` block.
+	if artifactSpec, exists := spec.Artifacts.Properties[field]; exists {
+		ref, hasRef := artifactSpec["$ref"]
+		if !hasRef || ref == "" {
+			return "", fmt.Errorf(`field %q in %s has no $ref`, field, specPath)
+		}
+		return prefixOrgIfNeeded(ref, mdClient.Config.OrganizationID), nil
 	}
 
-	return prefixOrgIfNeeded(ref, mdClient.Config.OrganizationID), nil
+	return "", fmt.Errorf(`field %q not found in "resources" or "artifacts" of %s`, field, specPath)
 }
 
 // prefixOrgIfNeeded matches the legacy artifact behavior: a bare type ID like

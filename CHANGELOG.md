@@ -6,15 +6,50 @@ A **compatibility release for v1 users**, backported onto the v1.4 line after
 v2.2.0. It contains no new features and no breaking changes — upgrade within
 v1 is safe and requires no bundle changes.
 
-The Massdriver CLI no longer emits `schema-artifacts.json`. Every v1 provider
-(v1.0.0 through v1.4.0) read that file from disk and hard-failed the apply when
-it was missing, so a bundle built with a current CLI and pinned to a v1
-provider would break on deploy and have to be republished. This release removes
-that failure mode, so v1 bundles keep deploying without a migration to v2.
+It does two things, both aimed at keeping v1 bundles deploying against a
+current Massdriver CLI:
+
+- The CLI no longer emits `schema-artifacts.json`. Every v1 provider (v1.0.0
+  through v1.4.0) read that file from disk and hard-failed the apply when it
+  was missing, so a bundle built with a current CLI but pinned to a v1 provider
+  would break on deploy and have to be republished. That failure mode is gone.
+- `massdriver.yaml`'s modern `resources` block is now understood, alongside the
+  legacy `artifacts` block, so a bundle can adopt the new spec format without
+  first migrating to the v2 provider.
 
 If your bundle's `required_providers` uses a constraint that allows 1.4.1
 (`~> 1.0`, `~> 1.4`, or no constraint), a `terraform init` picks this up with
 no config change. v2.2.0 remains the latest release; this does not displace it.
+
+### Added
+
+- **Support for the modern `resources` block in `massdriver.yaml`.** The type
+  for a field is now read from `resources.<field>.resource_type`, falling back
+  to the legacy `artifacts.properties.<field>.$ref` when the field isn't in
+  `resources`. Both `massdriver_artifact` and `massdriver_resource` accept
+  either layout, so a bundle can move to the new spec format without leaving
+  the v1 provider:
+
+  ```yaml
+  # modern
+  resources:
+    your_first_artifact:
+      resource_type: your-org/getting-started-resource
+      required: true
+
+  # legacy — still fully supported
+  artifacts:
+    required:
+      - your_first_artifact
+    properties:
+      your_first_artifact:
+        $ref: getting-started-resource
+  ```
+
+  When a field appears in both blocks, `resources` wins. As before, a bare type
+  ID is prefixed with your org ID and an already-qualified `org/type` is passed
+  through unchanged — v1 sends org-qualified types on the wire, which is
+  unchanged by this release.
 
 ### Fixed
 

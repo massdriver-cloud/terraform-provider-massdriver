@@ -54,14 +54,14 @@ resource "massdriver_resource" "vpc" {
 
 ### Required
 
-- `field` (String) The resource's `field` name as declared under `resources.properties` (formerly `artifacts.properties`) in the bundle's `massdriver.yaml`. Immutable.
+- `field` (String) The resource's `field` name as declared in the bundle's `massdriver.yaml` — either as a key under `resources` or, in the legacy layout, under `artifacts.properties`. Immutable.
 - `name` (String) Human-readable name for the resource.
 - `resource` (String, Sensitive) JSON-encoded resource data. Validated locally against `schema-artifacts.json` when that file is present at `schema_path`; otherwise validated server-side.
 
 ### Optional
 
 - `schema_path` (String) Path to the `schema-artifacts.json` JSON Schema file used for client-side validation. Defaults to `../schema-artifacts.json`. The Massdriver CLI no longer emits this file; when it is absent, client-side validation is skipped and the resource is validated server-side instead. Override only for local provider testing.
-- `specification_path` (String) Path to `massdriver.yaml`, used to look up the resource type from `$ref` when `resource_type` is unset. Defaults to `../massdriver.yaml`. Override only for local provider testing.
+- `specification_path` (String) Path to `massdriver.yaml`, used to look up the resource type when `resource_type` is unset. Reads `resources.<field>.resource_type`, falling back to the legacy `artifacts.properties.<field>.$ref`. Defaults to `../massdriver.yaml`. Override only for local provider testing.
 
 ### Read-Only
 
