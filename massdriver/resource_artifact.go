@@ -74,7 +74,7 @@ func resourceArtifact() *schema.Resource {
 				Deprecated:  "This field is deprecated and will be removed in a future version.",
 			},
 			"schema_path": {
-				Description: "The path to the schema-artifacts.json file in order to perform JSON Schema validation on the artifact before sending to Massdriver. This value should only ever be changed when doing local provider testing.",
+				Description: "The path to the schema-artifacts.json file used for client-side JSON Schema validation of the artifact. The Massdriver CLI no longer emits this file; when it is absent, client-side validation is skipped and the artifact is validated server-side instead. Retained for backwards compatibility — this value should only ever be changed when doing local provider testing.",
 				Type:        schema.TypeString,
 				Optional:    true,
 				Default:     DEFAULT_ARTIFACT_SCHEMA_PATH,
@@ -176,6 +176,13 @@ func getID(d *schema.ResourceData) string {
 	return artifactID
 }
 
+// validateArtifact validates the artifact against the JSON Schema for this
+// field in schema-artifacts.json, when that schema is available.
+//
+// The Massdriver CLI no longer emits schema-artifacts.json, and artifacts are
+// validated server-side, so an unavailable schema is not an error: we skip
+// client-side validation and let the API be the authority. Only a schema we
+// can actually load and resolve for this field is enforced.
 func validateArtifact(d *schema.ResourceData) error {
 	artifact := d.Get("artifact").(string)
 	field := d.Get("field").(string)
@@ -186,23 +193,30 @@ func validateArtifact(d *schema.ResourceData) error {
 
 	schemaBytes, err := os.ReadFile(schemaPath)
 	if err != nil {
-		return errors.New(`Unable to open schema file: ` + schemaPath)
+		// No schema file (the common case since the CLI stopped emitting it).
+		return nil
 	}
 
 	// the schema-artifacts file has schemas for all of the artifacts in it (there can be more than one artifact).
 	// We unmarshal all the schemas and pull out just the schema for this artifact to perform validation
 	var schemaObj ArtifactSchema
-	err = json.Unmarshal(schemaBytes, &schemaObj)
-	if err != nil {
-		return err
+	if err := json.Unmarshal(schemaBytes, &schemaObj); err != nil {
+		// Unreadable schema file; fall back to server-side validation.
+		return nil
 	}
 	specificSchema, exists := schemaObj.Properties[field]
 	if !exists {
-		return errors.New(`artifact validation failed: field "` + field + `" does not exist in schema`)
+		// No schema for this field; fall back to server-side validation.
+		return nil
+	}
+	schemaMap, ok := specificSchema.(map[string]interface{})
+	if !ok {
+		// Not an object schema (e.g. a boolean); nothing we can enforce here.
+		return nil
 	}
 
 	// Validate
-	sl := gojsonschema.NewGoLoader(specificSchema.(map[string]interface{}))
+	sl := gojsonschema.NewGoLoader(schemaMap)
 	dl := gojsonschema.NewStringLoader(artifact)
 
 	result, err := gojsonschema.Validate(sl, dl)

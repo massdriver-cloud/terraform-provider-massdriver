@@ -1,5 +1,45 @@
 # Changelog
 
+## 1.4.1
+
+A **compatibility release for v1 users**, backported onto the v1.4 line after
+v2.2.0. It contains no new features and no breaking changes — upgrade within
+v1 is safe and requires no bundle changes.
+
+The Massdriver CLI no longer emits `schema-artifacts.json`. Every v1 provider
+(v1.0.0 through v1.4.0) read that file from disk and hard-failed the apply when
+it was missing, so a bundle built with a current CLI and pinned to a v1
+provider would break on deploy and have to be republished. This release removes
+that failure mode, so v1 bundles keep deploying without a migration to v2.
+
+If your bundle's `required_providers` uses a constraint that allows 1.4.1
+(`~> 1.0`, `~> 1.4`, or no constraint), a `terraform init` picks this up with
+no config change. v2.2.0 remains the latest release; this does not displace it.
+
+### Fixed
+
+- **A missing or unusable `schema-artifacts.json` no longer fails the apply.**
+  Client-side JSON Schema validation is now skipped — and validation left to
+  the server, which has been the authority since v2 — when the schema file is
+  absent, unparseable, or has no schema for the resource's `field`. Affects
+  `massdriver_artifact` (on both create and update) and `massdriver_resource`.
+  A schema that *is* present and resolvable is still enforced exactly as
+  before.
+
+- **A non-object schema no longer panics the provider.** A `field` whose schema
+  was a JSON boolean (`{"properties": {"vpc": true}}` — legal JSON Schema) hit
+  an unchecked type assertion and crashed with
+  `interface conversion: interface {} is bool, not map[string]interface{}`.
+  It is now handled as an unenforceable schema and skipped.
+
+### Notes
+
+- `schema_path` is unchanged and still accepted, so no existing configuration
+  or state needs to be touched. It is now a no-op when the file it points at
+  is absent.
+- `massdriver.yaml` is still required — it is read to resolve the resource type
+  and is unaffected by this change.
+
 ## 1.3.0
 
 v1.3.0 is a **bridge release**. The two new resources (`massdriver_resource`,

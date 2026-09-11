@@ -218,8 +218,9 @@ func TestResourceResourceCreateRejectsInvalidPayloadAgainstSchema(t *testing.T) 
 	}
 }
 
-// A field that exists in massdriver.yaml but not in schema-artifacts.json
-// surfaces a clear error rather than silently skipping validation.
+// A field the bundle doesn't declare at all surfaces a clear error naming the
+// field. Since the schema-artifacts.json lookup now skips rather than errors,
+// this error comes from the massdriver.yaml type lookup.
 func TestResourceResourceCreateRejectsUnknownField(t *testing.T) {
 	pc, _ := newRESTMockProvider(t, func(w http.ResponseWriter, r *http.Request) {})
 	// schema only declares "vpc", but the user's resource references "database".
@@ -414,5 +415,121 @@ func TestResourceResourceSchema(t *testing.T) {
 	}
 	if sp := r.Schema["specification_path"]; sp.Default != defaultResourceSpecificationPath {
 		t.Errorf("got specification_path default %v, want %s", sp.Default, defaultResourceSpecificationPath)
+	}
+}
+
+// The Massdriver CLI no longer emits schema-artifacts.json. A deploy whose
+// bundle predates that change must still apply: an unavailable schema skips
+// client-side validation and lets the API be the authority, rather than
+// failing the apply and forcing a bundle republish.
+func TestValidateResourceJSONSkipsWhenSchemaUnavailable(t *testing.T) {
+	dir := t.TempDir()
+
+	writeSchema := func(t *testing.T, body string) string {
+		t.Helper()
+		p := filepath.Join(dir, strings.ReplaceAll(t.Name(), "/", "_")+".json")
+		if err := os.WriteFile(p, []byte(body), 0644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+
+	tests := []struct {
+		name       string
+		schemaPath func(t *testing.T) string
+	}{
+		{
+			name: "file does not exist",
+			schemaPath: func(t *testing.T) string {
+				return filepath.Join(dir, "definitely-not-here.json")
+			},
+		},
+		{
+			name: "file is not valid JSON",
+			schemaPath: func(t *testing.T) string {
+				return writeSchema(t, "not json at all")
+			},
+		},
+		{
+			name: "field has no schema",
+			schemaPath: func(t *testing.T) string {
+				return writeSchema(t, `{"properties":{"other":{"type":"object"}}}`)
+			},
+		},
+		{
+			name: "field schema is a boolean, not an object",
+			schemaPath: func(t *testing.T) string {
+				return writeSchema(t, `{"properties":{"vpc":true}}`)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// A payload that would fail any real schema for this field.
+			err := validateResourceJSON("vpc", `{"totally":"unvalidated"}`, tt.schemaPath(t))
+			if err != nil {
+				t.Errorf("expected validation to be skipped, got error: %v", err)
+			}
+		})
+	}
+}
+
+// An apply must succeed end-to-end when schema-artifacts.json is absent,
+// reaching the API instead of failing client-side.
+func TestResourceResourceCreateSucceedsWithoutSchemaFile(t *testing.T) {
+	pc, reqs := newRESTMockProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":      "res-1",
+			"field":   "vpc",
+			"name":    "My VPC",
+			"type":    testOrgID + "/aws-vpc",
+			"payload": map[string]any{"arn": "arn:aws:ec2:us-east-1:111:vpc/vpc-abc"},
+		})
+	})
+	specPath, schemaPath := writeBundleFiles(t, "vpc", "aws-vpc", objectSchema())
+	// Simulate a CLI that no longer emits the schema file.
+	if err := os.Remove(schemaPath); err != nil {
+		t.Fatal(err)
+	}
+
+	rd := schema.TestResourceDataRaw(t, resourceResource().Schema, map[string]any{
+		"field":              "vpc",
+		"name":               "My VPC",
+		"resource":           `{"arn":"arn:aws:ec2:us-east-1:111:vpc/vpc-abc"}`,
+		"specification_path": specPath,
+		"schema_path":        schemaPath,
+	})
+
+	diags := resourceResourceCreate(t.Context(), rd, pc)
+	if diags.HasError() {
+		t.Fatalf("expected create to succeed without a schema file, got: %v", diags)
+	}
+	// Two HTTP calls: POST (create) then GET (post-create read).
+	if len(*reqs) != 2 {
+		t.Fatalf("got %d HTTP requests, want 2 (POST + GET)", len(*reqs))
+	}
+	if post := (*reqs)[0]; post.Method != http.MethodPost || post.Path != "/v1/resources" {
+		t.Errorf("got %s %s, want POST /v1/resources", post.Method, post.Path)
+	}
+	if rd.Id() != "res-1" {
+		t.Errorf("got id %q, want res-1", rd.Id())
+	}
+}
+
+// A schema that IS present and resolvable is still enforced — the skip is a
+// fallback for an unavailable schema, not a removal of validation.
+func TestValidateResourceJSONStillEnforcesAvailableSchema(t *testing.T) {
+	fieldSchema := map[string]any{
+		"type":     "object",
+		"required": []any{"arn"},
+		"properties": map[string]any{
+			"arn": map[string]any{"type": "string"},
+		},
+	}
+	_, schemaPath := writeBundleFiles(t, "vpc", "aws-vpc", fieldSchema)
+
+	if err := validateResourceJSON("vpc", `{"not_arn":"oops"}`, schemaPath); err == nil {
+		t.Fatal("expected validation error when the schema is available and the payload violates it")
 	}
 }

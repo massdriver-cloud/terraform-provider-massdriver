@@ -64,13 +64,13 @@ func resourceResource() *schema.Resource {
 				ForceNew:    true,
 			},
 			"resource": {
-				Description: "JSON-encoded resource data. Validated locally against `schema-artifacts.json` (when present at `schema_path`) before being sent.",
+				Description: "JSON-encoded resource data. Validated locally against `schema-artifacts.json` when that file is present at `schema_path`; otherwise validated server-side.",
 				Type:        schema.TypeString,
 				Required:    true,
 				Sensitive:   true,
 			},
 			"schema_path": {
-				Description: "Path to the `schema-artifacts.json` JSON Schema file used for client-side validation. Defaults to `../schema-artifacts.json` (the location bundle scaffolding produces). Override only for local provider testing.",
+				Description: "Path to the `schema-artifacts.json` JSON Schema file used for client-side validation. Defaults to `../schema-artifacts.json`. The Massdriver CLI no longer emits this file; when it is absent, client-side validation is skipped and the resource is validated server-side instead. Override only for local provider testing.",
 				Type:        schema.TypeString,
 				Optional:    true,
 				Default:     defaultResourceSchemaPath,
@@ -205,8 +205,14 @@ func buildResource(d *schema.ResourceData, mdClient *client.Client) (*resources.
 }
 
 // validateResourceJSON runs the user's `resource` JSON against the JSON Schema
-// extracted from schema-artifacts.json under `properties.<field>`. Mirrors the
-// behavior of the deprecated `massdriver_artifact` resource.
+// extracted from schema-artifacts.json under `properties.<field>`, when that
+// schema is available. Mirrors the behavior of the deprecated
+// `massdriver_artifact` resource.
+//
+// The Massdriver CLI no longer emits schema-artifacts.json, and resources are
+// validated server-side, so an unavailable schema is not an error: we skip
+// client-side validation and let the API be the authority. Only a schema we
+// can actually load and resolve for this field is enforced.
 func validateResourceJSON(field, resourceJSON, schemaPath string) error {
 	if schemaPath == "" {
 		schemaPath = defaultResourceSchemaPath
@@ -214,20 +220,28 @@ func validateResourceJSON(field, resourceJSON, schemaPath string) error {
 
 	schemaBytes, err := os.ReadFile(schemaPath)
 	if err != nil {
-		return fmt.Errorf("unable to open schema file: %s", schemaPath)
+		// No schema file (the common case since the CLI stopped emitting it).
+		return nil
 	}
 
 	var schemaObj resourceArtifactSchema
 	if err := json.Unmarshal(schemaBytes, &schemaObj); err != nil {
-		return fmt.Errorf("invalid JSON in %s: %w", schemaPath, err)
+		// Unreadable schema file; fall back to server-side validation.
+		return nil
 	}
 
 	specificSchema, exists := schemaObj.Properties[field]
 	if !exists {
-		return fmt.Errorf(`resource validation failed: field %q does not exist in schema`, field)
+		// No schema for this field; fall back to server-side validation.
+		return nil
+	}
+	schemaMap, ok := specificSchema.(map[string]any)
+	if !ok {
+		// Not an object schema (e.g. a boolean); nothing we can enforce here.
+		return nil
 	}
 
-	sl := gojsonschema.NewGoLoader(specificSchema.(map[string]any))
+	sl := gojsonschema.NewGoLoader(schemaMap)
 	dl := gojsonschema.NewStringLoader(resourceJSON)
 
 	result, err := gojsonschema.Validate(sl, dl)

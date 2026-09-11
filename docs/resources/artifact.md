@@ -53,7 +53,7 @@ resource "massdriver_artifact" "vpc" {
 ### Optional
 
 - `provider_resource_id` (String, Deprecated) An cloud identifier (AWS ARN, Google/Azure ID) for the primary resource this bundle creates.
-- `schema_path` (String) The path to the schema-artifacts.json file in order to perform JSON Schema validation on the artifact before sending to Massdriver. This value should only ever be changed when doing local provider testing.
+- `schema_path` (String) The path to the schema-artifacts.json file used for client-side JSON Schema validation of the artifact. The Massdriver CLI no longer emits this file; when it is absent, client-side validation is skipped and the artifact is validated server-side instead. Retained for backwards compatibility — this value should only ever be changed when doing local provider testing.
 - `specification_path` (String) The path to the massdriver.yaml file in order to lookup the schema type used for this artifact. This value should only ever be changed when doing local provider testing.
 - `type` (String, Deprecated) This value is deprecated and should no longer be used. It is ignored in the provider code.
 
