@@ -3,8 +3,6 @@ package massdriver
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -22,17 +20,17 @@ type fakeProvisioningResources struct {
 	createErr, getErr, updateErr    error
 	deleteErr                       error
 
-	createInput *provresources.Resource
+	createInput *provresources.ResourceInput
 	getID       string
 	updateID    string
-	updateInput *provresources.Resource
+	updateInput *provresources.ResourceInput
 	deleteID    string
 
 	createCalls, getCalls, updateCalls, deleteCalls int
 }
 
-func (f *fakeProvisioningResources) CreateResource(_ context.Context, a *provresources.Resource) (*provresources.Resource, error) {
-	f.createInput = a
+func (f *fakeProvisioningResources) CreateResource(_ context.Context, input *provresources.ResourceInput) (*provresources.Resource, error) {
+	f.createInput = input
 	f.createCalls++
 	return f.createResp, f.createErr
 }
@@ -41,9 +39,9 @@ func (f *fakeProvisioningResources) GetResource(_ context.Context, id string) (*
 	f.getCalls++
 	return f.getResp, f.getErr
 }
-func (f *fakeProvisioningResources) UpdateResource(_ context.Context, id string, a *provresources.Resource) (*provresources.Resource, error) {
+func (f *fakeProvisioningResources) UpdateResource(_ context.Context, id string, input *provresources.ResourceInput) (*provresources.Resource, error) {
 	f.updateID = id
-	f.updateInput = a
+	f.updateInput = input
 	f.updateCalls++
 	return f.updateResp, f.updateErr
 }
@@ -64,51 +62,22 @@ func providerForResource(fake *fakeProvisioningResources) *ProviderClient {
 	}
 }
 
-// writeSpec writes the given massdriver.yaml contents into a temp dir and
-// returns the file's path.
-func writeSpec(t *testing.T, yaml string) string {
-	t.Helper()
-	specPath := filepath.Join(t.TempDir(), "massdriver.yaml")
-	if err := os.WriteFile(specPath, []byte(yaml), 0644); err != nil {
-		t.Fatal(err)
-	}
-	return specPath
-}
-
-// resourcesSpec declares `field` under the `resources` block.
-func resourcesSpec(field, resourceType string) string {
-	return "resources:\n  " + field + ":\n    resource_type: " + resourceType + "\n    required: true\n"
-}
-
-// artifactsSpec declares `field` under the legacy `artifacts.properties`
-// block with a $ref.
-func artifactsSpec(field, ref string) string {
-	return "artifacts:\n  properties:\n    " + field + ":\n      $ref: " + ref + "\n"
-}
-
 func TestResourceResourceCreate(t *testing.T) {
 	fake := &fakeProvisioningResources{
-		createResp: &provresources.Resource{
-			ID:    "res-1",
-			Field: "vpc",
-			Name:  "My VPC",
-			Type:  "aws-vpc",
-		},
+		createResp: &provresources.Resource{ID: "res-1"},
 		getResp: &provresources.Resource{
-			ID:    "res-1",
-			Field: "vpc",
-			Name:  "My VPC",
-			Type:  "aws-vpc",
+			ID:           "res-1",
+			Field:        "vpc",
+			Name:         "My VPC",
+			ResourceType: "aws-vpc@1.2.3",
 		},
 	}
 	pc := providerForResource(fake)
 
-	specPath := writeSpec(t, resourcesSpec("vpc", "aws-vpc"))
 	rd := schema.TestResourceDataRaw(t, resourceResource().Schema, map[string]any{
-		"field":              "vpc",
-		"name":               "My VPC",
-		"resource":           `{"arn":"arn:aws:ec2:us-east-1:111:vpc/vpc-abc"}`,
-		"specification_path": specPath,
+		"field":    "vpc",
+		"name":     "My VPC",
+		"resource": `{"arn":"arn:aws:ec2:us-east-1:111:vpc/vpc-abc"}`,
 	})
 
 	if diags := resourceResourceCreate(t.Context(), rd, pc); diags.HasError() {
@@ -118,10 +87,10 @@ func TestResourceResourceCreate(t *testing.T) {
 	if rd.Id() != "res-1" {
 		t.Errorf("got id %q, want res-1", rd.Id())
 	}
-	if got := rd.Get("resource_type").(string); got != "aws-vpc" {
-		t.Errorf("got resource_type %q, want aws-vpc", got)
+	// Create hands off to Read, so the type comes from getResp.
+	if got := rd.Get("resource_type").(string); got != "aws-vpc@1.2.3" {
+		t.Errorf("got resource_type %q, want aws-vpc@1.2.3", got)
 	}
-
 	if fake.createCalls != 1 {
 		t.Fatalf("CreateResource called %d times, want 1", fake.createCalls)
 	}
@@ -129,74 +98,67 @@ func TestResourceResourceCreate(t *testing.T) {
 	if in.Field != "vpc" || in.Name != "My VPC" {
 		t.Errorf("got create input %+v", in)
 	}
-	if in.Type != "aws-vpc" {
-		t.Errorf("got Type %q, want aws-vpc", in.Type)
-	}
 	if in.Payload["arn"] != "arn:aws:ec2:us-east-1:111:vpc/vpc-abc" {
 		t.Errorf("got payload.arn %v", in.Payload["arn"])
 	}
 }
 
-// The legacy `artifacts.properties.<field>.$ref` path still resolves the
-// type, and the ref is sent verbatim — no org prefixing.
-func TestResourceResourceCreateLegacyArtifactsRefSentVerbatim(t *testing.T) {
+// The server resolves the type, so no type is sent on the wire.
+func TestResourceResourceCreateSendsNoType(t *testing.T) {
 	fake := &fakeProvisioningResources{
-		createResp: &provresources.Resource{ID: "res-1", Field: "vpc"},
+		createResp: &provresources.Resource{ID: "res-1"},
 		getResp:    &provresources.Resource{ID: "res-1", Field: "vpc"},
 	}
 	pc := providerForResource(fake)
 
-	specPath := writeSpec(t, artifactsSpec("vpc", "aws-vpc"))
 	rd := schema.TestResourceDataRaw(t, resourceResource().Schema, map[string]any{
-		"field":              "vpc",
-		"name":               "My VPC",
-		"resource":           `{"k":"v"}`,
-		"specification_path": specPath,
+		"field":    "vpc",
+		"name":     "My VPC",
+		"resource": `{"k":"v"}`,
 	})
 
 	if diags := resourceResourceCreate(t.Context(), rd, pc); diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
-	if got := fake.createInput.Type; got != "aws-vpc" {
-		t.Errorf("got Type %q, want aws-vpc (sent verbatim)", got)
+
+	// ResourceInput has no type field, so assert the shape that is sent.
+	in := fake.createInput
+	if in.Field != "vpc" || in.Name != "My VPC" || len(in.Payload) != 1 {
+		t.Errorf("got create input %+v, want only field/name/payload populated", in)
 	}
 }
 
-// A field missing from both `resources` and `artifacts` surfaces a clear
-// error naming the field, before any API call.
-func TestResourceResourceCreateRejectsUnknownField(t *testing.T) {
+func TestResourceResourceCreateRejectsInvalidJSON(t *testing.T) {
 	fake := &fakeProvisioningResources{}
 	pc := providerForResource(fake)
 
-	specPath := writeSpec(t, resourcesSpec("vpc", "aws-vpc"))
 	rd := schema.TestResourceDataRaw(t, resourceResource().Schema, map[string]any{
-		"field":              "database",
-		"name":               "DB",
-		"resource":           `{}`,
-		"specification_path": specPath,
+		"field":    "vpc",
+		"name":     "My VPC",
+		"resource": `not json`,
 	})
 
 	diags := resourceResourceCreate(t.Context(), rd, pc)
 	if !diags.HasError() {
 		t.Fatal("expected error, got none")
 	}
-	if !strings.Contains(diags[0].Summary, "database") {
-		t.Errorf("error %q should mention the unknown field name", diags[0].Summary)
+	if !strings.Contains(diags[0].Summary, "invalid JSON") {
+		t.Errorf("error %q should name the bad JSON", diags[0].Summary)
 	}
 	if fake.createCalls != 0 {
-		t.Errorf("expected 0 Create calls when type lookup fails, got %d", fake.createCalls)
+		t.Errorf("expected 0 Create calls when the payload won't parse, got %d", fake.createCalls)
 	}
 }
 
 func TestResourceResourceRead(t *testing.T) {
-	// The API echoes back an org-qualified type; Read must normalize it so the
-	// next plan's comparison against the (bare) yaml value stays clean.
 	fake := &fakeProvisioningResources{
 		getResp: &provresources.Resource{
-			ID:    "res-1",
-			Field: "vpc",
-			Name:  "Server-side Name",
-			Type:  testOrgID + "/aws-vpc",
+			ID:               "res-1",
+			Field:            "vpc",
+			Name:             "Server-side Name",
+			Type:             testOrgID + "/aws-vpc",
+			ResourceType:     "aws-vpc@1.2.3",
+			AvailableUpgrade: "1.3.0",
 		},
 	}
 	pc := providerForResource(fake)
@@ -213,8 +175,12 @@ func TestResourceResourceRead(t *testing.T) {
 	if rd.Get("field").(string) != "vpc" {
 		t.Errorf("got field %q, want vpc", rd.Get("field"))
 	}
-	if rd.Get("resource_type").(string) != "aws-vpc" {
-		t.Errorf("got resource_type %q", rd.Get("resource_type"))
+	// The versioned `resource_type`, not the legacy org-qualified `type`.
+	if rd.Get("resource_type").(string) != "aws-vpc@1.2.3" {
+		t.Errorf("got resource_type %q, want aws-vpc@1.2.3", rd.Get("resource_type"))
+	}
+	if rd.Get("available_upgrade").(string) != "1.3.0" {
+		t.Errorf("got available_upgrade %q, want 1.3.0", rd.Get("available_upgrade"))
 	}
 }
 
@@ -237,20 +203,18 @@ func TestResourceResourceReadClearsOnNotFound(t *testing.T) {
 
 func TestResourceResourceUpdate(t *testing.T) {
 	updated := &provresources.Resource{
-		ID:    "res-1",
-		Field: "vpc",
-		Name:  "Updated",
-		Type:  "aws-vpc",
+		ID:           "res-1",
+		Field:        "vpc",
+		Name:         "Updated",
+		ResourceType: "aws-vpc@1.2.4",
 	}
 	fake := &fakeProvisioningResources{updateResp: updated, getResp: updated}
 	pc := providerForResource(fake)
 
-	specPath := writeSpec(t, resourcesSpec("vpc", "aws-vpc"))
 	rd := schema.TestResourceDataRaw(t, resourceResource().Schema, map[string]any{
-		"field":              "vpc",
-		"name":               "Updated",
-		"resource":           `{"arn":"new"}`,
-		"specification_path": specPath,
+		"field":    "vpc",
+		"name":     "Updated",
+		"resource": `{"arn":"new"}`,
 	})
 	rd.SetId("res-1")
 
@@ -261,8 +225,11 @@ func TestResourceResourceUpdate(t *testing.T) {
 	if fake.updateID != "res-1" {
 		t.Errorf("got updateID %q, want res-1", fake.updateID)
 	}
-	if fake.updateInput.Name != "Updated" {
-		t.Errorf("got input.Name %q, want Updated", fake.updateInput.Name)
+	if fake.updateInput.Name != "Updated" || fake.updateInput.Field != "vpc" {
+		t.Errorf("got input %+v", fake.updateInput)
+	}
+	if rd.Get("resource_type").(string) != "aws-vpc@1.2.4" {
+		t.Errorf("got resource_type %q, want aws-vpc@1.2.4", rd.Get("resource_type"))
 	}
 }
 
@@ -318,12 +285,10 @@ func TestResourceResourceRejectsNonDeploymentAuth(t *testing.T) {
 		},
 	}
 
-	specPath := writeSpec(t, resourcesSpec("vpc", "aws-vpc"))
 	rd := schema.TestResourceDataRaw(t, resourceResource().Schema, map[string]any{
-		"field":              "vpc",
-		"name":               "My VPC",
-		"resource":           `{"k":"v"}`,
-		"specification_path": specPath,
+		"field":    "vpc",
+		"name":     "My VPC",
+		"resource": `{"k":"v"}`,
 	})
 
 	diags := resourceResourceCreate(t.Context(), rd, pc)
@@ -346,112 +311,72 @@ func TestResourceResourceSchema(t *testing.T) {
 	if f := r.Schema["field"]; f == nil || !f.Required || !f.ForceNew {
 		t.Error("field should be Required+ForceNew (the SDK delete path needs it stable)")
 	}
-	if rt := r.Schema["resource_type"]; rt == nil || rt.Required || rt.Optional || !rt.Computed || !rt.ForceNew {
-		t.Error("resource_type should be Computed+ForceNew (derived from massdriver.yaml, not user-supplied)")
-	}
 	if res := r.Schema["resource"]; res == nil || !res.Required || !res.Sensitive {
 		t.Error("resource should be Required+Sensitive")
 	}
-	if sp := r.Schema["specification_path"]; sp.Default != defaultResourceSpecificationPath {
-		t.Errorf("got specification_path default %v, want %s", sp.Default, defaultResourceSpecificationPath)
+	if rt := r.Schema["resource_type"]; rt == nil || rt.Required || rt.Optional || !rt.Computed || rt.ForceNew {
+		t.Error("resource_type should be Computed and NOT ForceNew (a version bump updates in place)")
+	}
+	// Kept as a deprecated no-op so configs carrying it keep working; removing
+	// it outright would be a breaking change.
+	sp := r.Schema["specification_path"]
+	if sp == nil || !sp.Optional || !sp.Computed || sp.Deprecated == "" {
+		t.Error("specification_path should be Optional+Computed and deprecated, not removed")
+	}
+	if au := r.Schema["available_upgrade"]; au == nil || au.Required || au.Optional || !au.Computed || au.ForceNew {
+		t.Error("available_upgrade should be Computed and NOT ForceNew")
 	}
 	if r.CustomizeDiff == nil {
-		t.Error("CustomizeDiff should be set (re-resolves resource_type from massdriver.yaml at plan time)")
+		t.Error("CustomizeDiff should be set (it turns a pending upgrade into an in-place update)")
 	}
-}
-
-func TestResolveResourceType(t *testing.T) {
-	cases := []struct {
-		name    string
-		spec    string
-		field   string
-		want    string
-		wantErr string
-	}{
-		{"resources block", resourcesSpec("vpc", "aws-vpc@1.0.0"), "vpc", "aws-vpc@1.0.0", ""},
-		{"resources wins over legacy artifacts", resourcesSpec("vpc", "aws-vpc@2.0.0") + artifactsSpec("vpc", "aws-vpc"), "vpc", "aws-vpc@2.0.0", ""},
-		{"legacy artifacts $ref normalized to bare type", artifactsSpec("vpc", "other-org/aws-vpc"), "vpc", "aws-vpc", ""},
-		{"qualified versioned type normalized", resourcesSpec("vpc", "some-org/aws-vpc@2.0.0"), "vpc", "aws-vpc@2.0.0", ""},
-		{"empty resource_type", "resources:\n  vpc:\n    required: true\n", "vpc", "", "empty resource_type"},
-		{"empty $ref", "artifacts:\n  properties:\n    vpc: {}\n", "vpc", "", "empty $ref"},
-		{"unknown field", resourcesSpec("vpc", "aws-vpc"), "database", "", "not found"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := resolveResourceType(tc.field, writeSpec(t, tc.spec))
-			if tc.wantErr != "" {
-				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
-					t.Fatalf("got err %v, want one containing %q", err, tc.wantErr)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got != tc.want {
-				t.Errorf("got %q, want %q", got, tc.want)
-			}
-		})
-	}
-
-	t.Run("missing file", func(t *testing.T) {
-		if _, err := resolveResourceType("vpc", filepath.Join(t.TempDir(), "nope.yaml")); err == nil || !strings.Contains(err.Error(), "unable to open") {
-			t.Fatalf("got err %v, want unable-to-open error", err)
+	// `field` is the only attribute that may force replacement.
+	for name, s := range r.Schema {
+		if s.ForceNew && name != "field" {
+			t.Errorf("%s is ForceNew; only `field` should replace the resource", name)
 		}
-	})
+	}
 }
 
-// resourceStateAndConfig builds a matching prior state and config for a
-// resource whose last apply stored `stateType`, pointing at specPath.
-func resourceStateAndConfig(stateType, specPath string) (*terraform.InstanceState, *terraform.ResourceConfig) {
+// resourceStateAndConfig builds a prior state holding the given resolved
+// type, plus a config matching it on every user-settable attribute.
+func resourceStateAndConfig(stateType, name, availableUpgrade string) (*terraform.InstanceState, *terraform.ResourceConfig) {
 	state := &terraform.InstanceState{
 		ID: "res-1",
 		Attributes: map[string]string{
-			"id":                 "res-1",
-			"field":              "vpc",
-			"name":               "My VPC",
-			"resource":           `{"k":"v"}`,
-			"resource_type":      stateType,
-			"specification_path": specPath,
+			"id":                "res-1",
+			"field":             "vpc",
+			"name":              "My VPC",
+			"resource":          `{"k":"v"}`,
+			"resource_type":     stateType,
+			"available_upgrade": availableUpgrade,
 		},
 	}
 	cfg := terraform.NewResourceConfigRaw(map[string]any{
-		"field":              "vpc",
-		"name":               "My VPC",
-		"resource":           `{"k":"v"}`,
-		"specification_path": specPath,
+		"field":    "vpc",
+		"name":     name,
+		"resource": `{"k":"v"}`,
 	})
 	return state, cfg
 }
 
-// A resource_type change in massdriver.yaml alone — with no change to the
-// terraform config — must plan a replacement: CustomizeDiff re-resolves the
-// type at plan time and resource_type is ForceNew.
-func TestResourceResourceTypeBumpPlansReplacement(t *testing.T) {
-	specPath := writeSpec(t, resourcesSpec("vpc", "aws-vpc@2.0.0"))
-	state, cfg := resourceStateAndConfig("aws-vpc@1.0.0", specPath)
+func TestResourceResourceVersionChangeNeverReplaces(t *testing.T) {
+	state, cfg := resourceStateAndConfig("aws-vpc@1.2.3", "Renamed", "")
 
 	diff, err := resourceResource().Diff(t.Context(), state, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if diff == nil {
-		t.Fatal("expected a diff, got none")
+		t.Fatal("expected a diff for the renamed resource, got none")
 	}
-	attr := diff.Attributes["resource_type"]
-	if attr == nil || attr.New != "aws-vpc@2.0.0" {
-		t.Fatalf("got resource_type diff %+v, want new value aws-vpc@2.0.0", attr)
-	}
-	if !diff.RequiresNew() {
-		t.Error("resource_type change should force replacement")
+	if diff.RequiresNew() {
+		t.Error("a name change must update in place, not replace")
 	}
 }
 
-// With the yaml type matching state, an otherwise-unchanged resource plans no
-// diff at all.
-func TestResourceResourceNoDiffWhenTypeUnchanged(t *testing.T) {
-	specPath := writeSpec(t, resourcesSpec("vpc", "aws-vpc@1.0.0"))
-	state, cfg := resourceStateAndConfig("aws-vpc@1.0.0", specPath)
+// No perpetual diff from the computed attributes.
+func TestResourceResourceNoDiffWhenUnchanged(t *testing.T) {
+	state, cfg := resourceStateAndConfig("aws-vpc@1.2.3", "My VPC", "")
 
 	diff, err := resourceResource().Diff(t.Context(), state, cfg, nil)
 	if err != nil {
@@ -459,5 +384,130 @@ func TestResourceResourceNoDiffWhenTypeUnchanged(t *testing.T) {
 	}
 	if diff != nil && !diff.Empty() {
 		t.Fatalf("expected no diff, got %+v", diff)
+	}
+}
+
+// `field` is the one attribute that still replaces.
+func TestResourceResourceFieldChangeReplaces(t *testing.T) {
+	state, _ := resourceStateAndConfig("aws-vpc@1.2.3", "My VPC", "")
+	cfg := terraform.NewResourceConfigRaw(map[string]any{
+		"field":    "network",
+		"name":     "My VPC",
+		"resource": `{"k":"v"}`,
+	})
+
+	diff, err := resourceResource().Diff(t.Context(), state, cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff == nil || !diff.RequiresNew() {
+		t.Error("a field change should force replacement")
+	}
+}
+
+func TestResourceResourceAvailableUpgradePlansInPlaceUpdate(t *testing.T) {
+	state, cfg := resourceStateAndConfig("aws-vpc@1.2.3", "My VPC", "1.3.0")
+
+	diff, err := resourceResource().Diff(t.Context(), state, cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff == nil || diff.Empty() {
+		t.Fatal("a pending upgrade should plan a diff, got none")
+	}
+	if diff.RequiresNew() {
+		t.Error("an upgrade must update in place, never replace")
+	}
+	attr := diff.Attributes["resource_type"]
+	if attr == nil || attr.Old != "aws-vpc@1.2.3" || attr.New != "aws-vpc@1.3.0" || attr.NewComputed {
+		t.Errorf("got resource_type diff %+v, want aws-vpc@1.2.3 -> aws-vpc@1.3.0", attr)
+	}
+	// helper/schema won't plan a computed attribute as empty.
+	if attr := diff.Attributes["available_upgrade"]; attr == nil || !attr.NewComputed {
+		t.Errorf("got available_upgrade diff %+v, want it planned as unknown", attr)
+	}
+}
+
+// This case must stay quiet, or every deploy writes every resource.
+func TestResourceResourceNoUpgradePlansNothing(t *testing.T) {
+	state, cfg := resourceStateAndConfig("aws-vpc@1.3.0", "My VPC", "")
+
+	diff, err := resourceResource().Diff(t.Context(), state, cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff != nil && !diff.Empty() {
+		t.Fatalf("expected no diff when no upgrade is available, got %+v", diff)
+	}
+}
+
+// CustomizeDiff runs on create too, where there is no prior state.
+func TestResourceResourceCustomizeDiffNoopOnCreate(t *testing.T) {
+	cfg := terraform.NewResourceConfigRaw(map[string]any{
+		"field":    "vpc",
+		"name":     "My VPC",
+		"resource": `{"k":"v"}`,
+	})
+
+	diff, err := resourceResource().Diff(t.Context(), nil, cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff == nil {
+		t.Fatal("expected a create diff")
+	}
+}
+
+// specification_path is accepted and ignored: a config still setting it plans
+// no change, and nothing about it reaches the API.
+func TestResourceResourceSpecificationPathIgnored(t *testing.T) {
+	fake := &fakeProvisioningResources{
+		createResp: &provresources.Resource{ID: "res-1"},
+		getResp:    &provresources.Resource{ID: "res-1", Field: "vpc", ResourceType: "aws-vpc@1.0.0"},
+	}
+	pc := providerForResource(fake)
+
+	rd := schema.TestResourceDataRaw(t, resourceResource().Schema, map[string]any{
+		"field":              "vpc",
+		"name":               "My VPC",
+		"resource":           `{"k":"v"}`,
+		"specification_path": "/nonexistent/massdriver.yaml",
+	})
+
+	if diags := resourceResourceCreate(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("a set specification_path must not affect create; got %v", diags)
+	}
+	if fake.createInput.Field != "vpc" || fake.createInput.Name != "My VPC" {
+		t.Errorf("got create input %+v", fake.createInput)
+	}
+}
+
+// State written by 2.2.x carries specification_path. Upgrading must not turn
+// that into a diff.
+func TestResourceResourceNoDiffFromInheritedSpecificationPath(t *testing.T) {
+	state := &terraform.InstanceState{
+		ID: "res-1",
+		Attributes: map[string]string{
+			"id":                 "res-1",
+			"field":              "vpc",
+			"name":               "My VPC",
+			"resource":           `{"k":"v"}`,
+			"resource_type":      "aws-vpc@1.2.3",
+			"available_upgrade":  "",
+			"specification_path": "../massdriver.yaml",
+		},
+	}
+	cfg := terraform.NewResourceConfigRaw(map[string]any{
+		"field":    "vpc",
+		"name":     "My VPC",
+		"resource": `{"k":"v"}`,
+	})
+
+	diff, err := resourceResource().Diff(t.Context(), state, cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff != nil && !diff.Empty() {
+		t.Fatalf("inherited specification_path should not produce a diff, got %+v", diff)
 	}
 }

@@ -4,8 +4,7 @@ go 1.25
 
 require (
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.16.0
-	github.com/massdriver-cloud/massdriver-sdk-go v0.3.2
-	gopkg.in/yaml.v2 v2.4.0
+	github.com/massdriver-cloud/massdriver-sdk-go v0.3.4
 )
 
 require (
@@ -71,6 +70,7 @@ require (
 	google.golang.org/genproto v0.0.0-20220505152158-f39f71e6c8f3 // indirect
 	google.golang.org/grpc v1.46.2 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	oras.land/oras-go/v2 v2.6.0 // indirect
 )
