@@ -5,13 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	provresources "github.com/massdriver-cloud/massdriver-sdk-go/massdriver/provisioning/resources"
-	"gopkg.in/yaml.v2"
 )
 
 // provisioningResourcesAPI is the slice of *provisioning/resources.Service
@@ -19,34 +17,13 @@ import (
 // co-located with the code that uses it; the placeholder we keep in client.go
 // is just a type-name reference that resolves to this declaration.
 type provisioningResourcesAPI interface {
-	CreateResource(ctx context.Context, a *provresources.Resource) (*provresources.Resource, error)
+	CreateResource(ctx context.Context, input *provresources.ResourceInput) (*provresources.Resource, error)
 	GetResource(ctx context.Context, id string) (*provresources.Resource, error)
-	UpdateResource(ctx context.Context, id string, a *provresources.Resource) (*provresources.Resource, error)
+	UpdateResource(ctx context.Context, id string, input *provresources.ResourceInput) (*provresources.Resource, error)
 	DeleteResource(ctx context.Context, id string) error
 }
 
 var _ provisioningResourcesAPI = (*provresources.Service)(nil)
-
-const (
-	defaultResourceSpecificationPath = "../massdriver.yaml"
-)
-
-// resourceBundleSpec is the shape of the relevant slice of massdriver.yaml.
-// The resource type comes from `resources.<field>.resource_type`, falling
-// back to the legacy `artifacts.properties.<field>.$ref`.
-type resourcesBlock struct {
-	ResourceType string `yaml:"resource_type"`
-	Required     bool   `yaml:"required"`
-}
-type artifactPropertyBlock struct {
-	Ref string `yaml:"$ref"`
-}
-type resourceBundleSpec struct {
-	Resources map[string]resourcesBlock `yaml:"resources"`
-	Artifacts struct {
-		Properties map[string]artifactPropertyBlock `yaml:"properties"`
-	} `yaml:"artifacts"`
-}
 
 func resourceResource() *schema.Resource {
 	return &schema.Resource{
@@ -72,23 +49,28 @@ If you need to create a resource that is not managed by a Massdriver bundle, use
 				Type:        schema.TypeString,
 				Required:    true,
 			},
-			"resource_type": {
-				Description: "Resource type identifier (e.g., `aws-iam-role`). Computed at plan time from the bundle's `massdriver.yaml`; when it changes there (e.g., a version bump), the resource is replaced.",
-				Type:        schema.TypeString,
-				Computed:    true,
-				ForceNew:    true,
-			},
 			"resource": {
 				Description: "JSON-encoded resource data.",
 				Type:        schema.TypeString,
 				Required:    true,
 				Sensitive:   true,
 			},
+			"resource_type": {
+				Description: "Resolved resource type in `identifier@version` form (e.g. `aws-iam-role@1.2.3`), resolved server-side from the deployment's release pin and `field`.",
+				Type:        schema.TypeString,
+				Computed:    true,
+			},
 			"specification_path": {
-				Description: "Path to `massdriver.yaml`, used to look up the resource type. Defaults to `../massdriver.yaml`. Override only for local provider testing.",
+				Description: "Deprecated and ignored. The resource type is resolved server-side, so the bundle's `massdriver.yaml` is no longer read.",
 				Type:        schema.TypeString,
 				Optional:    true,
-				Default:     defaultResourceSpecificationPath,
+				Computed:    true,
+				Deprecated:  "specification_path is ignored: the resource type is resolved server-side from the deployment's release pin and `field`. Remove it from your configuration; the argument will be deleted in the next major version.",
+			},
+			"available_upgrade": {
+				Description: "The newest published version within the bundle's declared version range that is newer than the one `resource_type` names (e.g. `1.3.0`), empty when there is none. A non-empty value makes the next plan an in-place update onto that version.",
+				Type:        schema.TypeString,
+				Computed:    true,
 			},
 		},
 	}
@@ -102,18 +84,17 @@ func resourceResourceCreate(ctx context.Context, d *schema.ResourceData, meta an
 		return diag.FromErr(err)
 	}
 
-	resource, err := buildResource(d)
+	input, err := buildResourceInput(d)
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	created, err := api.CreateResource(ctx, resource)
+	created, err := api.CreateResource(ctx, input)
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
 	d.SetId(created.ID)
-	d.Set("resource_type", resource.Type)
 	return resourceResourceRead(ctx, d, meta)
 }
 
@@ -133,11 +114,19 @@ func resourceResourceRead(ctx context.Context, d *schema.ResourceData, meta any)
 		}
 		return diag.FromErr(err)
 	}
-	resourceType := stripOrgPrefix(got.Type)
+
+	resourceType := got.ResourceType
+	if resourceType == "" {
+		// Compatibility shim: self-hosted APIs older than this change don't
+		// return resource_type. Fall back to the legacy `type`, minus its org
+		// prefix. Remove once self-hosted deployments have caught up.
+		resourceType = got.Type[strings.LastIndex(got.Type, "/")+1:]
+	}
 
 	d.Set("field", got.Field)
 	d.Set("name", got.Name)
 	d.Set("resource_type", resourceType)
+	d.Set("available_upgrade", got.AvailableUpgrade)
 	return nil
 }
 
@@ -149,16 +138,15 @@ func resourceResourceUpdate(ctx context.Context, d *schema.ResourceData, meta an
 		return diag.FromErr(err)
 	}
 
-	resource, err := buildResource(d)
+	input, err := buildResourceInput(d)
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	if _, err := api.UpdateResource(ctx, d.Id(), resource); err != nil {
+	if _, err := api.UpdateResource(ctx, d.Id(), input); err != nil {
 		return diag.FromErr(err)
 	}
 
-	d.Set("resource_type", resource.Type)
 	return resourceResourceRead(ctx, d, meta)
 }
 
@@ -183,98 +171,40 @@ func resourceResourceDelete(ctx context.Context, d *schema.ResourceData, meta an
 	return nil
 }
 
-// resourceResourceCustomizeDiff resolves the resource type from
-// massdriver.yaml at plan time so a change there (e.g. a version bump on a
-// versioned resource type) produces a diff — and, since `resource_type` is
-// ForceNew, a replacement — even when nothing in the terraform config changed.
+// resourceResourceCustomizeDiff plans an in-place update when the API reports
+// a newer version in range. A version constraint (`~1`) is resolved to a
+// concrete version only when the resource is written, so the write the update
+// performs is what moves the resource onto it.
 func resourceResourceCustomizeDiff(_ context.Context, d *schema.ResourceDiff, _ any) error {
-	// If the inputs aren't known yet (interpolated from another resource's
-	// unknown output), leave resource_type to be resolved at apply time.
-	if !d.NewValueKnown("field") || !d.NewValueKnown("specification_path") {
+	upgrade := d.Get("available_upgrade").(string)
+	if d.Id() == "" || upgrade == "" {
 		return nil
 	}
 
-	resourceType, err := resolveResourceType(d.Get("field").(string), d.Get("specification_path").(string))
-	if err != nil {
+	// Should a newer release land between plan and apply, the server resolves
+	// to that one and the applied value differs from the planned one.
+	// helper/schema marks this provider UnsafeToUseLegacyTypeSystem, so
+	// terraform logs the mismatch rather than failing the apply.
+	identifier, _, _ := strings.Cut(d.Get("resource_type").(string), "@")
+	if err := d.SetNew("resource_type", identifier+"@"+upgrade); err != nil {
 		return err
 	}
-	if resourceType != d.Get("resource_type").(string) {
-		return d.SetNew("resource_type", resourceType)
-	}
-	return nil
+	// Nothing stays pending afterwards, but helper/schema normalizes a computed
+	// attribute planned as "" to unknown, so plan it that way outright.
+	return d.SetNewComputed("available_upgrade")
 }
 
-// buildResource constructs the SDK Resource from terraform state, including
-// type lookup and payload parsing.
-func buildResource(d *schema.ResourceData) (*provresources.Resource, error) {
-	field := d.Get("field").(string)
-	resourceJSON := d.Get("resource").(string)
-
-	// CustomizeDiff resolves resource_type at plan time, so normally we just
-	// send the planned value. It's only empty when plan-time inputs were
-	// unknown and the resolution was deferred; resolve it now.
-	resourceType := d.Get("resource_type").(string)
-	if resourceType == "" {
-		var err error
-		resourceType, err = resolveResourceType(field, d.Get("specification_path").(string))
-		if err != nil {
-			return nil, err
-		}
-	}
-
+// buildResourceInput constructs the create/update body. No resource type is
+// sent: the server resolves it from the deployment's release pin and `field`.
+func buildResourceInput(d *schema.ResourceData) (*provresources.ResourceInput, error) {
 	var payload map[string]any
-	if err := json.Unmarshal([]byte(resourceJSON), &payload); err != nil {
+	if err := json.Unmarshal([]byte(d.Get("resource").(string)), &payload); err != nil {
 		return nil, fmt.Errorf("invalid JSON in `resource`: %w", err)
 	}
 
-	return &provresources.Resource{
-		Field:   field,
+	return &provresources.ResourceInput{
+		Field:   d.Get("field").(string),
 		Name:    d.Get("name").(string),
-		Type:    resourceType,
 		Payload: payload,
 	}, nil
-}
-
-// resolveResourceType looks up the resource type for `field` in the bundle's
-// massdriver.yaml: `resources.<field>.resource_type` first, falling back to
-// the legacy `artifacts.properties.<field>.$ref`. Types are canonically bare
-// in v2, so any org qualifier is stripped before use.
-func resolveResourceType(field, specPath string) (string, error) {
-	if specPath == "" {
-		specPath = defaultResourceSpecificationPath
-	}
-
-	specBytes, err := os.ReadFile(specPath)
-	if err != nil {
-		return "", fmt.Errorf("unable to open specification file: %s", specPath)
-	}
-
-	var spec resourceBundleSpec
-	if err := yaml.Unmarshal(specBytes, &spec); err != nil {
-		return "", fmt.Errorf("invalid YAML in %s: %w", specPath, err)
-	}
-
-	resourceSpec, resourceSpecExists := spec.Resources[field]
-	if resourceSpecExists {
-		if resourceSpec.ResourceType == "" {
-			return "", fmt.Errorf(`field %q in %s has empty resource_type`, field, specPath)
-		}
-		return stripOrgPrefix(resourceSpec.ResourceType), nil
-	}
-
-	artifactSpec, artifactSpecExists := spec.Artifacts.Properties[field]
-	if artifactSpecExists {
-		if artifactSpec.Ref == "" {
-			return "", fmt.Errorf(`field %q in %s has empty $ref`, field, specPath)
-		}
-		return stripOrgPrefix(artifactSpec.Ref), nil
-	}
-
-	return "", fmt.Errorf(`field %q not found in "resources" or "artifacts" of %s`, field, specPath)
-}
-
-// stripOrgPrefix removes the org prefix from a resource type, if present.
-func stripOrgPrefix(resourceType string) string {
-	parts := strings.Split(resourceType, "/")
-	return parts[len(parts)-1]
 }

@@ -59,9 +59,10 @@ resource "massdriver_resource" "vpc" {
 
 ### Optional
 
-- `specification_path` (String) Path to `massdriver.yaml`, used to look up the resource type. Defaults to `../massdriver.yaml`. Override only for local provider testing.
+- `specification_path` (String, Deprecated) Deprecated and ignored. The resource type is resolved server-side, so the bundle's `massdriver.yaml` is no longer read.
 
 ### Read-Only
 
+- `available_upgrade` (String) The newest published version within the bundle's declared version range that is newer than the one `resource_type` names (e.g. `1.3.0`), empty when there is none. A non-empty value makes the next plan an in-place update onto that version.
 - `id` (String) The ID of this resource.
-- `resource_type` (String) Resource type identifier (e.g., `aws-iam-role`). Computed at plan time from the bundle's `massdriver.yaml`; when it changes there (e.g., a version bump), the resource is replaced.
+- `resource_type` (String) Resolved resource type in `identifier@version` form (e.g. `aws-iam-role@1.2.3`), resolved server-side from the deployment's release pin and `field`.

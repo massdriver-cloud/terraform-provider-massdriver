@@ -1,5 +1,55 @@
 # Changelog
 
+## 2.3.0
+
+`massdriver_resource` no longer decides what resource type it is. The API
+resolves the type from the deployment's release pin and the resource's
+`field`, so the provider sends only `name`, `field` and `resource` — and no
+longer reads the bundle's `massdriver.yaml` at all.
+
+### Deprecated
+
+- **`specification_path` is ignored.** It only existed to point at the
+  `massdriver.yaml` the provider parsed to look up the resource type;
+  nothing reads that file now. The argument still validates and plans
+  clean, so existing configs and state keep working, but it does nothing
+  and will be removed in the next major version. Delete it when convenient.
+
+### Upgrade notes
+
+- **`resource_type` now always carries the resolved version**
+  (`aws-iam-role@1.2.3`), where before it alternated between the
+  `massdriver.yaml` value and the API's unversioned one depending on
+  whether a refresh had run — that alternation is the bug fixed below. If
+  you interpolate `resource_type` anywhere, expect `identifier@version`.
+
+### Fixed
+
+- **`massdriver_resource` is no longer recreated on every deploy.** The
+  provider resolved `resource_type` from `massdriver.yaml` as a versioned
+  string (`aws-iam-role@1.2.3`) and stored it in state, but the API's read
+  returned the type without a version (`aws-iam-role`). Every refresh
+  therefore looked like a change to `resource_type`, which was `ForceNew`,
+  so terraform replaced the resource on each run. `resource_type` is now
+  read straight from the API's `resource_type` field, which carries the
+  resolved version, and is no longer `ForceNew` — a version change updates
+  the resource in place. `field` is the only attribute that still forces
+  replacement.
+
+### Added
+
+- **Resources on a release channel now follow it.** A version constraint
+  like `~1` is resolved to a concrete version when the resource is written
+  and never re-resolved on its own, so a resource created while the newest
+  `~1` was `1.2.3` stayed there after `1.3.0` shipped. The API now reports
+  that gap as `available_upgrade`, and a non-empty value makes the next plan
+  an **in-place update** whose write moves the resource onto the new version.
+  The plan names the version it is moving to — `aws-vpc@1.2.3 ->
+  aws-vpc@1.3.0` — rather than showing an unexplained "(known after apply)".
+  Resources already on the newest version in range plan nothing.
+- **`available_upgrade`** (read-only) on `massdriver_resource`: the pending
+  version, empty when there is none.
+
 ## 2.2.0
 
 API key and deployment token auth now work side by side. Each API surface
