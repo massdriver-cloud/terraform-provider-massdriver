@@ -60,13 +60,6 @@ If you need to create a resource that is not managed by a Massdriver bundle, use
 				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"specification_path": {
-				Description: "Deprecated and ignored. The resource type is resolved server-side, so the bundle's `massdriver.yaml` is no longer read.",
-				Type:        schema.TypeString,
-				Optional:    true,
-				Computed:    true,
-				Deprecated:  "specification_path is ignored: the resource type is resolved server-side from the deployment's release pin and `field`. Remove it from your configuration; the argument will be deleted in the next major version.",
-			},
 			"available_upgrade": {
 				Description: "The newest published version within the bundle's declared version range that is newer than the one `resource_type` names (e.g. `1.3.0`), empty when there is none. A non-empty value makes the next plan an in-place update onto that version.",
 				Type:        schema.TypeString,

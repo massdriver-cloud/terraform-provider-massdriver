@@ -57,10 +57,6 @@ resource "massdriver_resource" "vpc" {
 - `name` (String) Human-readable name for the resource.
 - `resource` (String, Sensitive) JSON-encoded resource data.
 
-### Optional
-
-- `specification_path` (String, Deprecated) Deprecated and ignored. The resource type is resolved server-side, so the bundle's `massdriver.yaml` is no longer read.
-
 ### Read-Only
 
 - `available_upgrade` (String) The newest published version within the bundle's declared version range that is newer than the one `resource_type` names (e.g. `1.3.0`), empty when there is none. A non-empty value makes the next plan an in-place update onto that version.

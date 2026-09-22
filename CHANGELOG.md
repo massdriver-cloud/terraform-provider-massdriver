@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.3.1
+
+### Removed
+
+- **`specification_path` is gone from `massdriver_resource`.** It was
+  deprecated and ignored in 2.3.0; nothing has read the bundle's
+  `massdriver.yaml` since. Terraform drops the attribute from state on its
+  own, so no action is needed. The only configs affected are ones that set
+  it explicitly — documented for local provider testing only — which now
+  fail with "Unsupported argument" instead of a deprecation warning.
+
 ## 2.3.0
 
 `massdriver_resource` no longer decides what resource type it is. The API
