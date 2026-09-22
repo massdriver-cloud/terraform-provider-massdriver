@@ -317,11 +317,8 @@ func TestResourceResourceSchema(t *testing.T) {
 	if rt := r.Schema["resource_type"]; rt == nil || rt.Required || rt.Optional || !rt.Computed || rt.ForceNew {
 		t.Error("resource_type should be Computed and NOT ForceNew (a version bump updates in place)")
 	}
-	// Kept as a deprecated no-op so configs carrying it keep working; removing
-	// it outright would be a breaking change.
-	sp := r.Schema["specification_path"]
-	if sp == nil || !sp.Optional || !sp.Computed || sp.Deprecated == "" {
-		t.Error("specification_path should be Optional+Computed and deprecated, not removed")
+	if _, ok := r.Schema["specification_path"]; ok {
+		t.Error("specification_path should be gone")
 	}
 	if au := r.Schema["available_upgrade"]; au == nil || au.Required || au.Optional || !au.Computed || au.ForceNew {
 		t.Error("available_upgrade should be Computed and NOT ForceNew")
@@ -458,31 +455,8 @@ func TestResourceResourceCustomizeDiffNoopOnCreate(t *testing.T) {
 	}
 }
 
-// specification_path is accepted and ignored: a config still setting it plans
-// no change, and nothing about it reaches the API.
-func TestResourceResourceSpecificationPathIgnored(t *testing.T) {
-	fake := &fakeProvisioningResources{
-		createResp: &provresources.Resource{ID: "res-1"},
-		getResp:    &provresources.Resource{ID: "res-1", Field: "vpc", ResourceType: "aws-vpc@1.0.0"},
-	}
-	pc := providerForResource(fake)
-
-	rd := schema.TestResourceDataRaw(t, resourceResource().Schema, map[string]any{
-		"field":              "vpc",
-		"name":               "My VPC",
-		"resource":           `{"k":"v"}`,
-		"specification_path": "/nonexistent/massdriver.yaml",
-	})
-
-	if diags := resourceResourceCreate(t.Context(), rd, pc); diags.HasError() {
-		t.Fatalf("a set specification_path must not affect create; got %v", diags)
-	}
-	if fake.createInput.Field != "vpc" || fake.createInput.Name != "My VPC" {
-		t.Errorf("got create input %+v", fake.createInput)
-	}
-}
-
-// State written by 2.2.x carries specification_path. Upgrading must not turn
+// State written before the field was dropped still carries specification_path.
+// Terraform drops attributes absent from the schema; upgrading must not turn
 // that into a diff.
 func TestResourceResourceNoDiffFromInheritedSpecificationPath(t *testing.T) {
 	state := &terraform.InstanceState{
