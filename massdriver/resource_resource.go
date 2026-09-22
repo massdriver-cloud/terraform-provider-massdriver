@@ -115,9 +115,17 @@ func resourceResourceRead(ctx context.Context, d *schema.ResourceData, meta any)
 		return diag.FromErr(err)
 	}
 
+	resourceType := got.ResourceType
+	if resourceType == "" {
+		// Compatibility shim: self-hosted APIs older than this change don't
+		// return resource_type. Fall back to the legacy `type`, minus its org
+		// prefix. Remove once self-hosted deployments have caught up.
+		resourceType = got.Type[strings.LastIndex(got.Type, "/")+1:]
+	}
+
 	d.Set("field", got.Field)
 	d.Set("name", got.Name)
-	d.Set("resource_type", got.ResourceType)
+	d.Set("resource_type", resourceType)
 	d.Set("available_upgrade", got.AvailableUpgrade)
 	return nil
 }

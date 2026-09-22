@@ -511,3 +511,47 @@ func TestResourceResourceNoDiffFromInheritedSpecificationPath(t *testing.T) {
 		t.Fatalf("inherited specification_path should not produce a diff, got %+v", diff)
 	}
 }
+
+// An API older than this change returns the legacy `type` and no
+// resource_type; Read falls back to it rather than blanking state.
+func TestResourceResourceReadFallsBackToLegacyType(t *testing.T) {
+	cases := []struct{ name, legacy, resourceType, want string }{
+		{"old api, org-qualified", testOrgID + "/aws-vpc", "", "aws-vpc"},
+		{"old api, bare", "aws-vpc", "", "aws-vpc"},
+		{"current api wins over legacy", testOrgID + "/aws-vpc", "aws-vpc@1.2.3", "aws-vpc@1.2.3"},
+		{"neither", "", "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeProvisioningResources{
+				getResp: &provresources.Resource{
+					ID: "res-1", Field: "vpc", Name: "My VPC",
+					Type: tc.legacy, ResourceType: tc.resourceType,
+				},
+			}
+			rd := schema.TestResourceDataRaw(t, resourceResource().Schema, map[string]any{})
+			rd.SetId("res-1")
+
+			if diags := resourceResourceRead(t.Context(), rd, providerForResource(fake)); diags.HasError() {
+				t.Fatalf("unexpected diagnostics: %v", diags)
+			}
+			if got := rd.Get("resource_type").(string); got != tc.want {
+				t.Errorf("got resource_type %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// An old API returns no available_upgrade, so the upgrade path stays inert:
+// no spurious update, and nothing is replaced.
+func TestResourceResourceOldAPIPlansNothing(t *testing.T) {
+	state, cfg := resourceStateAndConfig("aws-vpc", "My VPC", "")
+
+	diff, err := resourceResource().Diff(t.Context(), state, cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff != nil && !diff.Empty() {
+		t.Fatalf("expected no diff against an old API, got %+v", diff)
+	}
+}
