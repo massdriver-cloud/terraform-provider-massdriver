@@ -96,10 +96,15 @@ func resourceServiceAccountCreate(ctx context.Context, d *schema.ResourceData, m
 		return diag.FromErr(err)
 	}
 
+	// State comes from the create response rather than a follow-up Read: a
+	// not-found there would clear the ID, orphaning the service account and
+	// losing the only copy of its token.
 	d.SetId(sa.ID)
+	d.Set("name", sa.Name)
+	d.Set("description", sa.Description)
 	d.Set("token", sa.DefaultToken)
 	d.Set("token_id", sa.DefaultTokenID)
-	return resourceServiceAccountRead(ctx, d, meta)
+	return nil
 }
 
 func resourceServiceAccountRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {

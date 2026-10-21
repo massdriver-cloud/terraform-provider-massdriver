@@ -70,6 +70,16 @@ func resourceServiceAccountGroupMembershipCreate(ctx context.Context, d *schema.
 	serviceAccountID := d.Get("service_account_id").(string)
 
 	if err := pc.ServiceAccountMemberships.AddServiceAccount(ctx, groupID, serviceAccountID); err != nil {
+		// The API rejects a duplicate add without saying why, so check
+		// whether that's what happened and point at import.
+		if member, lerr := isGroupMember(ctx, pc, groupID, serviceAccountID); lerr == nil && member {
+			return diag.Diagnostics{{
+				Severity: diag.Error,
+				Summary:  "Service account is already a member of this group",
+				Detail: fmt.Sprintf("Service account %s already belongs to group %s outside terraform. To manage it, import it:\n\n"+
+					"  terraform import <resource address> %s/%s", serviceAccountID, groupID, groupID, serviceAccountID),
+			}}
+		}
 		return diag.FromErr(err)
 	}
 
@@ -80,11 +90,7 @@ func resourceServiceAccountGroupMembershipCreate(ctx context.Context, d *schema.
 func resourceServiceAccountGroupMembershipRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
 	pc := meta.(*ProviderClient)
 
-	groupID := d.Get("group_id").(string)
-	serviceAccountID := d.Get("service_account_id").(string)
-
-	seq := pc.ServiceAccountMemberships.IterServiceAccounts(ctx, groupID, groups.ListServiceAccountsInput{})
-	found, err := containsServiceAccount(seq, serviceAccountID)
+	found, err := isGroupMember(ctx, pc, d.Get("group_id").(string), d.Get("service_account_id").(string))
 	if err != nil {
 		// Group gone — the membership went with it.
 		if errors.Is(err, gql.ErrNotFound) {
@@ -102,20 +108,37 @@ func resourceServiceAccountGroupMembershipRead(ctx context.Context, d *schema.Re
 func resourceServiceAccountGroupMembershipDelete(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
 	pc := meta.(*ProviderClient)
 
-	if err := pc.ServiceAccountMemberships.RemoveServiceAccount(ctx, d.Get("group_id").(string), d.Get("service_account_id").(string)); err != nil {
-		if errors.Is(err, gql.ErrNotFound) {
-			d.SetId("")
-			return nil
+	groupID := d.Get("group_id").(string)
+	serviceAccountID := d.Get("service_account_id").(string)
+
+	if err := pc.ServiceAccountMemberships.RemoveServiceAccount(ctx, groupID, serviceAccountID); err != nil {
+		if !errors.Is(err, gql.ErrNotFound) && !membershipGone(ctx, pc, groupID, serviceAccountID) {
+			return diag.FromErr(err)
 		}
-		return diag.FromErr(err)
 	}
 
 	d.SetId("")
 	return nil
 }
 
-// containsServiceAccount walks a group's service accounts looking for id,
-// stopping at the first match.
+// membershipGone reports whether the membership has already been removed,
+// along with its group. Removing a non-member fails without saying why, so a
+// failed remove is checked this way before it's reported.
+func membershipGone(ctx context.Context, pc *ProviderClient, groupID, serviceAccountID string) bool {
+	member, err := isGroupMember(ctx, pc, groupID, serviceAccountID)
+	if err != nil {
+		return errors.Is(err, gql.ErrNotFound)
+	}
+	return !member
+}
+
+// isGroupMember walks the group's service accounts looking for
+// serviceAccountID, stopping at the first match.
+func isGroupMember(ctx context.Context, pc *ProviderClient, groupID, serviceAccountID string) (bool, error) {
+	seq := pc.ServiceAccountMemberships.IterServiceAccounts(ctx, groupID, groups.ListServiceAccountsInput{})
+	return containsServiceAccount(seq, serviceAccountID)
+}
+
 func containsServiceAccount(seq iter.Seq2[groups.ServiceAccount, error], id string) (bool, error) {
 	for sa, err := range seq {
 		if err != nil {

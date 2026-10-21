@@ -80,6 +80,37 @@ func TestResourceServiceAccountCreate(t *testing.T) {
 	}
 }
 
+// Create must not Read back: a not-found there would clear the ID and lose
+// the only copy of the token.
+func TestResourceServiceAccountCreateDoesNotReadBack(t *testing.T) {
+	fake := &fakeServiceAccounts{
+		createResp: &serviceaccounts.ServiceAccountWithToken{
+			ServiceAccount: serviceaccounts.ServiceAccount{ID: "sa-1", Name: "ci-deployer", Description: "from create"},
+			DefaultToken:   "mds_secret",
+		},
+		getErr: fmt.Errorf("get service account: %w", gql.ErrNotFound),
+	}
+	pc := &ProviderClient{ServiceAccounts: fake}
+
+	rd := schema.TestResourceDataRaw(t, resourceServiceAccount().Schema, map[string]any{
+		"name":                     "ci-deployer",
+		"token_expiration_minutes": 60,
+	})
+
+	if diags := resourceServiceAccountCreate(t.Context(), rd, pc); diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	if fake.getCalls != 0 {
+		t.Errorf("create made %d Get calls, want 0", fake.getCalls)
+	}
+	if rd.Id() != "sa-1" || rd.Get("token").(string) != "mds_secret" {
+		t.Errorf("got id %q, token %q; want sa-1 and the token", rd.Id(), rd.Get("token"))
+	}
+	if got := rd.Get("description").(string); got != "from create" {
+		t.Errorf("got description %q, want it from the create response", got)
+	}
+}
+
 func TestResourceServiceAccountCreatePropagatesAPIFailure(t *testing.T) {
 	fake := &fakeServiceAccounts{createErr: fmt.Errorf("create service account: name must be unique")}
 	pc := &ProviderClient{ServiceAccounts: fake}

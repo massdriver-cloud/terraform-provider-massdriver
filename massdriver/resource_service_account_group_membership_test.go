@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -90,6 +91,25 @@ func TestResourceServiceAccountGroupMembershipCreatePropagatesAPIFailure(t *test
 	}
 }
 
+func TestResourceServiceAccountGroupMembershipCreateExplainsDuplicate(t *testing.T) {
+	fake := &fakeServiceAccountMemberships{
+		addErr:  fmt.Errorf("unable to add service account to group: "),
+		members: []groups.ServiceAccount{{ID: "sa-1"}},
+	}
+	rd := membershipData(t)
+
+	diags := resourceServiceAccountGroupMembershipCreate(t.Context(), rd, &ProviderClient{ServiceAccountMemberships: fake})
+	if !diags.HasError() {
+		t.Fatal("expected error, got none")
+	}
+	if !strings.Contains(diags[0].Summary, "already a member") || !strings.Contains(diags[0].Detail, "terraform import") {
+		t.Errorf("got %q / %q, want the already-a-member diagnostic with an import hint", diags[0].Summary, diags[0].Detail)
+	}
+	if rd.Id() != "" {
+		t.Errorf("ID should not be set on failure, got %q", rd.Id())
+	}
+}
+
 func TestResourceServiceAccountGroupMembershipRead(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -156,6 +176,50 @@ func TestResourceServiceAccountGroupMembershipDelete(t *testing.T) {
 			}
 			if rd.Id() != "" {
 				t.Errorf("ID should be cleared, got %q", rd.Id())
+			}
+		})
+	}
+}
+
+// Removing a non-member fails with no useful error, so a failed remove is
+// only reported when the membership is still there.
+func TestResourceServiceAccountGroupMembershipDeleteFailedRemove(t *testing.T) {
+	removeErr := fmt.Errorf("unable to remove service account from group: ")
+	tests := []struct {
+		name     string
+		fake     *fakeServiceAccountMemberships
+		wantDiag bool
+	}{
+		{
+			name: "already removed",
+			fake: &fakeServiceAccountMemberships{removeErr: removeErr, members: []groups.ServiceAccount{{ID: "other"}}},
+		},
+		{
+			name: "group gone",
+			fake: &fakeServiceAccountMemberships{removeErr: removeErr, iterErr: fmt.Errorf("list: %w", gql.ErrNotFound)},
+		},
+		{
+			name:     "still a member",
+			fake:     &fakeServiceAccountMemberships{removeErr: removeErr, members: []groups.ServiceAccount{{ID: "sa-1"}}},
+			wantDiag: true,
+		},
+		{
+			name:     "membership check fails",
+			fake:     &fakeServiceAccountMemberships{removeErr: removeErr, iterErr: fmt.Errorf("list: boom")},
+			wantDiag: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rd := membershipData(t)
+			rd.SetId("group-1/sa-1")
+
+			diags := resourceServiceAccountGroupMembershipDelete(t.Context(), rd, &ProviderClient{ServiceAccountMemberships: tc.fake})
+			if diags.HasError() != tc.wantDiag {
+				t.Fatalf("got diags %v, wantDiag %v", diags, tc.wantDiag)
+			}
+			if gotCleared := rd.Id() == ""; gotCleared == tc.wantDiag {
+				t.Errorf("got id %q; ID should be cleared only on success", rd.Id())
 			}
 		})
 	}
