@@ -14,6 +14,12 @@
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
 
+	// The base image pins GOTOOLCHAIN=local, so a go.mod patch release newer
+	// than the image's Go fails instead of downloading the right toolchain.
+	"containerEnv": {
+		"GOTOOLCHAIN": "auto"
+	},
+
 	"mounts": [
 		"source=claude-code-config-${devcontainerId},target=/home/vscode/.claude,type=volume"
 	],
