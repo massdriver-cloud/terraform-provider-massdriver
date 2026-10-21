@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.4.0
+
+### Added
+
+- **`massdriver_service_account`** creates a service account and exposes the
+  access token the platform issues with it as the sensitive `token`
+  attribute. The token is returned only once, at creation: there's no way to
+  re-fetch it or mint another from an admin key, so rotating it means
+  replacing the resource (`terraform apply -replace`, or
+  `replace_triggered_by` on a `time_rotating`). `token_expiration_minutes`
+  is required and forces replacement. Imported service accounts have an
+  empty `token`.
+- **`massdriver_service_account_group_membership`** adds a service account to
+  a group. A new service account has no permissions until it belongs to one.
+  Import with `<group_id>/<service_account_id>`.
+
 ## 2.3.1
 
 ### Removed

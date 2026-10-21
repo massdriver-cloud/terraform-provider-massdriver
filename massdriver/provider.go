@@ -39,16 +39,18 @@ func Provider() *schema.Provider {
 // nothing has to remember to opt in.
 func apiKeyResources() map[string]*schema.Resource {
 	return map[string]*schema.Resource{
-		"massdriver_project":              resourceProject(),
-		"massdriver_environment":          resourceEnvironment(),
-		"massdriver_component":            resourceComponent(),
-		"massdriver_component_link":       resourceComponentLink(),
-		"massdriver_resource_grant":       resourceResourceGrant(),
-		"massdriver_imported_resource":    resourceImportedResource(),
-		"massdriver_group":                resourceGroup(),
-		"massdriver_group_policy":         resourceGroupPolicy(),
-		"massdriver_oci_repository":       resourceOciRepository(),
-		"massdriver_oci_repository_grant": resourceOciRepositoryGrant(),
+		"massdriver_project":                          resourceProject(),
+		"massdriver_environment":                      resourceEnvironment(),
+		"massdriver_component":                        resourceComponent(),
+		"massdriver_component_link":                   resourceComponentLink(),
+		"massdriver_resource_grant":                   resourceResourceGrant(),
+		"massdriver_imported_resource":                resourceImportedResource(),
+		"massdriver_group":                            resourceGroup(),
+		"massdriver_group_policy":                     resourceGroupPolicy(),
+		"massdriver_oci_repository":                   resourceOciRepository(),
+		"massdriver_oci_repository_grant":             resourceOciRepositoryGrant(),
+		"massdriver_service_account":                  resourceServiceAccount(),
+		"massdriver_service_account_group_membership": resourceServiceAccountGroupMembership(),
 	}
 }
 
