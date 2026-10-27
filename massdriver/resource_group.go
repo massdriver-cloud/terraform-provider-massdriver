@@ -22,7 +22,7 @@ var _ groupsAPI = (*groups.Service)(nil)
 
 func resourceGroup() *schema.Resource {
 	return &schema.Resource{
-		Description: "A custom Massdriver group. Built-in groups (`organization_admin`, `organization_viewer`) are managed by the platform and cannot be created or destroyed via terraform.",
+		Description: "A custom Massdriver group. The built-in `organization_admin` group is managed by the platform and cannot be created or destroyed via terraform.",
 
 		CreateContext: resourceGroupCreate,
 		ReadContext:   resourceGroupRead,
