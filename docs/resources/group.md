@@ -3,12 +3,12 @@
 page_title: "massdriver_group Resource - massdriver"
 subcategory: ""
 description: |-
-  A custom Massdriver group. Built-in groups (organization_admin, organization_viewer) are managed by the platform and cannot be created or destroyed via terraform.
+  A custom Massdriver group. The built-in organization_admin group is managed by the platform and cannot be created or destroyed via terraform.
 ---
 
 # massdriver_group (Resource)
 
-A custom Massdriver group. Built-in groups (`organization_admin`, `organization_viewer`) are managed by the platform and cannot be created or destroyed via terraform.
+A custom Massdriver group. The built-in `organization_admin` group is managed by the platform and cannot be created or destroyed via terraform.
 
 ## Example Usage
 
@@ -16,8 +16,8 @@ A custom Massdriver group. Built-in groups (`organization_admin`, `organization_
 # A custom access-control group within the organization. Members gain
 # permissions through ABAC policies attached via massdriver_group_policy.
 #
-# Built-in groups (organization_admin, organization_viewer) are managed
-# by the platform and cannot be created or destroyed here.
+# The built-in organization_admin group is managed by the platform and
+# cannot be created or destroyed here.
 
 resource "massdriver_group" "sres" {
   name        = "SREs"
