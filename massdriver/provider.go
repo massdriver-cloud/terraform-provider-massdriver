@@ -2,6 +2,7 @@ package massdriver
 
 import (
 	"context"
+	"fmt"
 	"maps"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -51,6 +52,8 @@ func apiKeyResources() map[string]*schema.Resource {
 		"massdriver_oci_repository_grant":             resourceOciRepositoryGrant(),
 		"massdriver_service_account":                  resourceServiceAccount(),
 		"massdriver_service_account_group_membership": resourceServiceAccountGroupMembership(),
+		"massdriver_custom_attribute":                 resourceCustomAttribute(),
+		"massdriver_organization_settings":            resourceOrganizationSettings(),
 	}
 }
 
@@ -107,14 +110,27 @@ var requiresAnyCredential = authRequirement{
 	diags: anyCredentialRequiredDiags,
 }
 
-// requireAuth wraps r's CRUD entry points with req's check. Import needs no
-// wrapper: the custom importers only parse the composite ID, and terraform
-// runs the wrapped Read immediately afterward.
+// requireAuth wraps r's CRUD entry points and importer with req's check.
+// Some importers call the API to resolve the ID, so they need the guard as
+// much as Read does.
 func requireAuth(name string, r *schema.Resource, req authRequirement) {
 	r.CreateContext = guardCRUD(name, r.CreateContext, req)
 	r.ReadContext = guardCRUD(name, r.ReadContext, req)
 	r.UpdateContext = guardCRUD(name, r.UpdateContext, req)
 	r.DeleteContext = guardCRUD(name, r.DeleteContext, req)
+	if r.Importer != nil && r.Importer.StateContext != nil {
+		r.Importer.StateContext = guardImport(name, r.Importer.StateContext, req)
+	}
+}
+
+func guardImport(name string, next schema.StateContextFunc, req authRequirement) schema.StateContextFunc {
+	return func(ctx context.Context, d *schema.ResourceData, meta any) ([]*schema.ResourceData, error) {
+		if pc, ok := meta.(*ProviderClient); ok && req.err(pc) != nil {
+			authDiag := req.diags(name)[0]
+			return nil, fmt.Errorf("%s: %s", authDiag.Summary, authDiag.Detail)
+		}
+		return next(ctx, d, meta)
+	}
 }
 
 // crudFunc matches the four distinct-but-identical CRUD function types the
