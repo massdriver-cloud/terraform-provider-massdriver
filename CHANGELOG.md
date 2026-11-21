@@ -1,5 +1,32 @@
 # Changelog
 
+## 2.5.0
+
+### Added
+
+- **`massdriver_custom_attribute`** declares an organization custom attribute:
+  its `key`, `scope` (`PROJECT`, `ENVIRONMENT`, `COMPONENT`, or `REPO`), the
+  closed set of `values` it may take, and whether it's `required`. `key` and
+  `scope` force replacement. `required` defaults to `false`, unlike the
+  platform's own default of `true`, so declaring an attribute doesn't
+  silently make it mandatory org-wide. Import by key or ID.
+- **`massdriver_organization_settings`** manages the configured
+  organization's settings:
+  - `grant_new_bundles_to_all_projects` grants each new bundle repository to
+    every project.
+  - `naming_convention` sets the Liquid template that names provisioned
+    cloud resources; `""` restores the default.
+  - `default_tags` picks the custom attribute keys sent to deployments as
+    default tags; `[]` sends only `managed-by` and `md-instance`.
+
+  Only the arguments you set are managed, and destroying the resource leaves
+  the settings as they are.
+
+### Changed
+
+- Importers of API-key resources now report a missing API key instead of
+  running without one.
+
 ## 2.4.0
 
 ### Added

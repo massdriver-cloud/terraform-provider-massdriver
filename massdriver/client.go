@@ -30,6 +30,9 @@ type ProviderClient struct {
 	ServiceAccounts           serviceAccountsAPI
 	ServiceAccountMemberships serviceAccountMembershipsAPI
 
+	CustomAttributes     customAttributesAPI
+	OrganizationSettings organizationSettingsAPI
+
 	// Thunked and memoized: provisioning.NewClient() errors outside a
 	// deployment, so construction waits until massdriver_resource is used.
 	ProvisioningResources func() (provisioningResourcesAPI, error)
@@ -84,6 +87,8 @@ func NewProviderClient(cfg ProviderConfig) (*ProviderClient, error) {
 		pc.OciRepoGrants = platform.OciRepos
 		pc.ServiceAccounts = platform.ServiceAccounts
 		pc.ServiceAccountMemberships = platform.Groups
+		pc.CustomAttributes = platform.Organizations
+		pc.OrganizationSettings = platform.Organizations
 		return pc, nil
 	}
 	if !errors.Is(err, config.ErrNoCredentials) {

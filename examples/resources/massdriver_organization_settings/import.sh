@@ -1,0 +1,1 @@
+terraform import massdriver_organization_settings.this <organization_id>

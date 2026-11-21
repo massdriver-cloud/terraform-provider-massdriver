@@ -77,6 +77,12 @@ func TestAPIKeyResourcesGuarded(t *testing.T) {
 					t.Errorf("%s: summary = %q, want the missing-API-key diagnostic", op, diags[0].Summary)
 				}
 			}
+			if r.Importer != nil && r.Importer.StateContext != nil {
+				_, err := r.Importer.StateContext(context.Background(), r.TestResourceData(), pc)
+				if err == nil || !strings.Contains(err.Error(), "No Massdriver API key") {
+					t.Errorf("import: got %v, want the missing-API-key error", err)
+				}
+			}
 		})
 	}
 }
