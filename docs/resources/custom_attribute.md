@@ -32,7 +32,7 @@ resource "massdriver_custom_attribute" "data_classification" {
 
 ### Required
 
-- `key` (String) Attribute key. 1-64 characters, starting with a letter or underscore and containing only letters, digits, and underscores. Unique within the organization, case-insensitively. Changing it replaces the attribute.
+- `key` (String) Attribute key. 1-64 characters, starting with a letter or underscore and containing only letters, digits, and underscores. Unique within the organization, case-insensitively. Changing it replaces the attribute, including a change only in letter case, so when importing, match the casing the attribute has in the organization.
 - `scope` (String) Where the attribute is set: `PROJECT`, `ENVIRONMENT`, `COMPONENT`, or `REPO`. Project and environment values cascade to everything beneath them. Changing it replaces the attribute.
 - `values` (List of String) The closed set of values the attribute may take. At least one; no duplicates, empty strings, or `*`. Changing the set does not revalidate resources already tagged.
 

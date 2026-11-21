@@ -49,7 +49,7 @@ func resourceCustomAttribute() *schema.Resource {
 
 		Schema: map[string]*schema.Schema{
 			"key": {
-				Description: "Attribute key. 1-64 characters, starting with a letter or underscore and containing only letters, digits, and underscores. Unique within the organization, case-insensitively. Changing it replaces the attribute.",
+				Description: "Attribute key. 1-64 characters, starting with a letter or underscore and containing only letters, digits, and underscores. Unique within the organization, case-insensitively. Changing it replaces the attribute, including a change only in letter case, so when importing, match the casing the attribute has in the organization.",
 				Type:        schema.TypeString,
 				Required:    true,
 				ForceNew:    true,

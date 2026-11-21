@@ -126,8 +126,8 @@ func requireAuth(name string, r *schema.Resource, req authRequirement) {
 func guardImport(name string, next schema.StateContextFunc, req authRequirement) schema.StateContextFunc {
 	return func(ctx context.Context, d *schema.ResourceData, meta any) ([]*schema.ResourceData, error) {
 		if pc, ok := meta.(*ProviderClient); ok && req.err(pc) != nil {
-			d := req.diags(name)[0]
-			return nil, fmt.Errorf("%s: %s", d.Summary, d.Detail)
+			authDiag := req.diags(name)[0]
+			return nil, fmt.Errorf("%s: %s", authDiag.Summary, authDiag.Detail)
 		}
 		return next(ctx, d, meta)
 	}
