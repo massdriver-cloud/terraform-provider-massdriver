@@ -54,8 +54,10 @@ output "signing_secret" {
 
 ### Optional
 
+> **NOTE**: [Write-only arguments](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments) are supported in Terraform 1.11 and later.
+
 - `attributes` (Map of String) Attribute values the event's entity must have had, such as `{ "md-environment" = "prod" }`. An event must have all of them. Empty receives events of any attributes. A change applies to events recorded after it.
-- `auth` (String) JSON-encoded credentials of the adapter, such as `jsonencode({ headers = { Authorization = "Bearer ..." } })` for `HTTP`. Write-only: it is not stored in state, and the API never returns it. It is sent when the destination is created and when `auth_version` changes. Requires Terraform 1.11 or OpenTofu 1.11 or later.
+- `auth` (String, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) JSON-encoded credentials of the adapter, such as `jsonencode({ headers = { Authorization = "Bearer ..." } })` for `HTTP`. Write-only: it is not stored in state, and the API never returns it. It is sent when the destination is created and when `auth_version` changes. Requires Terraform 1.11 or OpenTofu 1.11 or later.
 - `auth_version` (Number) Change this value to send `auth` again, for example to rotate credentials. If `auth` is not set when it changes, the destination's credentials are removed.
 - `condition` (String) A jq expression run on each CloudEvent that `event_types` and `attributes` select. The event is sent only when it outputs `true`.
 - `event_types` (Set of String) Event types the destination receives, or `<entity>.*` for every event of an entity. Empty receives every event. The `massdriver_event_types` data source lists the event types. A change applies to events recorded after it.
