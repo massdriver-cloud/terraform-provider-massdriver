@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -27,6 +28,7 @@ type fakeEventDestinations struct {
 	destination *eventdestinations.EventDestination
 	auth        map[string]any
 	getErr      error
+	pauseErr    error
 
 	creates []eventdestinations.CreateInput
 	updates []eventdestinations.UpdateInput
@@ -111,6 +113,9 @@ func (f *fakeEventDestinations) Pause(_ context.Context, _ string) (*eventdestin
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.pauses++
+	if f.pauseErr != nil {
+		return nil, f.pauseErr
+	}
 	f.destination.Status = string(eventdestinations.StatusPaused)
 	return f.current()
 }
@@ -399,5 +404,34 @@ resource "massdriver_event_destination" "this" {
 				}),
 			),
 		}},
+	})
+}
+
+// A failed pause after create must still record the destination in state,
+// so it is not left behind untracked.
+func TestResourceEventDestinationCreatePauseFails(t *testing.T) {
+	fake := &fakeEventDestinations{pauseErr: errors.New("pause event destination: forbidden")}
+	pc := &ProviderClient{EventDestinations: fake}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProviderFactories: fakeProviderFactories(pc),
+		Steps: []resource.TestStep{{
+			Config: `
+resource "massdriver_event_destination" "this" {
+  name    = "Audit"
+  adapter = "HTTP"
+  config  = jsonencode({ url = "https://hooks.example.com/massdriver" })
+  paused  = true
+}`,
+			ExpectError: regexp.MustCompile("forbidden"),
+		}},
+		CheckDestroy: func(*terraform.State) error {
+			fake.mu.Lock()
+			defer fake.mu.Unlock()
+			if fake.deletes != 1 {
+				return fmt.Errorf("got %d deletes, want the created destination destroyed", fake.deletes)
+			}
+			return nil
+		},
 	})
 }

@@ -154,9 +154,12 @@ func resourceEventDestinationCreate(ctx context.Context, d *schema.ResourceData,
 	d.SetId(destination.ID)
 
 	if d.Get("paused").(bool) {
-		if destination, err = pc.EventDestinations.Pause(ctx, destination.ID); err != nil {
-			return diag.FromErr(err)
+		paused, pauseErr := pc.EventDestinations.Pause(ctx, destination.ID)
+		if pauseErr != nil {
+			// The destination exists, so state records it as it is.
+			return append(setEventDestination(d, destination), diag.FromErr(pauseErr)...)
 		}
+		destination = paused
 	}
 	return setEventDestination(d, destination)
 }
