@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"time"
 
 	"github.com/hashicorp/go-cty/cty"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -99,27 +98,6 @@ func resourceEventDestination() *schema.Resource {
 			},
 			"status": {
 				Description: "`ACTIVE` or `PAUSED`.",
-				Type:        schema.TypeString,
-				Computed:    true,
-			},
-			"signing_secret": {
-				Description: "The secret that signs each request, in Standard Webhooks form (`whsec_` followed by base64). Use it to check the `webhook-signature` header. Empty for adapters that do not sign.",
-				Type:        schema.TypeString,
-				Computed:    true,
-				Sensitive:   true,
-			},
-			"failing_since": {
-				Description: "When sends to the destination started to fail (RFC 3339). Empty when the last send succeeded.",
-				Type:        schema.TypeString,
-				Computed:    true,
-			},
-			"last_error": {
-				Description: "Why the endpoint did not accept the last send, such as `HTTP 503`. Empty when the last send succeeded.",
-				Type:        schema.TypeString,
-				Computed:    true,
-			},
-			"last_delivered_at": {
-				Description: "When the destination last accepted an event (RFC 3339).",
 				Type:        schema.TypeString,
 				Computed:    true,
 			},
@@ -251,16 +229,13 @@ func resourceEventDestinationDelete(ctx context.Context, d *schema.ResourceData,
 	return nil
 }
 
-// resourceEventDestinationCustomizeDiff plans status and failing_since as
-// unknown when paused changes, since pausing and resuming change them.
+// resourceEventDestinationCustomizeDiff plans status as unknown when paused
+// changes, since pausing and resuming change it.
 func resourceEventDestinationCustomizeDiff(_ context.Context, d *schema.ResourceDiff, _ any) error {
 	if d.Id() == "" || !d.HasChange("paused") {
 		return nil
 	}
-	if err := d.SetNewComputed("status"); err != nil {
-		return err
-	}
-	return d.SetNewComputed("failing_since")
+	return d.SetNewComputed("status")
 }
 
 // eventDestinationAuth reads the write-only auth from the configuration,
@@ -311,18 +286,7 @@ func setEventDestination(d *schema.ResourceData, destination *eventdestinations.
 	d.Set("condition", destination.Condition)
 	d.Set("paused", destination.Status == string(eventdestinations.StatusPaused))
 	d.Set("status", destination.Status)
-	d.Set("signing_secret", destination.SigningSecret)
-	d.Set("failing_since", formatOptionalTime(destination.FailingSince))
-	d.Set("last_error", destination.LastError)
-	d.Set("last_delivered_at", formatOptionalTime(destination.LastDeliveredAt))
 	return nil
-}
-
-func formatOptionalTime(t time.Time) string {
-	if t.IsZero() {
-		return ""
-	}
-	return t.Format(time.RFC3339)
 }
 
 func expandStringMap(raw map[string]any) map[string]string {

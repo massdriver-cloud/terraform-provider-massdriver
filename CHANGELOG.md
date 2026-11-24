@@ -14,7 +14,6 @@
   - `paused` pauses and resumes the destination. When Massdriver pauses a
     failing destination, the next plan shows `paused` changing back to
     `false`, and apply resumes it.
-  - `signing_secret` is a sensitive read-only attribute.
 - **`massdriver_event_types`** data source lists the event catalog, so
   `event_types` can be checked against it.
 

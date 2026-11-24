@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/hashicorp/go-cty/cty"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -62,15 +61,14 @@ func (f *fakeEventDestinations) Create(_ context.Context, input eventdestination
 	f.creates = append(f.creates, input)
 	f.auth = input.Auth
 	f.destination = &eventdestinations.EventDestination{
-		ID:            "ed-1",
-		Name:          input.Name,
-		Adapter:       input.Adapter,
-		Config:        input.Config,
-		EventTypes:    append([]string{}, input.EventTypes...),
-		Attributes:    maps.Clone(input.Attributes),
-		Condition:     input.Condition,
-		Status:        string(eventdestinations.StatusActive),
-		SigningSecret: "whsec_c2VjcmV0",
+		ID:         "ed-1",
+		Name:       input.Name,
+		Adapter:    input.Adapter,
+		Config:     input.Config,
+		EventTypes: append([]string{}, input.EventTypes...),
+		Attributes: maps.Clone(input.Attributes),
+		Condition:  input.Condition,
+		Status:     string(eventdestinations.StatusActive),
 	}
 	return f.current()
 }
@@ -125,7 +123,6 @@ func (f *fakeEventDestinations) Resume(_ context.Context, _ string) (*eventdesti
 	defer f.mu.Unlock()
 	f.resumes++
 	f.destination.Status = string(eventdestinations.StatusActive)
-	f.destination.FailingSince = time.Time{}
 	return f.current()
 }
 
@@ -134,8 +131,6 @@ func (f *fakeEventDestinations) autoPause() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.destination.Status = string(eventdestinations.StatusPaused)
-	f.destination.FailingSince = time.Date(2026, 11, 20, 10, 0, 0, 0, time.UTC)
-	f.destination.LastError = "HTTP 503"
 }
 
 func (f *fakeEventDestinations) check(fn func(f *fakeEventDestinations) error) resource.TestCheckFunc {
@@ -148,16 +143,13 @@ func (f *fakeEventDestinations) check(fn func(f *fakeEventDestinations) error) r
 
 func TestResourceEventDestinationRead(t *testing.T) {
 	fake := &fakeEventDestinations{destination: &eventdestinations.EventDestination{
-		ID:            "ed-1",
-		Name:          "Production deployments",
-		Adapter:       "HTTP",
-		Config:        map[string]any{"url": "https://hooks.example.com/massdriver"},
-		EventTypes:    []string{"deployment.*"},
-		Attributes:    map[string]string{"md-environment": "prod"},
-		Status:        "PAUSED",
-		SigningSecret: "whsec_c2VjcmV0",
-		FailingSince:  time.Date(2026, 11, 20, 10, 0, 0, 0, time.UTC),
-		LastError:     "HTTP 503",
+		ID:         "ed-1",
+		Name:       "Production deployments",
+		Adapter:    "HTTP",
+		Config:     map[string]any{"url": "https://hooks.example.com/massdriver"},
+		EventTypes: []string{"deployment.*"},
+		Attributes: map[string]string{"md-environment": "prod"},
+		Status:     "PAUSED",
 	}}
 	pc := &ProviderClient{EventDestinations: fake}
 
@@ -168,16 +160,12 @@ func TestResourceEventDestinationRead(t *testing.T) {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
 	for attr, want := range map[string]any{
-		"name":              "Production deployments",
-		"adapter":           "HTTP",
-		"config":            `{"url":"https://hooks.example.com/massdriver"}`,
-		"paused":            true,
-		"status":            "PAUSED",
-		"signing_secret":    "whsec_c2VjcmV0",
-		"failing_since":     "2026-11-20T10:00:00Z",
-		"last_error":        "HTTP 503",
-		"last_delivered_at": "",
-		"condition":         "",
+		"name":      "Production deployments",
+		"adapter":   "HTTP",
+		"config":    `{"url":"https://hooks.example.com/massdriver"}`,
+		"paused":    true,
+		"status":    "PAUSED",
+		"condition": "",
 	} {
 		if got := rd.Get(attr); got != want {
 			t.Errorf("%s = %v, want %v", attr, got, want)
@@ -285,7 +273,6 @@ resource "massdriver_event_destination" "this" {
 					resource.TestCheckResourceAttr(addr, "id", "ed-1"),
 					resource.TestCheckResourceAttr(addr, "status", "ACTIVE"),
 					resource.TestCheckResourceAttr(addr, "paused", "false"),
-					resource.TestCheckResourceAttr(addr, "signing_secret", "whsec_c2VjcmV0"),
 					resource.TestCheckNoResourceAttr(addr, "auth"),
 					fake.check(func(f *fakeEventDestinations) error {
 						if len(f.creates) != 1 || f.creates[0].Auth["headers"] == nil {
@@ -331,7 +318,6 @@ resource "massdriver_event_destination" "this" {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(addr, "paused", "false"),
 					resource.TestCheckResourceAttr(addr, "status", "ACTIVE"),
-					resource.TestCheckResourceAttr(addr, "failing_since", ""),
 					fake.check(func(f *fakeEventDestinations) error {
 						if f.resumes != 1 || len(f.updates) != 2 {
 							return fmt.Errorf("got %d resumes and %d updates, want 1 resume and no update", f.resumes, len(f.updates))
