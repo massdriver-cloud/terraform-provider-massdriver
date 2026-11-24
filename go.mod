@@ -5,7 +5,7 @@ go 1.26.10
 require (
 	github.com/hashicorp/go-cty v1.5.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.40.1
-	github.com/massdriver-cloud/massdriver-sdk-go v0.4.1-0.20261123235944-e59cde9c9c0f
+	github.com/massdriver-cloud/massdriver-sdk-go v0.5.1
 )
 
 require (
