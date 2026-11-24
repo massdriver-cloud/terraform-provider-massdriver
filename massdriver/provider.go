@@ -30,7 +30,7 @@ func Provider() *schema.Provider {
 			},
 		},
 		ResourcesMap:         resourcesMap(),
-		DataSourcesMap:       map[string]*schema.Resource{},
+		DataSourcesMap:       dataSourcesMap(),
 		ConfigureContextFunc: providerConfigure,
 	}
 }
@@ -54,7 +54,24 @@ func apiKeyResources() map[string]*schema.Resource {
 		"massdriver_service_account_group_membership": resourceServiceAccountGroupMembership(),
 		"massdriver_custom_attribute":                 resourceCustomAttribute(),
 		"massdriver_organization_settings":            resourceOrganizationSettings(),
+		"massdriver_event_destination":                resourceEventDestination(),
 	}
+}
+
+// apiKeyDataSources are read through GraphQL APIs that reject deployment
+// tokens.
+func apiKeyDataSources() map[string]*schema.Resource {
+	return map[string]*schema.Resource{
+		"massdriver_event_types": dataSourceEventTypes(),
+	}
+}
+
+func dataSourcesMap() map[string]*schema.Resource {
+	dataSources := apiKeyDataSources()
+	for name, r := range dataSources {
+		requireAuth(name, r, requiresAPIKey)
+	}
+	return dataSources
 }
 
 // anyCredentialResources are GraphQL-backed, but the server accepts a

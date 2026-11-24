@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.6.0
+
+### Added
+
+- **`massdriver_event_destination`** sends the organization's audit log
+  events to a place outside Massdriver, such as an HTTP endpoint. It selects
+  events with `event_types`, `attributes`, and a jq `condition`. `adapter`
+  forces replacement.
+  - `auth` is a write-only argument (Terraform 1.11 or OpenTofu 1.11 or
+    later). It is sent on create and when `auth_version` changes, because the
+    API never returns it.
+  - `paused` pauses and resumes the destination. When Massdriver pauses a
+    failing destination, the next plan shows `paused` changing back to
+    `false`, and apply resumes it.
+- **`massdriver_event_types`** data source lists the event catalog, so
+  `event_types` can be checked against it.
+
 ## 2.5.0
 
 ### Added

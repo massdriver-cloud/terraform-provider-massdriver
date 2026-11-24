@@ -33,6 +33,9 @@ type ProviderClient struct {
 	CustomAttributes     customAttributesAPI
 	OrganizationSettings organizationSettingsAPI
 
+	EventDestinations eventDestinationsAPI
+	EventTypes        eventTypesAPI
+
 	// Thunked and memoized: provisioning.NewClient() errors outside a
 	// deployment, so construction waits until massdriver_resource is used.
 	ProvisioningResources func() (provisioningResourcesAPI, error)
@@ -89,6 +92,8 @@ func NewProviderClient(cfg ProviderConfig) (*ProviderClient, error) {
 		pc.ServiceAccountMemberships = platform.Groups
 		pc.CustomAttributes = platform.Organizations
 		pc.OrganizationSettings = platform.Organizations
+		pc.EventDestinations = platform.EventDestinations
+		pc.EventTypes = platform.EventDestinations
 		return pc, nil
 	}
 	if !errors.Is(err, config.ErrNoCredentials) {

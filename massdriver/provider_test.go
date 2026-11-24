@@ -87,6 +87,19 @@ func TestAPIKeyResourcesGuarded(t *testing.T) {
 	}
 }
 
+func TestAPIKeyDataSourcesGuarded(t *testing.T) {
+	pc := &ProviderClient{PlatformAuthErr: config.ErrNoCredentials}
+
+	for name, r := range Provider().DataSourcesMap {
+		t.Run(name, func(t *testing.T) {
+			diags := r.ReadContext(context.Background(), r.TestResourceData(), pc)
+			if !diags.HasError() || !strings.Contains(diags[0].Summary, "No Massdriver API key") {
+				t.Errorf("got %v, want the missing-API-key diagnostic", diags)
+			}
+		})
+	}
+}
+
 // Regression: bundles pair massdriver_instance_alarm with massdriver_resource
 // under the deployment token alone. A missing API key must not block them.
 func TestInstanceAlarmRunsWithDeploymentTokenOnly(t *testing.T) {
