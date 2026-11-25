@@ -70,6 +70,9 @@ func (f *fakeEventDestinations) Create(_ context.Context, input eventdestination
 		Condition:  input.Condition,
 		Status:     string(eventdestinations.StatusActive),
 	}
+	if input.Adapter == eventdestinations.AdapterHTTP {
+		f.destination.SigningSecret = "whsec_c2VjcmV0"
+	}
 	return f.current()
 }
 
@@ -143,13 +146,14 @@ func (f *fakeEventDestinations) check(fn func(f *fakeEventDestinations) error) r
 
 func TestResourceEventDestinationRead(t *testing.T) {
 	fake := &fakeEventDestinations{destination: &eventdestinations.EventDestination{
-		ID:         "ed-1",
-		Name:       "Production deployments",
-		Adapter:    "HTTP",
-		Config:     map[string]any{"url": "https://hooks.example.com/massdriver"},
-		EventTypes: []string{"deployment.*"},
-		Attributes: map[string]string{"md-environment": "prod"},
-		Status:     "PAUSED",
+		ID:            "ed-1",
+		Name:          "Production deployments",
+		Adapter:       "HTTP",
+		Config:        map[string]any{"url": "https://hooks.example.com/massdriver"},
+		EventTypes:    []string{"deployment.*"},
+		Attributes:    map[string]string{"md-environment": "prod"},
+		Status:        "PAUSED",
+		SigningSecret: "whsec_c2VjcmV0",
 	}}
 	pc := &ProviderClient{EventDestinations: fake}
 
@@ -160,12 +164,13 @@ func TestResourceEventDestinationRead(t *testing.T) {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
 	for attr, want := range map[string]any{
-		"name":      "Production deployments",
-		"adapter":   "HTTP",
-		"config":    `{"url":"https://hooks.example.com/massdriver"}`,
-		"paused":    true,
-		"status":    "PAUSED",
-		"condition": "",
+		"name":           "Production deployments",
+		"adapter":        "HTTP",
+		"config":         `{"url":"https://hooks.example.com/massdriver"}`,
+		"paused":         true,
+		"status":         "PAUSED",
+		"condition":      "",
+		"signing_secret": "whsec_c2VjcmV0",
 	} {
 		if got := rd.Get(attr); got != want {
 			t.Errorf("%s = %v, want %v", attr, got, want)
@@ -204,6 +209,13 @@ func TestResourceEventDestinationReadPropagatesFailure(t *testing.T) {
 	}
 	if rd.Id() != "ed-1" {
 		t.Errorf("a failed read must not clear the ID, got %q", rd.Id())
+	}
+}
+
+func TestResourceEventDestinationSigningSecretIsSensitive(t *testing.T) {
+	s := resourceEventDestination().Schema["signing_secret"]
+	if s == nil || !s.Computed || !s.Sensitive || s.Optional || s.Required {
+		t.Fatalf("signing_secret = %+v, want computed and sensitive", s)
 	}
 }
 
@@ -273,6 +285,7 @@ resource "massdriver_event_destination" "this" {
 					resource.TestCheckResourceAttr(addr, "id", "ed-1"),
 					resource.TestCheckResourceAttr(addr, "status", "ACTIVE"),
 					resource.TestCheckResourceAttr(addr, "paused", "false"),
+					resource.TestCheckResourceAttr(addr, "signing_secret", "whsec_c2VjcmV0"),
 					resource.TestCheckNoResourceAttr(addr, "auth"),
 					fake.check(func(f *fakeEventDestinations) error {
 						if len(f.creates) != 1 || f.creates[0].Auth["headers"] == nil {

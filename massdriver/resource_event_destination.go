@@ -101,6 +101,12 @@ func resourceEventDestination() *schema.Resource {
 				Type:        schema.TypeString,
 				Computed:    true,
 			},
+			"signing_secret": {
+				Description: "The secret that signs each request, in Standard Webhooks form (`whsec_` followed by base64). Give it to the service that receives the events, so that it can check the `webhook-signature` header. It is stored in state. Empty for adapters that do not sign.",
+				Type:        schema.TypeString,
+				Computed:    true,
+				Sensitive:   true,
+			},
 		},
 	}
 }
@@ -286,6 +292,7 @@ func setEventDestination(d *schema.ResourceData, destination *eventdestinations.
 	d.Set("condition", destination.Condition)
 	d.Set("paused", destination.Status == string(eventdestinations.StatusPaused))
 	d.Set("status", destination.Status)
+	d.Set("signing_secret", destination.SigningSecret)
 	return nil
 }
 

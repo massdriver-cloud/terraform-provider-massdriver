@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.7.0
+
+### Added
+
+- **`massdriver_event_destination`** exports `signing_secret`, the Standard
+  Webhooks secret that signs each request, so a configuration can give it to
+  the service that receives the events. It is sensitive, and empty for
+  adapters that do not sign.
+
 ## 2.6.0
 
 ### Added
