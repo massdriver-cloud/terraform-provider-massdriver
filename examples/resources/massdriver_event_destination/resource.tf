@@ -21,3 +21,8 @@ resource "massdriver_event_destination" "production_deployments" {
   attributes  = { "md-environment" = "prod" }
   condition   = ".data.metadata.deployment_action == \"PROVISION\""
 }
+
+output "webhook_signing_secret" {
+  value     = massdriver_event_destination.production_deployments.signing_secret
+  sensitive = true
+}
