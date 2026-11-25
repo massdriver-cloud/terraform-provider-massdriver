@@ -102,7 +102,7 @@ func resourceEventDestination() *schema.Resource {
 				Computed:    true,
 			},
 			"signing_secret": {
-				Description: "The secret that signs each request, in Standard Webhooks form (`whsec_` followed by base64). Give it to the service that receives the events, so that it can check the `webhook-signature` header. Empty for adapters that do not sign.",
+				Description: "The secret that signs each request, in Standard Webhooks form (`whsec_` followed by base64). Give it to the service that receives the events, so that it can check the `webhook-signature` header. It is stored in state. Empty for adapters that do not sign.",
 				Type:        schema.TypeString,
 				Computed:    true,
 				Sensitive:   true,

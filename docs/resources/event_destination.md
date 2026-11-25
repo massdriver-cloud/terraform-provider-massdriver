@@ -66,7 +66,7 @@ output "webhook_signing_secret" {
 ### Read-Only
 
 - `id` (String) The ID of this resource.
-- `signing_secret` (String, Sensitive) The secret that signs each request, in Standard Webhooks form (`whsec_` followed by base64). Give it to the service that receives the events, so that it can check the `webhook-signature` header. Empty for adapters that do not sign.
+- `signing_secret` (String, Sensitive) The secret that signs each request, in Standard Webhooks form (`whsec_` followed by base64). Give it to the service that receives the events, so that it can check the `webhook-signature` header. It is stored in state. Empty for adapters that do not sign.
 - `status` (String) `ACTIVE` or `PAUSED`.
 
 ## Import
