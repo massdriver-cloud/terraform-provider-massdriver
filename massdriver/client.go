@@ -36,16 +36,19 @@ type ProviderClient struct {
 	EventDestinations eventDestinationsAPI
 	EventTypes        eventTypesAPI
 
+	Stash stashAPI
+
 	// Thunked and memoized: provisioning.NewClient() errors outside a
 	// deployment, so construction waits until massdriver_resource is used.
 	ProvisioningResources func() (provisioningResourcesAPI, error)
 
 	// PlatformAuthErr is set when no API key or PAT resolved; every service
-	// above is nil except InstanceAlarms. See requiresAPIKey in provider.go.
+	// above is nil except InstanceAlarms and Stash. See requiresAPIKey in
+	// provider.go.
 	PlatformAuthErr error
 
 	// AlarmAuthErr is set when neither credential resolved, so InstanceAlarms
-	// is nil too. See requiresAnyCredential in provider.go.
+	// and Stash are nil too. See requiresAnyCredential in provider.go.
 	AlarmAuthErr error
 }
 
@@ -62,7 +65,7 @@ type ProviderConfig struct {
 // take different credentials:
 //
 //   - Most of the GraphQL platform API: API key or PAT only.
-//   - Instance alarms, also GraphQL: either credential.
+//   - Instance alarms and the stash, also GraphQL: either credential.
 //   - The REST surface behind massdriver_resource: deployment token only.
 //
 // An API key is used wherever it works, so a deployment token alongside it
@@ -94,6 +97,7 @@ func NewProviderClient(cfg ProviderConfig) (*ProviderClient, error) {
 		pc.OrganizationSettings = platform.Organizations
 		pc.EventDestinations = platform.EventDestinations
 		pc.EventTypes = platform.EventDestinations
+		pc.Stash = platform.Stash
 		return pc, nil
 	}
 	if !errors.Is(err, config.ErrNoCredentials) {
@@ -102,8 +106,8 @@ func NewProviderClient(cfg ProviderConfig) (*ProviderClient, error) {
 
 	pc.PlatformAuthErr = err
 
-	// Alarms still work over the deployment token. That client needs an
-	// organization id too — alarm queries pass one as an argument.
+	// Alarms and the stash still work over the deployment token. That client
+	// needs an organization id too — both pass one as an argument.
 	alarms, alarmErr := newDeploymentPlatformClient(cfg)
 	if alarmErr != nil {
 		pc.AlarmAuthErr = alarmErr
@@ -111,6 +115,7 @@ func NewProviderClient(cfg ProviderConfig) (*ProviderClient, error) {
 	}
 	pc.Config = alarms.Config()
 	pc.InstanceAlarms = alarms.Instances
+	pc.Stash = alarms.Stash
 	return pc, nil
 }
 
@@ -121,8 +126,8 @@ func newPlatformClient(cfg ProviderConfig) (*massdriver.Client, error) {
 }
 
 // newDeploymentPlatformClient builds a GraphQL client authenticated with the
-// deployment token. Only InstanceAlarms is wired to it; the rest of the
-// GraphQL API rejects deployment tokens.
+// deployment token. Only InstanceAlarms and Stash are wired to it; the rest of
+// the GraphQL API rejects deployment tokens.
 func newDeploymentPlatformClient(cfg ProviderConfig) (*massdriver.Client, error) {
 	return massdriver.NewClient(append(platformOptions(cfg), massdriver.WithDeploymentTokenAuth())...)
 }

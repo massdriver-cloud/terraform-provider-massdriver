@@ -1,6 +1,6 @@
 # Terraform Provider for Massdriver
 
-The official Terraform / OpenTofu provider for the [Massdriver](https://www.massdriver.cloud) platform. Manages projects, environments, components, groups, policies, OCI repositories, and the bundle-side resources (`massdriver_resource`, `massdriver_instance_alarm`, `massdriver_imported_resource`) — alongside the rest of the infrastructure declared in a bundle's IaC.
+The official Terraform / OpenTofu provider for the [Massdriver](https://www.massdriver.cloud) platform. Manages projects, environments, components, groups, policies, OCI repositories, the bundle-side resources (`massdriver_resource`, `massdriver_instance_alarm`, `massdriver_imported_resource`), and stash entries (`massdriver_stash_entry`) — alongside the rest of the infrastructure declared in a bundle's IaC.
 
 ## Documentation
 
@@ -31,7 +31,7 @@ resource "massdriver_project" "example" {
 }
 ```
 
-The provider reads its credentials and target from the standard `MASSDRIVER_*` environment variables resolved by the [Go SDK](https://github.com/massdriver-cloud/massdriver-sdk-go) — `MASSDRIVER_API_KEY`, `MASSDRIVER_ORGANIZATION_ID`, `MASSDRIVER_URL` for platform-side resources; `MASSDRIVER_DEPLOYMENT_ID` + `MASSDRIVER_TOKEN` (injected automatically by the platform) for `massdriver_resource` running inside a bundle deployment.
+The provider reads its credentials and target from the standard `MASSDRIVER_*` environment variables resolved by the [Go SDK](https://github.com/massdriver-cloud/massdriver-sdk-go) — `MASSDRIVER_API_KEY`, `MASSDRIVER_ORGANIZATION_ID`, `MASSDRIVER_URL` for platform-side resources; `MASSDRIVER_DEPLOYMENT_ID` + `MASSDRIVER_TOKEN` (injected automatically by the platform) for `massdriver_resource`, `massdriver_instance_alarm`, and the stash resource and data sources running inside a bundle deployment.
 
 ## Development
 

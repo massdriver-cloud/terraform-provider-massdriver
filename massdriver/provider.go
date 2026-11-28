@@ -13,7 +13,7 @@ func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
 			"api_key": {
-				Description: "Massdriver API key — a service account token or a personal access token (`mds_` / `md_` prefix). Overrides `MASSDRIVER_API_KEY`. Required by platform resources. Provisioning resources (`massdriver_resource`, `massdriver_instance_alarm`) use the deployment token (`MASSDRIVER_DEPLOYMENT_ID` + `MASSDRIVER_TOKEN`) the platform injects into a bundle deployment. Setting both is supported — each resource uses the credential it needs, and the API key wins wherever both work. Keep this out of version control; prefer the env var or `TF_VAR_*` for production setups.",
+				Description: "Massdriver API key — a service account token or a personal access token (`mds_` / `md_` prefix). Overrides `MASSDRIVER_API_KEY`. Required by platform resources. Provisioning resources (`massdriver_resource`, `massdriver_instance_alarm`, `massdriver_stash_entry`) use the deployment token (`MASSDRIVER_DEPLOYMENT_ID` + `MASSDRIVER_TOKEN`) the platform injects into a bundle deployment. Setting both is supported — each resource uses the credential it needs, and the API key wins wherever both work. Keep this out of version control; prefer the env var or `TF_VAR_*` for production setups.",
 				Type:        schema.TypeString,
 				Optional:    true,
 				Sensitive:   true,
@@ -66,10 +66,23 @@ func apiKeyDataSources() map[string]*schema.Resource {
 	}
 }
 
+// anyCredentialDataSources accept an API key or a deployment token.
+func anyCredentialDataSources() map[string]*schema.Resource {
+	return map[string]*schema.Resource{
+		"massdriver_stash_entry":   dataSourceStashEntry(),
+		"massdriver_stash_entries": dataSourceStashEntries(),
+	}
+}
+
 func dataSourcesMap() map[string]*schema.Resource {
-	dataSources := apiKeyDataSources()
-	for name, r := range dataSources {
+	dataSources := map[string]*schema.Resource{}
+	for name, r := range apiKeyDataSources() {
 		requireAuth(name, r, requiresAPIKey)
+		dataSources[name] = r
+	}
+	for name, r := range anyCredentialDataSources() {
+		requireAuth(name, r, requiresAnyCredential)
+		dataSources[name] = r
 	}
 	return dataSources
 }
@@ -80,6 +93,7 @@ func dataSourcesMap() map[string]*schema.Resource {
 func anyCredentialResources() map[string]*schema.Resource {
 	return map[string]*schema.Resource{
 		"massdriver_instance_alarm": resourceInstanceAlarm(),
+		"massdriver_stash_entry":    resourceStashEntry(),
 	}
 }
 

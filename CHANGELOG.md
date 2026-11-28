@@ -1,5 +1,30 @@
 # Changelog
 
+## 2.8.0
+
+### Added
+
+- **`massdriver_stash_entry`** (alpha) writes one entry to the stash of a
+  project, environment, component, instance, or deployment. It works with an
+  API key or with the deployment token inside a bundle deployment.
+  - Set exactly one of `value` or `sensitive_value`. `sensitive_value` writes
+    a sensitive entry and is hidden in plan output. When the caller cannot
+    read a sensitive value back, state keeps the configured value.
+  - With `format = "JSON"`, values that differ only in key order or
+    whitespace do not show as changes.
+  - Changing the scope or `key` replaces the entry. Changing an entry with
+    `immutable = true` deletes it and writes it again.
+  - An entry that expires (`ttl`) or is deleted outside Terraform is written
+    again on the next apply.
+  - Import by `<kind>:<scope-id>/<key>`.
+- **`massdriver_stash_entry`** and **`massdriver_stash_entries`** data sources
+  (alpha) read one entry, or list a stash's entries with an optional
+  `key_prefix`.
+
+### Changed
+
+- massdriver-sdk-go is v0.6.0.
+
 ## 2.7.0
 
 ### Added

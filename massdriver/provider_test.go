@@ -90,13 +90,74 @@ func TestAPIKeyResourcesGuarded(t *testing.T) {
 func TestAPIKeyDataSourcesGuarded(t *testing.T) {
 	pc := &ProviderClient{PlatformAuthErr: config.ErrNoCredentials}
 
-	for name, r := range Provider().DataSourcesMap {
+	for name := range apiKeyDataSources() {
 		t.Run(name, func(t *testing.T) {
+			r := Provider().DataSourcesMap[name]
 			diags := r.ReadContext(context.Background(), r.TestResourceData(), pc)
 			if !diags.HasError() || !strings.Contains(diags[0].Summary, "No Massdriver API key") {
 				t.Errorf("got %v, want the missing-API-key diagnostic", diags)
 			}
 		})
+	}
+}
+
+func TestEveryDataSourceIsClassified(t *testing.T) {
+	seen := map[string]int{}
+	for _, bucket := range []map[string]*schema.Resource{apiKeyDataSources(), anyCredentialDataSources()} {
+		for name := range bucket {
+			seen[name]++
+		}
+	}
+	for name := range Provider().DataSourcesMap {
+		if seen[name] != 1 {
+			t.Errorf("%s is in %d auth buckets, want 1", name, seen[name])
+		}
+	}
+	if len(seen) != len(Provider().DataSourcesMap) {
+		t.Errorf("buckets classify %d data sources, provider registers %d", len(seen), len(Provider().DataSourcesMap))
+	}
+}
+
+func TestAnyCredentialDataSourcesGuardedWithNoCredentials(t *testing.T) {
+	pc := &ProviderClient{
+		PlatformAuthErr: config.ErrNoCredentials,
+		AlarmAuthErr:    config.ErrDeploymentCredentialsMissing,
+	}
+
+	for name := range anyCredentialDataSources() {
+		t.Run(name, func(t *testing.T) {
+			r := Provider().DataSourcesMap[name]
+			diags := r.ReadContext(context.Background(), r.TestResourceData(), pc)
+			if !diags.HasError() || !strings.Contains(diags[0].Summary, "No Massdriver credentials") {
+				t.Errorf("got %v, want the missing-credentials diagnostic", diags)
+			}
+		})
+	}
+}
+
+// A bundle writes and reads the stash with the deployment token alone.
+func TestStashRunsWithDeploymentTokenOnly(t *testing.T) {
+	fake := &fakeStash{getErr: errors.New("sentinel: reached the resource body")}
+	pc := &ProviderClient{
+		PlatformAuthErr: config.ErrNoCredentials,
+		Stash:           fake,
+	}
+
+	r := Provider().ResourcesMap["massdriver_stash_entry"]
+	d := r.TestResourceData()
+	d.SetId("instance:ecomm-prod-db/release")
+	d.Set("instance", "ecomm-prod-db")
+	d.Set("key", "release")
+	if diags := r.ReadContext(context.Background(), d, pc); !diags.HasError() || !strings.Contains(diags[0].Summary, "sentinel") {
+		t.Errorf("resource read: diags = %v, want the resource body to run", diags)
+	}
+
+	ds := Provider().DataSourcesMap["massdriver_stash_entry"]
+	dd := ds.TestResourceData()
+	dd.Set("instance", "ecomm-prod-db")
+	dd.Set("key", "release")
+	if diags := ds.ReadContext(context.Background(), dd, pc); !diags.HasError() || !strings.Contains(diags[0].Summary, "sentinel") {
+		t.Errorf("data source read: diags = %v, want the data source body to run", diags)
 	}
 }
 
