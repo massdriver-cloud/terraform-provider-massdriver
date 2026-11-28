@@ -17,6 +17,7 @@ import (
 type fakeStash struct {
 	getResp *stash.Entry
 	getErr  error
+	setResp *stash.Entry
 	setErr  error
 	delErr  error
 	entries []stash.Entry
@@ -52,7 +53,13 @@ func (f *fakeStash) Iter(_ context.Context, _ stash.Scope, _ stash.ListInput) it
 func (f *fakeStash) Set(_ context.Context, scope stash.Scope, key string, input stash.SetInput) (*stash.Entry, error) {
 	f.setScope, f.setKey, f.setInput = scope, key, input
 	f.setCalls++
-	return &stash.Entry{Key: key}, f.setErr
+	if f.setErr != nil {
+		return nil, f.setErr
+	}
+	if f.setResp != nil {
+		return f.setResp, nil
+	}
+	return &stash.Entry{Key: key, Value: &input.Value, Format: string(input.Format), Label: input.Label, Immutable: input.Immutable, Sensitive: input.Sensitive}, nil
 }
 
 func (f *fakeStash) Delete(_ context.Context, scope stash.Scope, key string) error {
@@ -180,7 +187,9 @@ func TestJSONEquivalent(t *testing.T) {
 }
 
 func TestStashEntryCreate(t *testing.T) {
-	fake := &fakeStash{getResp: &stash.Entry{Key: "db/hostname", Value: strPtr("db.example.com"), Format: "TEXT", Label: "Database host"}}
+	// Get fails as if a short TTL had already expired: state comes from
+	// the write, so create still succeeds.
+	fake := &fakeStash{getErr: gql.ErrNotFound}
 	pc := &ProviderClient{Stash: fake}
 
 	d := schema.TestResourceDataRaw(t, resourceStashEntry().Schema, map[string]any{
@@ -205,10 +214,13 @@ func TestStashEntryCreate(t *testing.T) {
 	if fake.setInput != want {
 		t.Errorf("got SetInput %+v, want %+v", fake.setInput, want)
 	}
+	if got := d.Get("value"); got != "db.example.com" {
+		t.Errorf("got value %q, want db.example.com", got)
+	}
 }
 
 func TestStashEntryCreateSensitive(t *testing.T) {
-	fake := &fakeStash{getResp: &stash.Entry{Key: "kubeconfig", Value: nil, Format: "TEXT", Sensitive: true}}
+	fake := &fakeStash{setResp: &stash.Entry{Key: "kubeconfig", Value: nil, Format: "TEXT", Sensitive: true}}
 	pc := &ProviderClient{Stash: fake}
 
 	d := schema.TestResourceDataRaw(t, resourceStashEntry().Schema, map[string]any{

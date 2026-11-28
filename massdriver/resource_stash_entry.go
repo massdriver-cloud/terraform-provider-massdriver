@@ -171,27 +171,34 @@ func resourceStashEntry() *schema.Resource {
 }
 
 func resourceStashEntryCreate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	if diags := writeStashEntry(ctx, d, meta); diags.HasError() {
+	entry, diags := writeStashEntry(ctx, d, meta)
+	if diags.HasError() {
 		return diags
 	}
 	scope, _ := stashScopeFromData(d)
 	d.SetId(stashEntryID(scope, d.Get("key").(string)))
-	return resourceStashEntryRead(ctx, d, meta)
+	setStashEntryState(d, entry)
+	return nil
 }
 
 func resourceStashEntryUpdate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	if diags := writeStashEntry(ctx, d, meta); diags.HasError() {
+	entry, diags := writeStashEntry(ctx, d, meta)
+	if diags.HasError() {
 		return diags
 	}
-	return resourceStashEntryRead(ctx, d, meta)
+	setStashEntryState(d, entry)
+	return nil
 }
 
-func writeStashEntry(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
+// writeStashEntry sets the entry and returns what the server stored. State
+// comes from that result, not from a read: an entry with a short TTL can
+// expire before a read.
+func writeStashEntry(ctx context.Context, d *schema.ResourceData, meta any) (*stash.Entry, diag.Diagnostics) {
 	pc := meta.(*ProviderClient)
 
 	scope, err := stashScopeFromData(d)
 	if err != nil {
-		return diag.FromErr(err)
+		return nil, diag.FromErr(err)
 	}
 
 	input := stash.SetInput{
@@ -207,10 +214,11 @@ func writeStashEntry(ctx context.Context, d *schema.ResourceData, meta any) diag
 		input.Value = d.Get("value").(string)
 	}
 
-	if _, err := pc.Stash.Set(ctx, scope, d.Get("key").(string), input); err != nil {
-		return diag.FromErr(err)
+	entry, err := pc.Stash.Set(ctx, scope, d.Get("key").(string), input)
+	if err != nil {
+		return nil, diag.FromErr(err)
 	}
-	return nil
+	return entry, nil
 }
 
 func resourceStashEntryRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
@@ -231,6 +239,11 @@ func resourceStashEntryRead(ctx context.Context, d *schema.ResourceData, meta an
 		return diag.FromErr(err)
 	}
 
+	setStashEntryState(d, entry)
+	return nil
+}
+
+func setStashEntryState(d *schema.ResourceData, entry *stash.Entry) {
 	d.Set("format", entry.Format)
 	d.Set("label", entry.Label)
 	d.Set("immutable", entry.Immutable)
@@ -247,8 +260,6 @@ func resourceStashEntryRead(ctx context.Context, d *schema.ResourceData, meta an
 			d.Set("sensitive_value", nil)
 		}
 	}
-
-	return nil
 }
 
 func resourceStashEntryDelete(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
@@ -263,9 +274,13 @@ func resourceStashEntryDelete(ctx context.Context, d *schema.ResourceData, meta 
 	if err := pc.Stash.Delete(ctx, scope, key); err != nil {
 		// The server reports a missing entry as a failed mutation, not as
 		// not found. An entry that is already gone does not block destroy.
-		if _, getErr := pc.Stash.Get(ctx, scope, key); errors.Is(getErr, gql.ErrNotFound) {
+		_, getErr := pc.Stash.Get(ctx, scope, key)
+		if errors.Is(getErr, gql.ErrNotFound) {
 			d.SetId("")
 			return nil
+		}
+		if getErr != nil {
+			return diag.FromErr(fmt.Errorf("%w; reading the entry after the failed delete also failed: %w", err, getErr))
 		}
 		return diag.FromErr(err)
 	}
