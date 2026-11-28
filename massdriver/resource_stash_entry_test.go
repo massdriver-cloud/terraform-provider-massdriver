@@ -90,6 +90,10 @@ func TestStashEntryScopeValidation(t *testing.T) {
 			config:  map[string]any{"project": "ecomm", "key": "release", "value": "v1", "sensitive_value": "v1"},
 			wantErr: true,
 		},
+		"empty sensitive_value": {
+			config:  map[string]any{"project": "ecomm", "key": "release", "sensitive_value": ""},
+			wantErr: true,
+		},
 		"key with a space": {
 			config:  map[string]any{"project": "ecomm", "key": "my key", "value": "v1"},
 			wantErr: true,
@@ -108,7 +112,7 @@ func TestStashEntryScopeValidation(t *testing.T) {
 						cfg[k] = v
 					}
 				}
-				if label == "data source" && name == "value and sensitive_value" {
+				if label == "data source" && strings.Contains(name, "sensitive_value") {
 					continue
 				}
 				diags := r.Validate(terraform.NewResourceConfigRaw(cfg))
@@ -410,6 +414,19 @@ func TestStashEntryPlanIgnoresJSONFormatting(t *testing.T) {
 		baseStashState(map[string]string{"format": "JSON", "value": `{"version":"1.2.3","image":"api:abc"}`}),
 		map[string]any{"project": "ecomm", "key": "release", "format": "JSON", "value": "{\n  \"image\": \"api:abc\",\n  \"version\": \"1.2.3\"\n}"})
 	if diff != nil && diff.Attributes["value"] != nil {
+		t.Errorf("got a value change %v, want none for equivalent JSON", diff.Attributes["value"])
+	}
+}
+
+// Switching to JSON compares the values as JSON. The format change itself
+// still shows, so the apply writes the entry.
+func TestStashEntryPlanFormatChangeToJSON(t *testing.T) {
+	diff := planStashEntry(t, baseStashState(map[string]string{"value": `{"a":1}`}),
+		map[string]any{"project": "ecomm", "key": "release", "format": "JSON", "value": `{ "a": 1 }`})
+	if diff == nil || diff.Attributes["format"] == nil {
+		t.Fatalf("got diff %v, want a format change", diff)
+	}
+	if diff.Attributes["value"] != nil {
 		t.Errorf("got a value change %v, want none for equivalent JSON", diff.Attributes["value"])
 	}
 }

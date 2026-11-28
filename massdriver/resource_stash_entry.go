@@ -111,6 +111,7 @@ func resourceStashEntry() *schema.Resource {
 			Optional:         true,
 			Sensitive:        true,
 			ExactlyOneOf:     []string{"value", "sensitive_value"},
+			ValidateFunc:     validation.StringIsNotEmpty,
 			DiffSuppressFunc: suppressEquivalentStashValue,
 		},
 		"format": {
