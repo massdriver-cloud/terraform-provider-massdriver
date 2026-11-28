@@ -12,7 +12,15 @@ import (
 )
 
 func dataSourceStashEntries() *schema.Resource {
+	// Terraform cannot mark one attribute of a computed list element as
+	// sensitive, so sensitive values are left out of the list entirely.
 	entry := stashEntryFields()
+	delete(entry, "sensitive_value")
+	entry["value"] = &schema.Schema{
+		Description: "The entry's value. Empty for a sensitive entry: read it with the `massdriver_stash_entry` data source.",
+		Type:        schema.TypeString,
+		Computed:    true,
+	}
 	entry["key"] = &schema.Schema{
 		Description: "The entry's key.",
 		Type:        schema.TypeString,
@@ -32,7 +40,7 @@ func dataSourceStashEntries() *schema.Resource {
 			Elem:        &schema.Schema{Type: schema.TypeString},
 		},
 		"entries": {
-			Description: "The listed entries, sorted by key. Expired entries are not listed.",
+			Description: "The listed entries, sorted by key. Expired entries are not listed. The value of a sensitive entry is not listed.",
 			Type:        schema.TypeList,
 			Computed:    true,
 			Elem:        &schema.Resource{Schema: entry},
@@ -77,7 +85,9 @@ func dataSourceStashEntriesRead(ctx context.Context, d *schema.ResourceData, met
 	entries := make([]map[string]any, 0, len(matched))
 	for i := range matched {
 		keys = append(keys, matched[i].Key)
-		entries = append(entries, flattenStashEntry(&matched[i]))
+		e := flattenStashEntry(&matched[i])
+		delete(e, "sensitive_value")
+		entries = append(entries, e)
 	}
 
 	if err := d.Set("keys", keys); err != nil {

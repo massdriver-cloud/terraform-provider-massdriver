@@ -106,7 +106,7 @@ func resourceStashEntry() *schema.Resource {
 			DiffSuppressFunc: suppressEquivalentStashValue,
 		},
 		"sensitive_value": {
-			Description:      "The entry's value, stored as a sensitive entry. Massdriver encrypts it, and only callers with `stash:export` and the deployment's own token can read it. Terraform hides it in plan output. Set exactly one of `value` or `sensitive_value`. A key that starts with `md/` cannot be sensitive.",
+			Description:      "The entry's value, stored as a sensitive entry. Massdriver encrypts it. Only a caller with `stash:export`, or a deployment token, can read it. Terraform hides it in plan output. Set exactly one of `value` or `sensitive_value`. A key that starts with `md/` cannot be sensitive.",
 			Type:             schema.TypeString,
 			Optional:         true,
 			Sensitive:        true,
@@ -152,7 +152,7 @@ func resourceStashEntry() *schema.Resource {
 	return &schema.Resource{
 		Description: stashAlphaNotice + "\n\n" +
 			"An entry in the Massdriver stash of a project, environment, component, instance, or deployment. " +
-			"A write replaces the whole entry. If the key already has an entry, Terraform replaces it. " +
+			"A write replaces the whole entry. Creating this resource overwrites an entry that already has the key. " +
 			"Changing the scope or the key replaces the entry. Changing an immutable entry deletes it and writes it again. " +
 			"Do not use `create_before_destroy` with this resource: the old and new entries have the same key, so deleting the old entry deletes the new one.",
 

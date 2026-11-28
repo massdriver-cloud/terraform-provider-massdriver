@@ -115,6 +115,6 @@ Platform resources require an API key: deployment tokens don't carry the server-
 
 ### Optional
 
-- `api_key` (String, Sensitive) Massdriver API key — a service account token or a personal access token (`mds_` / `md_` prefix). Overrides `MASSDRIVER_API_KEY`. Required by platform resources. Provisioning resources (`massdriver_resource`, `massdriver_instance_alarm`) use the deployment token (`MASSDRIVER_DEPLOYMENT_ID` + `MASSDRIVER_TOKEN`) the platform injects into a bundle deployment. Setting both is supported — each resource uses the credential it needs, and the API key wins wherever both work. Keep this out of version control; prefer the env var or `TF_VAR_*` for production setups.
+- `api_key` (String, Sensitive) Massdriver API key — a service account token or a personal access token (`mds_` / `md_` prefix). Overrides `MASSDRIVER_API_KEY`. Required by platform resources. Provisioning resources (`massdriver_resource`, `massdriver_instance_alarm`, `massdriver_stash_entry`) use the deployment token (`MASSDRIVER_DEPLOYMENT_ID` + `MASSDRIVER_TOKEN`) the platform injects into a bundle deployment. Setting both is supported — each resource uses the credential it needs, and the API key wins wherever both work. Keep this out of version control; prefer the env var or `TF_VAR_*` for production setups.
 - `organization_id` (String) Massdriver organization ID this provider operates against. Overrides `MASSDRIVER_ORGANIZATION_ID`.
 - `url` (String) Massdriver API base URL. Overrides `MASSDRIVER_URL`. Only set when targeting a self-hosted instance.

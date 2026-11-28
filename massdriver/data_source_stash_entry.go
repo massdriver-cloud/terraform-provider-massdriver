@@ -21,7 +21,7 @@ func stashEntryFields() map[string]*schema.Schema {
 			Computed:    true,
 		},
 		"sensitive_value": {
-			Description: "The value of a sensitive entry. Empty when the entry is not sensitive, or when the caller cannot read sensitive values. Reading it needs `stash:export` or the deployment's own token.",
+			Description: "The value of a sensitive entry. Empty when the entry is not sensitive, or when the caller cannot read sensitive values. Reading it needs `stash:export` or a deployment token.",
 			Type:        schema.TypeString,
 			Computed:    true,
 			Sensitive:   true,

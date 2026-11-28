@@ -100,6 +100,25 @@ func TestDataSourceStashEntriesFiltersByPrefix(t *testing.T) {
 	}
 }
 
+// A list element cannot hold a sensitive attribute, so a sensitive value is
+// not listed at all.
+func TestDataSourceStashEntriesLeavesOutSensitiveValues(t *testing.T) {
+	fake := &fakeStash{entries: []stash.Entry{
+		{Key: "kubeconfig", Value: strPtr("secret"), Format: "TEXT", Sensitive: true},
+	}}
+	d := schema.TestResourceDataRaw(t, dataSourceStashEntries().Schema, map[string]any{"environment": "ecomm-prod"})
+
+	if diags := dataSourceStashEntriesRead(t.Context(), d, &ProviderClient{Stash: fake}); diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	if got := d.Get("entries.0.value"); got != "" {
+		t.Errorf("entries.0.value = %q, want empty", got)
+	}
+	if got := d.Get("entries.0.sensitive"); got != true {
+		t.Errorf("entries.0.sensitive = %v, want true", got)
+	}
+}
+
 func TestDataSourceStashEntriesReportsListError(t *testing.T) {
 	fake := &fakeStash{iterErr: errors.New("list stash entries in project:ecomm: forbidden")}
 	d := schema.TestResourceDataRaw(t, dataSourceStashEntries().Schema, map[string]any{"project": "ecomm"})
