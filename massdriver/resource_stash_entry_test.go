@@ -392,6 +392,24 @@ func TestStashEntryPlanReplacesImmutableEntry(t *testing.T) {
 	}
 }
 
+func TestStashEntryPlanReplacesImmutableEntryMadeSensitive(t *testing.T) {
+	diff := planStashEntry(t, baseStashState(map[string]string{"immutable": "true"}),
+		map[string]any{"project": "ecomm", "key": "release", "sensitive_value": "v2", "immutable": true})
+	if diff == nil || !diff.RequiresNew() {
+		t.Fatalf("got diff %v, want a replacement", diff)
+	}
+}
+
+// An entry made sensitive outside Terraform reads into sensitive_value, so a
+// configuration that sets value plans a write back to a non-sensitive entry.
+func TestStashEntryPlanAfterServerMadeEntrySensitive(t *testing.T) {
+	diff := planStashEntry(t, baseStashState(map[string]string{"value": "", "sensitive_value": "v1", "sensitive": "true"}),
+		map[string]any{"project": "ecomm", "key": "release", "value": "v1"})
+	if diff == nil || diff.Attributes["value"] == nil || diff.Attributes["sensitive"] == nil || diff.Attributes["sensitive"].New != "false" {
+		t.Fatalf("got diff %v, want value written and sensitive planned as false", diff)
+	}
+}
+
 // A mutable entry can become immutable in place: the write that sets the
 // flag is not refused.
 func TestStashEntryPlanMakesEntryImmutableInPlace(t *testing.T) {

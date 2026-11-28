@@ -76,7 +76,7 @@ resource "massdriver_stash_entry" "kubeconfig" {
 - `label` (String) A name for the entry, up to 255 characters. An entry with a label shows as a row on the Metadata panels. A label is not encrypted, so do not put secrets in it.
 - `project` (String) Identifier of the project whose stash holds the entry, such as `ecomm`. Set exactly one of `project`, `environment`, `component`, `instance`, or `deployment`.
 - `sensitive_value` (String, Sensitive) The entry's value, stored as a sensitive entry. Massdriver encrypts it. Only a caller with `stash:export`, or a deployment token, can read it. Terraform hides it in plan output. Set exactly one of `value` or `sensitive_value`. A key that starts with `md/` cannot be sensitive.
-- `ttl` (Number) Seconds until the entry expires, up to 315360000 (10 years). `0` keeps the entry until it is deleted. Each write starts the time again. After the entry expires, the next plan shows it as missing and the next apply writes it again. Do not use Terraform to manage a value that must expire and stay gone.
+- `ttl` (Number) Seconds until the entry expires, up to 315360000 (10 years). `0` keeps the entry until it is deleted. Each write starts the time again. The API does not return the TTL, so a TTL changed outside Terraform does not show as a change. After the entry expires, the next plan shows it as missing and the next apply writes it again. Do not use Terraform to manage a value that must expire and stay gone.
 - `value` (String) The entry's value. Use `jsonencode` for a `JSON` entry. Set exactly one of `value` or `sensitive_value`. A `value` shows in plan output.
 
 ### Read-Only

@@ -128,7 +128,7 @@ func resourceStashEntry() *schema.Resource {
 			ValidateFunc: validation.StringLenBetween(0, 255),
 		},
 		"ttl": {
-			Description:  "Seconds until the entry expires, up to 315360000 (10 years). `0` keeps the entry until it is deleted. Each write starts the time again. After the entry expires, the next plan shows it as missing and the next apply writes it again. Do not use Terraform to manage a value that must expire and stay gone.",
+			Description:  "Seconds until the entry expires, up to 315360000 (10 years). `0` keeps the entry until it is deleted. Each write starts the time again. The API does not return the TTL, so a TTL changed outside Terraform does not show as a change. After the entry expires, the next plan shows it as missing and the next apply writes it again. Do not use Terraform to manage a value that must expire and stay gone.",
 			Type:         schema.TypeInt,
 			Optional:     true,
 			Default:      0,
